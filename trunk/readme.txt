@@ -1,34 +1,34 @@
-MMDBridge
+ï»¿MMDBridge
 
-ƒrƒ‹ƒh•û–@
-EDirectX SDK‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚Äinclude/lib‚ÌÝ’è‚ð‚·‚é.
-  ƒvƒƒWƒFƒNƒgƒtƒ@ƒCƒ‹‚É‚ÍÝ’è‚µ‚Ä‚¢‚È‚¢.
-  ƒo[ƒWƒ‡ƒ“‚Í9.0cˆÈ~‚Ì2005‚ ‚½‚è‚Ì‚ð“K“–‚ÉŽg‚¤.
-  ƒrƒ‹ƒhŽž‚ÉDirectX‚Ìƒwƒbƒ_‚ÅƒGƒ‰[‚ªo‚½‚çDirectX‚Ìƒwƒbƒ_‚ð“K“–‚ÉƒRƒƒ“ƒgƒAƒEƒg‚·‚é.
-  ‘¼‚É‘Îˆ–@‚ª‚ ‚é‚©‚à‚µ‚ê‚È‚¢‚ª’m‚ç‚È‚¢.
-Epython3.2 (win32)‚ðƒCƒ“ƒXƒg[ƒ‹‚·‚é.
-Elibs/mmd/include, libs/mmd/lib ‚ÉMikuMikuDance‚ÌDataƒtƒHƒ‹ƒ_‚É“ü‚Á‚Ä‚¢‚é, 
-  MMDExport.h, MMDExport.lib‚ð’u‚­
-ERelease/ ‚ÉMikuMikuDance.exe‚Æ“¯ŠK‘w‚É‚ ‚éƒtƒ@ƒCƒ‹‚ð‘S‚Äã‘‚«ƒRƒs[‚·‚é.
-ERelease/ ‚Épython3.dll‚ð’u‚­.
-  (python3.dll‚ÍPython32‚ðƒCƒ“ƒXƒg[ƒ‹‚µ‚½ƒfƒBƒŒƒNƒgƒŠ‚ÌDLLs‚Ì’†‚É‚ ‚é)
-EVC2008 Express Edition‚Åhook.sln‚ðŠJ‚¢‚Äƒrƒ‹ƒh‚·‚é.
-EDebugƒrƒ‹ƒh‚Í¬Œ÷‚µ‚½‚Æ‚±‚ë‚ÅƒfƒoƒbƒO‚Å‚«‚È‚¢‚Ì‚Å,
-  \¬‚É‚»‚à‚»‚à“ü‚ê‚Ä‚¢‚È‚¢. 
-  ‘Îˆ–@‚ª‚ ‚é‚©‚à‚µ‚ê‚È‚¢‚ª’m‚ç‚È‚¢.
-  ‚ß‚ñ‚Ç‚­‚³‚¢‚ªRelease‚ÅMessageBoxƒfƒoƒbƒO‚µ‚Ä‚¢‚½.
+ãƒ“ãƒ«ãƒ‰æ–¹æ³•
+ãƒ»DirectX SDKã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ã¦include/libã®è¨­å®šã‚’ã™ã‚‹.
+  ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ãƒˆãƒ•ã‚¡ã‚¤ãƒ«ã«ã¯è¨­å®šã—ã¦ã„ãªã„.
+  ãƒãƒ¼ã‚¸ãƒ§ãƒ³ã¯9.0cä»¥é™ã®2005ã‚ãŸã‚Šã®ã‚’é©å½“ã«ä½¿ã†.
+  ãƒ“ãƒ«ãƒ‰æ™‚ã«DirectXã®ãƒ˜ãƒƒãƒ€ã§ã‚¨ãƒ©ãƒ¼ãŒå‡ºãŸã‚‰DirectXã®ãƒ˜ãƒƒãƒ€ã‚’é©å½“ã«ã‚³ãƒ¡ãƒ³ãƒˆã‚¢ã‚¦ãƒˆã™ã‚‹.
+  ä»–ã«å¯¾å‡¦æ³•ãŒã‚ã‚‹ã‹ã‚‚ã—ã‚Œãªã„ãŒçŸ¥ã‚‰ãªã„.
+ãƒ»python3.2 (win32)ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã™ã‚‹.
+ãƒ»libs/mmd/include, libs/mmd/lib ã«MikuMikuDanceã®Dataãƒ•ã‚©ãƒ«ãƒ€ã«å…¥ã£ã¦ã„ã‚‹, 
+  MMDExport.h, MMDExport.libã‚’ç½®ã
+ãƒ»Release/ ã«MikuMikuDance.exeã¨åŒéšŽå±¤ã«ã‚ã‚‹ãƒ•ã‚¡ã‚¤ãƒ«ã‚’å…¨ã¦ä¸Šæ›¸ãã‚³ãƒ”ãƒ¼ã™ã‚‹.
+ãƒ»Release/ ã«python3.dllã‚’ç½®ã.
+  (python3.dllã¯Python32ã‚’ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«ã—ãŸãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã®DLLsã®ä¸­ã«ã‚ã‚‹)
+ãƒ»VC2008 Express Editionã§hook.slnã‚’é–‹ã„ã¦ãƒ“ãƒ«ãƒ‰ã™ã‚‹.
+ãƒ»Debugãƒ“ãƒ«ãƒ‰ã¯æˆåŠŸã—ãŸã¨ã“ã‚ã§ãƒ‡ãƒãƒƒã‚°ã§ããªã„ã®ã§,
+  æ§‹æˆã«ãã‚‚ãã‚‚å…¥ã‚Œã¦ã„ãªã„. 
+  å¯¾å‡¦æ³•ãŒã‚ã‚‹ã‹ã‚‚ã—ã‚Œãªã„ãŒçŸ¥ã‚‰ãªã„.
+  ã‚ã‚“ã©ãã•ã„ãŒReleaseã§MessageBoxãƒ‡ãƒãƒƒã‚°ã—ã¦ã„ãŸ.
 
-‚»‚Ì‘¼
-EAlembico—Í‚ðŽÀ‘•‚µ‚©‚¯‚½‚ªSimpleAbcViewer‚ÅŒ©‚ê‚éó‘Ô‚Ü‚Å‚¢‚¯‚½‚à‚Ì‚Ì,
-  houdini,maya‚ÅƒCƒ“ƒ|[ƒg‚Å‚«‚é‚É‚ÍŽŠ‚ç‚È‚©‚Á‚½‚Ì‚Å“r’†‚Å•ú’u‚µ‚Ä‚¢‚é.
-  —LŒø‚É‚·‚é‚É‚ÍAlembic‚ðŠæ’£‚Á‚Äƒrƒ‹ƒh‚µ‚Ä,libsˆÈ‰º‚É”z’u‚µ,
-  WITH_ALEMBIC‚ðŽw’è‚µ‚Äƒrƒ‹ƒh‚·‚é.
+ãã®ä»–
+ãƒ»Alembicå‡ºåŠ›ã‚’å®Ÿè£…ã—ã‹ã‘ãŸãŒSimpleAbcViewerã§è¦‹ã‚Œã‚‹çŠ¶æ…‹ã¾ã§ã„ã‘ãŸã‚‚ã®ã®,
+  houdini,mayaã§ã‚¤ãƒ³ãƒãƒ¼ãƒˆã§ãã‚‹ã«ã¯è‡³ã‚‰ãªã‹ã£ãŸã®ã§é€”ä¸­ã§æ”¾ç½®ã—ã¦ã„ã‚‹.
+  æœ‰åŠ¹ã«ã™ã‚‹ã«ã¯Alembicã‚’é ‘å¼µã£ã¦ãƒ“ãƒ«ãƒ‰ã—ã¦,libsä»¥ä¸‹ã«é…ç½®ã—,
+  WITH_ALEMBICã‚’æŒ‡å®šã—ã¦ãƒ“ãƒ«ãƒ‰ã™ã‚‹.
 
-–ÆÓŽ–€
-EMITƒ‰ƒCƒZƒ“ƒX‚É]‚¢‚Ü‚·.
-EÚ×‚ÍLICENSE.txt‚ð‚²ŽQÆ‚­‚¾‚³‚¢.
+å…è²¬äº‹é …
+ãƒ»MITãƒ©ã‚¤ã‚»ãƒ³ã‚¹ã«å¾“ã„ã¾ã™.
+ãƒ»è©³ç´°ã¯LICENSE.txtã‚’ã”å‚ç…§ãã ã•ã„.
 
-XV—š—ð
-2012/03/10 - MMDƒIƒt‘O‚É”t“®‰æ‚ðŒ©‚È‚ª‚ç - uimac
+æ›´æ–°å±¥æ­´
+2012/03/10 - MMDã‚ªãƒ•å‰ã«æ¯å‹•ç”»ã‚’è¦‹ãªãŒã‚‰ - uimac
 
 http://code.google.com/p/mmdbridge/
