@@ -46,16 +46,18 @@ public:
 
 	Alembic::Abc::OArchive * archive;
 	boost::uint32_t timeindex;
+
+	AbcA::TimeSamplingPtr timesampling;
 	
 
-	typedef std::map<int, Alembic::AbcGeom::OObject > ObjectMap;
-	ObjectMap objectMap;
+	typedef std::map<int, Alembic::AbcGeom::OXform > XformMap;
+	XformMap xformMap;
 
 	typedef std::map<int, Alembic::AbcGeom::OPolyMesh > MeshMap;
 	MeshMap meshMap;
 
 	void end() { 
-		objectMap.clear();
+		xformMap.clear();
 		meshMap.clear();
 		{
 			delete archive; archive = NULL;
@@ -821,14 +823,13 @@ extern "C" {
 			}
 
 			AlembicArchive::instance().archive =
-				new Alembic::Abc::OArchive(Alembic::AbcCoreHDF5::v1::WriteArchive(),
+				new Alembic::Abc::OArchive(Alembic::AbcCoreHDF5::WriteArchive(),
 				output_path.c_str());
 
 			AlembicArchive &archive = AlembicArchive::instance();
 				
 			const double dt = 1.0 / 30.0;
-			AbcA::TimeSampling geoTime = AbcA::TimeSampling(dt, 0.0);
-			archive.timeindex = archive.archive->addTimeSampling(geoTime);
+			archive.timesampling = AbcA::TimeSamplingPtr(new AbcA::TimeSampling(dt, 0.0));
 
 			return Py_BuildValue("i", 1); //success
 		}
@@ -854,43 +855,42 @@ extern "C" {
 		AlembicArchive &archive = AlembicArchive::instance();
 		if (!archive.archive) { return Py_BuildValue(""); }
 
-		//Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
-
-		boost::uint32_t timeindex = archive.timeindex;
-
-		Alembic::AbcGeom::OObject topObj = archive.archive->getTop();
-
+		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
+		
 		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
-
-			Alembic::AbcGeom::OObject meshObj;
-			if (archive.objectMap.find(i) != archive.objectMap.end())
+			
+			Alembic::AbcGeom::OXform xform;
+			if (archive.xformMap.find(i) != archive.xformMap.end())
 			{
-				meshObj = archive.objectMap[i];
+				xform = archive.xformMap[i];
 			}
 			else
-			{
-				meshObj = Alembic::AbcGeom::OObject(topObj, "mesh_object_" + to_string(i));
-				archive.objectMap[i] = meshObj;
+			{			
+				xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(i), archive.timesampling);
+				archive.xformMap[i] = xform;
 			}
-
+			
+			bool isFirstMesh = false;
 			Alembic::AbcGeom::OPolyMesh polyMesh;
 			if (archive.meshMap.find(i) != archive.meshMap.end())
 			{
 				polyMesh = archive.meshMap[i];
-				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-				meshSchema.setFromPrevious();
 			}
 			else
 			{
-				polyMesh = Alembic::AbcGeom::OPolyMesh(meshObj, "mesh_" + to_string(i));
+				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(i), archive.timesampling);
 				archive.meshMap[i] = polyMesh;
+				isFirstMesh = true;
 			}
 
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-			meshSchema.setTimeSampling(timeindex);
+			
+			Alembic::AbcGeom::XformSample xformSample;
+			xform.getSchema().set(xformSample);
 
+			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
+			
 			std::vector<Alembic::Util::int32_t> faceList;
 			std::vector<Alembic::Util::int32_t> faceCountList;
 
@@ -914,25 +914,38 @@ extern "C" {
 				}
 			}
 
-			// UV
-			Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-			uvSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
-			uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
+			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
 
-			// ñ@ê¸
-			Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-			normalSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
-			normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Imath::V3f *) &normalList.front(), normalList.size()));
+			if (isFirstMesh)
+			{
+				// ñ@ê¸
+				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
+				normalSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
+				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Imath::V3f *) &normalList.front(), normalList.size()));
+				
+				// UV
+				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
+				uvSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
+				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
 
-			Alembic::AbcGeom::OPolyMeshSchema::Sample sample( 
-				Alembic::AbcGeom::V3fArraySample( (const Imath::V3f *) &vertexList.front(), vertexList.size()),
-				Alembic::Abc::Int32ArraySample(faceList), 
-				Alembic::Abc::Int32ArraySample(faceCountList), 
-				uvSample, 
-				normalSample);
+				sample = Alembic::AbcGeom::OPolyMeshSchema::Sample( 
+					Alembic::AbcGeom::V3fArraySample( (const Imath::V3f *) &vertexList.front(), vertexList.size()),
+					Alembic::Abc::Int32ArraySample(faceList), 
+					Alembic::Abc::Int32ArraySample(faceCountList),
+					uvSample,
+					normalSample);
+			}
+			else
+			{
+				sample = Alembic::AbcGeom::OPolyMeshSchema::Sample( 
+					Alembic::AbcGeom::V3fArraySample( (const Imath::V3f *) &vertexList.front(), vertexList.size()),
+					Alembic::Abc::Int32ArraySample(faceList), 
+					Alembic::Abc::Int32ArraySample(faceCountList));
+			}
 
 			meshSchema.set(sample);
 		}
+
 		return Py_BuildValue("i", 1); //success
 	}
 
