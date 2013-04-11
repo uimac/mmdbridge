@@ -45,7 +45,7 @@ public:
 	}
 
 	Alembic::Abc::OArchive * archive;
-	boost::uint32_t timeindex;
+	AbcA::uint32_t timeindex;
 
 	AbcA::TimeSamplingPtr timesampling;
 	
@@ -56,9 +56,13 @@ public:
 	typedef std::map<int, Alembic::AbcGeom::OPolyMesh > MeshMap;
 	MeshMap meshMap;
 
+	typedef std::map<int, Alembic::AbcGeom::OPolyMeshSchema > SchemaMap;
+	SchemaMap schemaMap;
+
 	void end() { 
 		xformMap.clear();
 		meshMap.clear();
+		schemaMap.clear();
 		{
 			delete archive; archive = NULL;
 		}
@@ -808,7 +812,7 @@ extern "C" {
 	}
 
 #ifdef WITH_ALEMBIC
-
+	
 	static PyObject * start_alembic_export(PyObject *self, PyObject* args)
 	{
 		if (!AlembicArchive::instance().archive)
@@ -830,6 +834,7 @@ extern "C" {
 				
 			const double dt = 1.0 / 30.0;
 			archive.timesampling = AbcA::TimeSamplingPtr(new AbcA::TimeSampling(dt, 0.0));
+			archive.archive->addTimeSampling(*archive.timesampling);
 
 			return Py_BuildValue("i", 1); //success
 		}
@@ -847,6 +852,303 @@ extern "C" {
 		return Py_BuildValue("");// None
 	}
 
+	static void export_alembic_xform_by_material(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	{
+		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
+
+		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
+		{
+			Alembic::AbcGeom::OPolyMesh polyMesh;
+			const int key = renderedBufferIndex * 10000 + k;
+				
+			Alembic::AbcGeom::OXform xform;
+			if (archive.xformMap.find(key) != archive.xformMap.end())
+			{
+				xform = archive.xformMap[key];
+			}
+			else
+			{
+				xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex) + "_material_" + to_string(k) , archive.timesampling);
+				archive.xformMap[key] = xform;
+			}
+
+			bool isFirstMesh = false;
+			if (archive.meshMap.find(key) != archive.meshMap.end())
+			{
+				polyMesh = archive.meshMap[key];
+			}
+			else
+			{
+				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k), archive.timesampling);
+				archive.meshMap[key] = polyMesh;
+				isFirstMesh = true;
+
+				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
+				archive.schemaMap[key] = meshSchema;
+			}
+
+			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
+			meshSchema.setTimeSampling(archive.timesampling);
+
+			Alembic::AbcGeom::OPolyMeshSchema::Sample empty;
+			
+			std::vector<Alembic::Util::int32_t> faceList;
+			std::vector<Alembic::Util::int32_t> faceCountList;
+			std::vector<Alembic::Util::uint32_t> normalFaceList;
+
+			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+
+			RenderedBuffer::VertexList vertexListByMaterial;
+			RenderedBuffer::UVList uvListByMaterial;
+			RenderedBuffer::NormalList normalListByMaterial;
+
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			vertexListByMaterial.resize(materialSurfaceSize * 3);
+			faceList.resize(materialSurfaceSize * 3);
+
+			if (!uvList.empty())
+			{
+				uvListByMaterial.resize(materialSurfaceSize * 3);
+			}
+			if (!normalList.empty())
+			{
+				normalListByMaterial.resize(materialSurfaceSize * 3);
+			}
+
+			// re assign par material
+			for (int n = 0; n < materialSurfaceSize; ++n)
+			{
+				um_vector3 face = material->surface.faces[n];
+					
+				const int f1 = face.ix - 1;
+				const int f2 = face.iy - 1;
+				const int f3 = face.iz - 1;
+				const int vi1 = n * 3 + 0;
+				const int vi2 = n * 3 + 1;
+				const int vi3 = n * 3 + 2;
+
+				vertexListByMaterial[vi1] = vertexList.at(f1);
+				vertexListByMaterial[vi2] = vertexList.at(f2);
+				vertexListByMaterial[vi3] = vertexList.at(f3);
+				if (!uvList.empty())
+				{
+					uvListByMaterial[vi1] = uvList.at(f1);
+					uvListByMaterial[vi2] = uvList.at(f2);
+					uvListByMaterial[vi3] = uvList.at(f3);
+				}
+				if (!normalList.empty())
+				{
+					normalListByMaterial[vi1] = normalList.at(f1);
+					normalListByMaterial[vi2] = normalList.at(f2);
+					normalListByMaterial[vi3] = normalList.at(f3);
+				}
+				faceList[vi1] = vi1;
+				faceList[vi2] = vi2;
+				faceList[vi3] = vi3;
+				faceCountList.push_back(3);
+			}
+				
+			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
+			{
+				vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
+			}
+
+			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
+				
+			// vertex
+			Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
+			sample.setPositions(positions);
+				
+			// face index
+			if (isFirstMesh)
+			{
+				Alembic::Abc::Int32ArraySample faceIndices(faceList);
+				Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
+				sample.setFaceIndices(faceIndices);
+				sample.setFaceCounts(faceCounts);
+			}
+
+			// UVs
+			if (!uvListByMaterial.empty())
+			{
+				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
+				{
+					uvListByMaterial[n].y = 1.0 - uvListByMaterial[n].y;
+				}
+				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
+				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
+				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvListByMaterial.front(), uvListByMaterial.size()));
+				sample.setUVs(uvSample);
+			}
+
+			// Normals
+			if (!normalListByMaterial.empty())
+			{
+				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
+				{
+					normalListByMaterial[n].z = -normalListByMaterial[n].z;
+				}
+				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
+				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
+				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
+				sample.setNormals(normalSample);
+			}
+
+			meshSchema.set(sample);
+		}
+	}
+	
+	static void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	{
+		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
+
+		Alembic::AbcGeom::OXform xform;
+		if (archive.xformMap.find(renderedBufferIndex) != archive.xformMap.end())
+		{
+			xform = archive.xformMap[renderedBufferIndex];
+		}
+		else
+		{
+			xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex), archive.timesampling);
+			archive.xformMap[renderedBufferIndex] = xform;
+		}
+
+		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
+		{
+			Alembic::AbcGeom::OPolyMesh polyMesh;
+			const int key = renderedBufferIndex * 10000 + k;
+
+			bool isFirstMesh = false;
+			if (archive.meshMap.find(key) != archive.meshMap.end())
+			{
+				polyMesh = archive.meshMap[key];
+			}
+			else
+			{
+				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k), archive.timesampling);
+				archive.meshMap[key] = polyMesh;
+				isFirstMesh = true;
+
+				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
+				archive.schemaMap[key] = meshSchema;
+			}
+
+			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
+			meshSchema.setTimeSampling(archive.timesampling);
+
+			Alembic::AbcGeom::OPolyMeshSchema::Sample empty;
+			
+			std::vector<Alembic::Util::int32_t> faceList;
+			std::vector<Alembic::Util::int32_t> faceCountList;
+			std::vector<Alembic::Util::uint32_t> normalFaceList;
+
+			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+
+			RenderedBuffer::VertexList vertexListByMaterial;
+			RenderedBuffer::UVList uvListByMaterial;
+			RenderedBuffer::NormalList normalListByMaterial;
+
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			vertexListByMaterial.resize(materialSurfaceSize * 3);
+			faceList.resize(materialSurfaceSize * 3);
+
+			if (!uvList.empty())
+			{
+				uvListByMaterial.resize(materialSurfaceSize * 3);
+			}
+			if (!normalList.empty())
+			{
+				normalListByMaterial.resize(materialSurfaceSize * 3);
+			}
+
+			// re assign par material
+			for (int n = 0; n < materialSurfaceSize; ++n)
+			{
+				um_vector3 face = material->surface.faces[n];
+					
+				const int f1 = face.ix - 1;
+				const int f2 = face.iy - 1;
+				const int f3 = face.iz - 1;
+				const int vi1 = n * 3 + 0;
+				const int vi2 = n * 3 + 1;
+				const int vi3 = n * 3 + 2;
+
+				vertexListByMaterial[vi1] = vertexList.at(f1);
+				vertexListByMaterial[vi2] = vertexList.at(f2);
+				vertexListByMaterial[vi3] = vertexList.at(f3);
+				if (!uvList.empty())
+				{
+					uvListByMaterial[vi1] = uvList.at(f1);
+					uvListByMaterial[vi2] = uvList.at(f2);
+					uvListByMaterial[vi3] = uvList.at(f3);
+				}
+				if (!normalList.empty())
+				{
+					normalListByMaterial[vi1] = normalList.at(f1);
+					normalListByMaterial[vi2] = normalList.at(f2);
+					normalListByMaterial[vi3] = normalList.at(f3);
+				}
+				faceList[vi1] = vi1;
+				faceList[vi2] = vi2;
+				faceList[vi3] = vi3;
+				faceCountList.push_back(3);
+			}
+
+			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
+				
+			// vertex
+			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
+			{
+				vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
+			}
+			Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
+			sample.setPositions(positions);
+				
+			// face index
+			if (isFirstMesh)
+			{
+				Alembic::Abc::Int32ArraySample faceIndices(faceList);
+				Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
+				sample.setFaceIndices(faceIndices);
+				sample.setFaceCounts(faceCounts);
+			}
+
+			// UVs
+			if (!uvListByMaterial.empty())
+			{
+				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
+				{
+					uvListByMaterial[n].y = 1.0 - uvListByMaterial[n].y;
+				}
+				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
+				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
+				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvListByMaterial.front(), uvListByMaterial.size()));
+				sample.setUVs(uvSample);
+			}
+
+			// Normals
+			if (!normalListByMaterial.empty())
+			{
+				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
+				{
+					normalListByMaterial[n].z = -normalListByMaterial[n].z;
+				}
+				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
+				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
+				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
+				sample.setNormals(normalSample);
+			}
+
+			meshSchema.set(sample);
+		}
+	}
+
 	static PyObject * execute_alembic_export(PyObject *self, PyObject* args)
 	{
 		int currentframe;
@@ -855,95 +1157,13 @@ extern "C" {
 		AlembicArchive &archive = AlembicArchive::instance();
 		if (!archive.archive) { return Py_BuildValue(""); }
 
-		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
-		
 		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
-			
-			Alembic::AbcGeom::OXform xform;
-			if (archive.xformMap.find(i) != archive.xformMap.end())
-			{
-				xform = archive.xformMap[i];
-			}
-			else
-			{			
-				xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(i), archive.timesampling);
-				archive.xformMap[i] = xform;
-			}
-			
-			bool isFirstMesh = false;
-			Alembic::AbcGeom::OPolyMesh polyMesh;
-			if (archive.meshMap.find(i) != archive.meshMap.end())
-			{
-				polyMesh = archive.meshMap[i];
-			}
-			else
-			{
-				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(i), archive.timesampling);
-				archive.meshMap[i] = polyMesh;
-				isFirstMesh = true;
-			}
 
-			
-			Alembic::AbcGeom::XformSample xformSample;
-			xform.getSchema().set(xformSample);
+			export_alembic_xform_by_material(archive, renderedBuffer, i);
 
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-			
-			std::vector<Alembic::Util::int32_t> faceList;
-			std::vector<Alembic::Util::int32_t> faceCountList;
-
-			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
-
-			int maxFaceIndexInBuffer = 0;
-			for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
-			{
-				RenderedMaterial* material = renderedBuffer.materials.at(k);
-				for (int n = 0, nsize = material->surface.faces.size(); n < nsize; ++n)
-				{
-					um_vector3 face = material->surface.faces[n];
-
-					faceList.push_back(face.ix - 1);
-					faceList.push_back(face.iy - 1);
-					faceList.push_back(face.iz - 1);
-
-					faceCountList.push_back(3);
-				}
-			}
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
-
-			if (isFirstMesh)
-			{
-				// ñ@ê¸
-				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
-				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Imath::V3f *) &normalList.front(), normalList.size()));
-				
-				// UV
-				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-				uvSample.setScope(Alembic::AbcGeom::kFacevaryingScope);
-				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
-
-				sample = Alembic::AbcGeom::OPolyMeshSchema::Sample( 
-					Alembic::AbcGeom::V3fArraySample( (const Imath::V3f *) &vertexList.front(), vertexList.size()),
-					Alembic::Abc::Int32ArraySample(faceList), 
-					Alembic::Abc::Int32ArraySample(faceCountList),
-					uvSample,
-					normalSample);
-			}
-			else
-			{
-				sample = Alembic::AbcGeom::OPolyMeshSchema::Sample( 
-					Alembic::AbcGeom::V3fArraySample( (const Imath::V3f *) &vertexList.front(), vertexList.size()),
-					Alembic::Abc::Int32ArraySample(faceList), 
-					Alembic::Abc::Int32ArraySample(faceCountList));
-			}
-
-			meshSchema.set(sample);
+			//export_alembic_xform_by_buffer(archive, renderedBuffer, i);
 		}
 
 		return Py_BuildValue("i", 1); //success
@@ -1902,10 +2122,10 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				for (size_t i =  bytePos; i < vit->second; i += renderData.stride)
 				{
 					D3DXVECTOR3 v;
-					D3DXVECTOR4 dst;
 					memcpy(&v, &pVertexBuf[i], sizeof( D3DXVECTOR3 ));
 					if (renderedBuffer.isAccessory)
 					{
+						D3DXVECTOR4 dst;
 						D3DXMATRIX mat = ExpGetAcsWorldMat(accessoryIndex);
 						::D3DXVec3Transform(&dst, &v, &mat);
 						v.x = dst.x;
@@ -1926,7 +2146,6 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				for (size_t i = bytePos; i < vit->second; i += renderData.stride)
 				{
 					D3DXVECTOR3 n;
-					D3DXVECTOR4 dst;
 					memcpy(&n, &pVertexBuf[i], sizeof( D3DXVECTOR3 ));
 					renderedBuffer.normals.push_back(n);
 				}
