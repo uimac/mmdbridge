@@ -59,6 +59,10 @@ public:
 	typedef std::map<int, Alembic::AbcGeom::OPolyMeshSchema > SchemaMap;
 	SchemaMap schemaMap;
 
+	bool isExportNormals;
+	bool isExportUvs;
+	int exportMode;
+
 	void end() { 
 		xformMap.clear();
 		meshMap.clear();
@@ -68,11 +72,10 @@ public:
 		}
 	}
 private:
-	AlembicArchive() : archive(NULL), timeindex(0) {}
+	AlembicArchive() : archive(NULL), timeindex(0), exportMode(0) {}
 };
 
 #endif //WITH_ALEMBIC
-
 
 template <class T> std::wstring to_wstring(T value)
 {
@@ -171,16 +174,17 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 CRITICAL_SECTION criticalSection;
 HANDLE	hMutex; //ミューテックスのハンドル
 
-
-float preFrameTime = 0.0f;
-int preFrame = 0;
-int presentCount = 0;
-int currentFrame = 0;
+static float preFrameTime = 0.0f;
+static int preFrame = 0;
+static int presentCount = 0;
+static int currentFrame = 0;
 
 // 行列で3Dベクトルをトランスフォームする
 // D3DXVec3Transformとほぼ同じ
 static void d3d_vector3_dir_transform(
-		D3DXVECTOR3 &dst, const D3DXVECTOR3 &src, const D3DXMATRIX &matrix)
+	D3DXVECTOR3 &dst, 
+	const D3DXVECTOR3 &src, 
+	const D3DXMATRIX &matrix)
 {
 	const float tmp[] = {
 		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0],
@@ -193,7 +197,9 @@ static void d3d_vector3_dir_transform(
 }
 
 static void d3d_vector3_transform(
-		D3DXVECTOR3 &dst, const D3DXVECTOR3 &src, const D3DXMATRIX &matrix)
+	D3DXVECTOR3 &dst, 
+	const D3DXVECTOR3 &src, 
+	const D3DXMATRIX &matrix)
 {
 	const float tmp[] = {
 		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0] + 1.0f*matrix.m[3][0],
@@ -205,7 +211,6 @@ static void d3d_vector3_transform(
 	dst.z = tmp[2];
 }
 
-
 // python
 extern "C" {
 	static std::string basePath; //ベースディレクトリ
@@ -216,7 +221,7 @@ extern "C" {
 	static std::vector<std::wstring> pythonNames; //スクリプト名
 	static std::vector<std::wstring> pythonScripts; //スクリプトパス
 	static std::string python_error_string; //pythonから出たエラー
-	static int scriptCallSetting = 0; // スクリプト呼び出し設定
+	static int scriptCallSetting = 2; // スクリプト呼び出し設定
 	//static int startFrame = 0;
 	//static int endFrame = 100;
 	static int frameWidth = 800;
@@ -533,7 +538,6 @@ extern "C" {
 		return Py_BuildValue("i", res);
 	}
 
-
 	static PyObject * copy_textures(PyObject *self, PyObject *args)
 	{
 		char *s;
@@ -546,7 +550,6 @@ extern "C" {
 		}		 
 		return Py_BuildValue("i", res);
 	}
-
 
 	static  PyObject * get_base_path(PyObject *self, PyObject *args)
 	{
@@ -602,7 +605,6 @@ extern "C" {
 		return Py_BuildValue("f", v.x);
 	}
 
-
 	static PyObject * get_camera_aspect(PyObject *self, PyObject *args)
 	{
 		D3DXVECTOR4 v;
@@ -623,11 +625,10 @@ extern "C" {
 		UMGetCameraFovLH(&v);
 		return Py_BuildValue("f", v.w);
 	}
-
-	int preFrameNumber = -1;
 	
 	static PyObject * get_frame_number(PyObject *self, PyObject *args)
 	{
+		static int preFrameNumber = -1;
 		float time = ExpGetFrameTime();
 		int frame = static_cast<int>(time * exportFPS);
 		if (scriptCallSetting == 1 && preFrameNumber == frame)
@@ -731,7 +732,9 @@ extern "C" {
 		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 
 		WaitForSingleObject(hMutex,INFINITE);
-		if (finishBuffersCopy.size() > at && renderedBuffers[finishBuffersCopy[at]].materials.size() > mpos)
+		const int bufferSize = static_cast<int>(renderedBuffers[finishBuffersCopy[at]].materials.size());
+		const int totalSize = static_cast<int>(finishBuffersCopy.size());
+		if (totalSize > at && bufferSize > mpos)
 		{
 			if (renderedBuffers.find(finishBuffersCopy[at]) != renderedBuffers.end())
 			{
@@ -817,8 +820,11 @@ extern "C" {
 	{
 		if (!AlembicArchive::instance().archive)
 		{
+			int isExportNomals = 0;
+			int isExportUvs = 0;
+			int exportMode = 0;
 			const char *filepath = "";
-			PyArg_ParseTuple(args, "s", &filepath);
+			if (!PyArg_ParseTuple(args, "siii", &filepath, &exportMode, &isExportNomals, &isExportUvs)) { return NULL; }
 
 			std::string output_path(filepath);
 			if (output_path.empty()) 
@@ -835,6 +841,9 @@ extern "C" {
 			const double dt = 1.0 / 30.0;
 			archive.timesampling = AbcA::TimeSamplingPtr(new AbcA::TimeSampling(dt, 0.0));
 			archive.archive->addTimeSampling(*archive.timesampling);
+			archive.isExportNormals = (isExportNomals != 0);
+			archive.isExportUvs = (isExportUvs != 0);
+			archive.exportMode = exportMode;
 
 			return Py_BuildValue("i", 1); //success
 		}
@@ -933,13 +942,13 @@ extern "C" {
 				vertexListByMaterial[vi1] = vertexList.at(f1);
 				vertexListByMaterial[vi2] = vertexList.at(f2);
 				vertexListByMaterial[vi3] = vertexList.at(f3);
-				if (!uvList.empty())
+				if (!uvList.empty() && archive.isExportUvs)
 				{
 					uvListByMaterial[vi1] = uvList.at(f1);
 					uvListByMaterial[vi2] = uvList.at(f2);
 					uvListByMaterial[vi3] = uvList.at(f3);
 				}
-				if (!normalList.empty())
+				if (!normalList.empty() && archive.isExportNormals)
 				{
 					normalListByMaterial[vi1] = normalList.at(f1);
 					normalListByMaterial[vi2] = normalList.at(f2);
@@ -972,11 +981,11 @@ extern "C" {
 			}
 
 			// UVs
-			if (!uvListByMaterial.empty())
+			if (!uvListByMaterial.empty() && archive.isExportUvs)
 			{
 				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
 				{
-					uvListByMaterial[n].y = 1.0 - uvListByMaterial[n].y;
+					uvListByMaterial[n].y = 1.0f - uvListByMaterial[n].y;
 				}
 				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
 				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
@@ -985,7 +994,7 @@ extern "C" {
 			}
 
 			// Normals
-			if (!normalListByMaterial.empty())
+			if (!normalListByMaterial.empty() && archive.isExportNormals)
 			{
 				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
 				{
@@ -1015,138 +1024,92 @@ extern "C" {
 			xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex), archive.timesampling);
 			archive.xformMap[renderedBufferIndex] = xform;
 		}
+		
+		bool isFirstMesh = false;
+		Alembic::AbcGeom::OPolyMesh polyMesh;
+		if (archive.meshMap.find(renderedBufferIndex) != archive.meshMap.end())
+		{
+			polyMesh = archive.meshMap[renderedBufferIndex];
+		}
+		else
+		{
+			polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex), archive.timesampling);
+			archive.meshMap[renderedBufferIndex] = polyMesh;
+			isFirstMesh = true;
+
+			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
+			archive.schemaMap[renderedBufferIndex] = meshSchema;
+		}
+
+		Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[renderedBufferIndex];
+		meshSchema.setTimeSampling(archive.timesampling);
+		
+		std::vector<Alembic::Util::int32_t> faceList;
+		std::vector<Alembic::Util::int32_t> faceCountList;
+		
+		RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+		RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+		RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
 
 		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
 		{
-			Alembic::AbcGeom::OPolyMesh polyMesh;
-			const int key = renderedBufferIndex * 10000 + k;
-
-			bool isFirstMesh = false;
-			if (archive.meshMap.find(key) != archive.meshMap.end())
-			{
-				polyMesh = archive.meshMap[key];
-			}
-			else
-			{
-				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k), archive.timesampling);
-				archive.meshMap[key] = polyMesh;
-				isFirstMesh = true;
-
-				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-				archive.schemaMap[key] = meshSchema;
-			}
-
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
-			meshSchema.setTimeSampling(archive.timesampling);
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample empty;
-			
-			std::vector<Alembic::Util::int32_t> faceList;
-			std::vector<Alembic::Util::int32_t> faceCountList;
-			std::vector<Alembic::Util::uint32_t> normalFaceList;
-
-			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
-
-			RenderedBuffer::VertexList vertexListByMaterial;
-			RenderedBuffer::UVList uvListByMaterial;
-			RenderedBuffer::NormalList normalListByMaterial;
-
 			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
-			vertexListByMaterial.resize(materialSurfaceSize * 3);
-			faceList.resize(materialSurfaceSize * 3);
-
-			if (!uvList.empty())
-			{
-				uvListByMaterial.resize(materialSurfaceSize * 3);
-			}
-			if (!normalList.empty())
-			{
-				normalListByMaterial.resize(materialSurfaceSize * 3);
-			}
-
-			// re assign par material
-			for (int n = 0; n < materialSurfaceSize; ++n)
+			for (int n = 0, nsize = material->surface.faces.size(); n < nsize; ++n)
 			{
 				um_vector3 face = material->surface.faces[n];
-					
-				const int f1 = face.ix - 1;
-				const int f2 = face.iy - 1;
-				const int f3 = face.iz - 1;
-				const int vi1 = n * 3 + 0;
-				const int vi2 = n * 3 + 1;
-				const int vi3 = n * 3 + 2;
-
-				vertexListByMaterial[vi1] = vertexList.at(f1);
-				vertexListByMaterial[vi2] = vertexList.at(f2);
-				vertexListByMaterial[vi3] = vertexList.at(f3);
-				if (!uvList.empty())
-				{
-					uvListByMaterial[vi1] = uvList.at(f1);
-					uvListByMaterial[vi2] = uvList.at(f2);
-					uvListByMaterial[vi3] = uvList.at(f3);
-				}
-				if (!normalList.empty())
-				{
-					normalListByMaterial[vi1] = normalList.at(f1);
-					normalListByMaterial[vi2] = normalList.at(f2);
-					normalListByMaterial[vi3] = normalList.at(f3);
-				}
-				faceList[vi1] = vi1;
-				faceList[vi2] = vi2;
-				faceList[vi3] = vi3;
+				faceList.push_back(face.ix - 1);
+				faceList.push_back(face.iy - 1);
+				faceList.push_back(face.iz - 1);
 				faceCountList.push_back(3);
 			}
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
-				
-			// vertex
-			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
-			{
-				vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
-			}
-			Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
-			sample.setPositions(positions);
-				
-			// face index
-			if (isFirstMesh)
-			{
-				Alembic::Abc::Int32ArraySample faceIndices(faceList);
-				Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
-				sample.setFaceIndices(faceIndices);
-				sample.setFaceCounts(faceCounts);
-			}
-
-			// UVs
-			if (!uvListByMaterial.empty())
-			{
-				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
-				{
-					uvListByMaterial[n].y = 1.0 - uvListByMaterial[n].y;
-				}
-				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
-				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvListByMaterial.front(), uvListByMaterial.size()));
-				sample.setUVs(uvSample);
-			}
-
-			// Normals
-			if (!normalListByMaterial.empty())
-			{
-				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
-				{
-					normalListByMaterial[n].z = -normalListByMaterial[n].z;
-				}
-				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
-				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
-				sample.setNormals(normalSample);
-			}
-
-			meshSchema.set(sample);
 		}
+
+		Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
+				
+		// vertex
+		for (int n = 0, nsize = vertexList.size(); n < nsize; ++n)
+		{
+			vertexList[n].z = -vertexList[n].z;
+		}
+		Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexList.front(), vertexList.size());
+		sample.setPositions(positions);
+				
+		// face index
+		if (isFirstMesh)
+		{
+			Alembic::Abc::Int32ArraySample faceIndices(faceList);
+			Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
+			sample.setFaceIndices(faceIndices);
+			sample.setFaceCounts(faceCounts);
+		}
+
+		// UVs
+		if (!uvList.empty() && archive.isExportUvs)
+		{
+			for (int n = 0, nsize = uvList.size(); n < nsize; ++n)
+			{
+				uvList[n].y = 1.0f - uvList[n].y;
+			}
+			Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
+			uvSample.setScope(Alembic::AbcGeom::kVertexScope );
+			uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
+			sample.setUVs(uvSample);
+		}
+
+		// Normals
+		if (!normalList.empty() && archive.isExportNormals)
+		{
+			for (int n = 0, nsize = normalList.size(); n < nsize; ++n)
+			{
+				normalList[n].z = -normalList[n].z;
+			}
+			Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
+			normalSample.setScope(Alembic::AbcGeom::kVertexScope );
+			normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalList.front(), normalList.size()));
+			sample.setNormals(normalSample);
+		}
+
+		meshSchema.set(sample);
 	}
 
 	static PyObject * execute_alembic_export(PyObject *self, PyObject* args)
@@ -1161,9 +1124,14 @@ extern "C" {
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
 
-			export_alembic_xform_by_material(archive, renderedBuffer, i);
-
-			//export_alembic_xform_by_buffer(archive, renderedBuffer, i);
+			if (archive.exportMode == 0)
+			{
+				export_alembic_xform_by_material(archive, renderedBuffer, i);
+			}
+			else
+			{
+				export_alembic_xform_by_buffer(archive, renderedBuffer, i);
+			}
 		}
 
 		return Py_BuildValue("i", 1); //success
@@ -1475,14 +1443,11 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 	return false;
 }
 
-
-
 static HRESULT WINAPI beginScene(IDirect3DDevice9 *device) 
 {
 	HRESULT res = (*original_begin_scene)(device);
 	return res;
 }
-
 
 HWND g_hWnd=NULL;	//ウィンドウハンドル
 HMENU g_hMenu=NULL;	//メニュー
@@ -1560,7 +1525,7 @@ static void setMyMenu()
 		HMENU hmenu = GetMenu(g_hWnd);//CreateMenu();
 		HMENU hsubs = CreatePopupMenu();
 		int count = GetMenuItemCount(hmenu);
-
+		
 		MENUITEMINFO minfo;
 		minfo.cbSize = sizeof(MENUITEMINFO);
 		minfo.fMask = MIIM_ID | MIIM_TYPE | MIIM_SUBMENU;
@@ -1613,7 +1578,6 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 	// サブクラスで処理しなかったメッセージは、本来のウィンドウプロシージャに処理してもらう
 	return CallWindowProc( originalWndProc, hWnd, msg, wp, lp );
 }
-
 
 static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -1709,6 +1673,7 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				case IDC_BUTTON2: // 詳細設定
 
 					// ダイアログ表示中は問答無用でスクリプト実行を専用のモードにする
+					int preSetting = scriptCallSetting;
 					scriptCallSetting = 3;
 
 					// script再読み込み
@@ -1731,7 +1696,7 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						}
 					}
 
-					scriptCallSetting = 0;
+					scriptCallSetting = preSetting;
 					::MessageBoxA(NULL, "このスクリプトには詳細設定が無いようです", "info", MB_OK);
 					EndDialog(hWnd, IDOK);
 					break;
@@ -1760,16 +1725,13 @@ static bool overrideGLWindow()
 }
 
 //////////////////// Python Thread
-
 static unsigned int WINAPI runScript(void* data)
 {
 	const char* scriptStr = (const char*)data;
 
-	
 	relaod_python_script();
 
 	if (mmdbridge_python_script.empty()) { return 0; }
-	
 
 	// Python初期化
 	PyImport_AppendInittab("mmdbridge", initfuncs);
@@ -1830,8 +1792,7 @@ static void runScriptMain()
 
 	if (mmdbridge_python_script.empty()) { return; }
 
-	bool isInitialized = Py_IsInitialized();
-	if (isInitialized)
+	if (Py_IsInitialized())
 	{
 		//
 		PyEval_InitThreads();
@@ -1874,20 +1835,38 @@ static void runScriptMain()
 	}
 
 	PyGILState_Release(gstate);
-
 }
 
-static HRESULT WINAPI present(IDirect3DDevice9 *device, const RECT * pSourceRect, const RECT * pDestRect, HWND hDestWindowOverride, const RGNDATA * pDirtyRegion)
+
+static bool IsValidCallSetting() { 
+	return (scriptCallSetting == 0) || (scriptCallSetting == 1);
+}
+
+static bool IsValidFrame() {
+	float time = ExpGetFrameTime();
+	return ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
+			((scriptCallSetting == 1) && (time > 0));
+}
+
+static bool IsValidTechniq() {
+	const int technic = ExpGetCurrentTechnic();
+	return (technic == 0 || technic == 1 || technic == 2);
+}
+
+static HRESULT WINAPI present(
+	IDirect3DDevice9 *device, 
+	const RECT * pSourceRect, 
+	const RECT * pDestRect, 
+	HWND hDestWindowOverride, 
+	const RGNDATA * pDirtyRegion)
 {
 
 	float time = ExpGetFrameTime();
 
-	 overrideGLWindow();
-	//::MessageBoxA(NULL, to_string(time).c_str(), "time", MB_OK);
+	overrideGLWindow();
 
 	if (time > 0 && primitiveCounter > 0 && scriptCallSetting != 2) {
 
-		//::MessageBox(NULL, (to_wstring(time) + _T("秒です")).c_str(), _T("HOGE"), MB_OK);
 		preFrameTime = time;
 		
 		if (scriptCallSetting == 0)
@@ -1947,15 +1926,9 @@ static HRESULT WINAPI present(IDirect3DDevice9 *device, const RECT * pSourceRect
 	}
 	HRESULT res = (*original_present)(device, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
 	
-	
-	const int currentTechnic = ExpGetCurrentTechnic();
-	const int currentMaterial = ExpGetCurrentMaterial();
-	const int currentObject = ExpGetCurrentObject();
-
-	bool validCallSetting = (scriptCallSetting == 0) || (scriptCallSetting == 1);
-	bool validFrame = ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
-						((scriptCallSetting == 1) && (time > 0));
-	bool validTechniq =(currentTechnic == 0 || currentTechnic == 1 || currentTechnic == 2);
+	const bool validCallSetting = IsValidCallSetting();
+	const bool validFrame = IsValidFrame();
+	const bool validTechniq =  IsValidTechniq();
 
 	if (validCallSetting && validFrame && validTechniq)
 	{
@@ -1973,7 +1946,6 @@ HRESULT WINAPI reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS* pPresentat
 
 	return res;
 }
-
 
 HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 {
@@ -2025,9 +1997,14 @@ static void setFVF(DWORD fvf)
 
 }
 
-
-
-HRESULT WINAPI clear(IDirect3DDevice9 *device, DWORD count, const D3DRECT *pRects, DWORD flags, D3DCOLOR color, float z, DWORD stencil)
+HRESULT WINAPI clear(
+	IDirect3DDevice9 *device, 
+	DWORD count, 
+	const D3DRECT *pRects, 
+	DWORD flags, 
+	D3DCOLOR color, 
+	float z, 
+	DWORD stencil)
 {
 	HRESULT res = (*original_clear)(device, count, pRects, flags, color, z, stencil);
 	return res;
@@ -2285,10 +2262,8 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 
 		if (renderData.texcount > 0)
 		{
-			DWORD colorArg01, colorArg02;
-			DWORD colorArg11, colorArg12;
-			DWORD colorArg21, colorArg22;
-			DWORD colorRop0, colorRop1, colorRop2, colorRop3, colorRop4, colorRop5, colorRop6, colorRop7;
+			DWORD colorRop0;
+			DWORD colorRop1;
 
 			p_device->lpVtbl->GetTextureStageState(p_device, 0, D3DTSS_COLOROP, &colorRop0);
 			p_device->lpVtbl->GetTextureStageState(p_device, 1, D3DTSS_COLOROP, &colorRop1);
@@ -2385,14 +2360,12 @@ static HRESULT WINAPI drawIndexedPrimitive(
 {
 	float time = ExpGetFrameTime();
 
-	const int currentTechnic = ExpGetCurrentTechnic();
 	const int currentMaterial = ExpGetCurrentMaterial();
 	const int currentObject = ExpGetCurrentObject();
 
-	bool validCallSetting = (scriptCallSetting == 0) || (scriptCallSetting == 1);
-	bool validFrame = ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
-						((scriptCallSetting == 1) && (time > 0));
-	bool validTechniq =(currentTechnic == 0 || currentTechnic == 1 || currentTechnic == 2);
+	const bool validCallSetting = IsValidCallSetting();
+	const bool validFrame = IsValidFrame();
+	const bool validTechniq = IsValidTechniq();
 
 	if (validCallSetting && validFrame && validTechniq) 
 	{
@@ -2445,7 +2418,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				// ライトをメモリに書き込み
 				writeLightToMemory(device, renderedBuffer);
 
-				// インデックスバッファをメモリに書き込み				
+				// インデックスバッファをメモリに書き込み
 				// 法線を修正
 				for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 				{
@@ -2584,10 +2557,9 @@ static HRESULT WINAPI setStreamSource(
 
 	int currentTechnic = ExpGetCurrentTechnic();
 
-	bool validCallSetting = (scriptCallSetting == 0) || (scriptCallSetting == 1);
-	bool validFrame = ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
-						((scriptCallSetting == 1) && (time > 0));
-	bool validTechniq =(currentTechnic == 0 || currentTechnic == 1 || currentTechnic == 2 || currentTechnic == 5);
+	const bool validCallSetting = IsValidCallSetting();
+	const bool validFrame = IsValidFrame();
+	const bool validTechniq = IsValidTechniq() || currentTechnic == 5;
 
 	if (validCallSetting && validFrame && validTechniq) 
 	{
@@ -2611,10 +2583,9 @@ static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9
 		
 	int currentTechnic = ExpGetCurrentTechnic();
 
-	bool validCallSetting = (scriptCallSetting == 0) || (scriptCallSetting == 1);
-	bool validFrame = ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
-						((scriptCallSetting == 1) && (time > 0));
-	bool validTechniq =(currentTechnic == 0 || currentTechnic == 1 || currentTechnic == 2 || currentTechnic == 5);
+	const bool validCallSetting = IsValidCallSetting();
+	const bool validFrame = IsValidFrame();
+	const bool validTechniq =  IsValidTechniq() || currentTechnic == 5;
 	if (validCallSetting && validFrame && validTechniq) 
 	{
 		renderData.pIndexData = pIndexData;
@@ -2648,7 +2619,6 @@ static HRESULT WINAPI endStateBlock(IDirect3DDevice9 *device, IDirect3DStateBloc
 
 	return res;
 }
-
 
 static void hookDevice()
 {
@@ -2706,7 +2676,14 @@ static void originalDevice()
 	}
 }
 
-static HRESULT WINAPI createDevice(IDirect3D9 *direct3d,UINT adapter, D3DDEVTYPE type, HWND window, DWORD flag, D3DPRESENT_PARAMETERS *param, IDirect3DDevice9 **device) 
+static HRESULT WINAPI createDevice(
+	IDirect3D9 *direct3d,
+	UINT adapter,
+	D3DDEVTYPE type,
+	HWND window,
+	DWORD flag,
+	D3DPRESENT_PARAMETERS *param,
+	IDirect3DDevice9 **device) 
 {
 	HRESULT res = (*original_create_device)(direct3d, adapter, type, window, flag, param, device);
 	p_device = (*device);
@@ -2753,7 +2730,6 @@ extern "C" {
 		return direct3d;
 	}
 } // extern "C"
-
 
 static void setBasePath()
 {
