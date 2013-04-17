@@ -6,11 +6,10 @@ from math import *
 import time
 
 # settings
-start_frame = 5
-end_frame = 500
-export_normals = False
+export_normals = True
 export_uvs = True
-export_mode = 1 # 0 = create buffer every marerials, 1 = create buffer every objects
+export_mode = 0 # 0 = create buffer every marerials, 1 = create buffer every objects
+
 
 
 def export_mtl(mtlpath):
@@ -57,6 +56,8 @@ def export_mtl(mtlpath):
 outpath = get_base_path().replace("\\", "/") + "out/"
 mtlpath = outpath + "alembic_file.mtl"
 texture_export_dir = outpath
+start_frame = get_start_frame()
+end_frame = get_end_frame()
 
 framenumber = get_frame_number()
 if (framenumber == start_frame):
@@ -68,6 +69,6 @@ if (framenumber == start_frame):
 if (framenumber >= start_frame or framenumber <= end_frame):
 	execute_alembic_export(framenumber)
 
-if (framenumber >= end_frame):
+if (framenumber == end_frame):
 	messagebox("alembic export ended at " + str(framenumber))
 	end_alembic_export()
