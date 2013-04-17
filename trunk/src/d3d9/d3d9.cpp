@@ -60,6 +60,10 @@ public:
 	typedef std::map<int, Alembic::AbcGeom::OPolyMeshSchema > SchemaMap;
 	SchemaMap schemaMap;
 
+	typedef std::map<int, int> FiToVi;
+	typedef std::map<int, FiToVi> FiToViMap;
+	FiToViMap fiToViMap;
+
 	bool isExportNormals;
 	bool isExportUvs;
 	int exportMode;
@@ -68,6 +72,7 @@ public:
 		xformMap.clear();
 		meshMap.clear();
 		schemaMap.clear();
+		fiToViMap.clear();
 		{
 			delete archive; archive = NULL;
 		}
@@ -906,6 +911,14 @@ extern "C" {
 				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
 				archive.schemaMap[key] = meshSchema;
 			}
+			
+			if (archive.fiToViMap.find(key) == archive.fiToViMap.end())
+			{
+				AlembicArchive::FiToVi fiToVi;
+				archive.fiToViMap[key] = fiToVi;
+			}
+			
+			AlembicArchive::FiToVi &fiToVi = archive.fiToViMap[key];
 
 			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
 			meshSchema.setTimeSampling(archive.timesampling);
@@ -939,25 +952,60 @@ extern "C" {
 			}
 
 			// re assign par material
+			int lastIndex = 0;
+
 			for (int n = 0; n < materialSurfaceSize; ++n)
 			{
 				um_vector3 face = material->surface.faces[n];
-					
+
 				const int f1 = face.ix - 1;
 				const int f2 = face.iy - 1;
 				const int f3 = face.iz - 1;
-				const int vi1 = n * 3 + 0;
-				const int vi2 = n * 3 + 1;
-				const int vi3 = n * 3 + 2;
+				int vi1 = 0;
+				int vi2 = 0;
+				int vi3 = 0;
+
+				if (isFirstMesh)
+				{
+					if (fiToVi.find(f1) == fiToVi.end()) {
+						vi1 = lastIndex;
+						fiToVi[f1] = vi1;
+						++lastIndex;
+					} else {
+						vi1 = fiToVi[f1];
+					}
+				
+					if (fiToVi.find(f2) == fiToVi.end()) {
+						vi2 = lastIndex;
+						fiToVi[f2] = vi2;
+						++lastIndex;
+					} else {
+						vi2 = fiToVi[f2];
+					}
+
+					if (fiToVi.find(f3) == fiToVi.end()) {
+						vi3 = lastIndex;
+						fiToVi[f3] = vi3;
+						++lastIndex;
+					} else {
+						vi3 = fiToVi[f3];
+					}
+				}
+				else
+				{
+					vi1 = fiToVi[f1];
+					vi2 = fiToVi[f2];
+					vi3 = fiToVi[f3];
+				}
 
 				vertexListByMaterial[vi1] = vertexList.at(f1);
 				vertexListByMaterial[vi2] = vertexList.at(f2);
 				vertexListByMaterial[vi3] = vertexList.at(f3);
 				if (!uvList.empty() && archive.isExportUvs)
 				{
-					uvListByMaterial[vi1] = uvList.at(f1);
-					uvListByMaterial[vi2] = uvList.at(f2);
-					uvListByMaterial[vi3] = uvList.at(f3);
+					uvListByMaterial[n * 3 + 0] = uvList.at(f1);
+					uvListByMaterial[n * 3 + 1] = uvList.at(f2);
+					uvListByMaterial[n * 3 + 2] = uvList.at(f3);
 				}
 				if (!normalList.empty() && archive.isExportNormals)
 				{
@@ -965,11 +1013,14 @@ extern "C" {
 					normalListByMaterial[vi2] = normalList.at(f2);
 					normalListByMaterial[vi3] = normalList.at(f3);
 				}
-				faceList[vi1] = vi1;
-				faceList[vi2] = vi2;
-				faceList[vi3] = vi3;
+				faceList[n * 3 + 0] = vi1;
+				faceList[n * 3 + 1] = vi2;
+				faceList[n * 3 + 2] = vi3;
 				faceCountList.push_back(3);
 			}
+
+			vertexListByMaterial.resize(fiToVi.size());
+			normalListByMaterial.resize(fiToVi.size());
 				
 			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
 			{
@@ -1012,7 +1063,7 @@ extern "C" {
 					normalListByMaterial[n].z = -normalListByMaterial[n].z;
 				}
 				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
+				normalSample.setScope(Alembic::AbcGeom::kFacevaryingScope );
 				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
 				sample.setNormals(normalSample);
 			}
