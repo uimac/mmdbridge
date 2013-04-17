@@ -12,16 +12,22 @@ export_mode = 0 # 0 = create buffer every marerials, 1 = create buffer every obj
 
 
 
-def export_mtl(mtlpath):
+def export_mtl(mtlpath, export_mode):
 	if os.path.isfile(mtlpath):
 		os.remove(mtlpath)
 
 	mtlfile = open(mtlpath, 'a')
 
+	mtlfile.write("# mode "+str(export_mode)+"\n")
+
 	for buf in range(get_vertex_buffer_size()):
 		for mat in range(get_material_size(buf)):
 			material_name = "material_" + str(buf) + "_" + str(mat)
 			mtlfile.write("newmtl "+material_name+"\n")
+
+			if export_mode == 1:
+				face_size = get_face_size(buf, mat)
+				mtlfile.write("# face_size "+str(face_size)+"\n")
 
 			ambient = get_ambient(buf, mat)
 			diffuse = get_diffuse(buf, mat)
@@ -54,14 +60,14 @@ def export_mtl(mtlpath):
 						mtlfile.write("map_d "+texture+"\n")
 
 outpath = get_base_path().replace("\\", "/") + "out/"
-mtlpath = outpath + "alembic_file.mtl"
+mtlpath = outpath + "alembic_file" + "_mode_" + str(export_mode) + ".mtl"
 texture_export_dir = outpath
 start_frame = get_start_frame()
 end_frame = get_end_frame()
 
 framenumber = get_frame_number()
 if (framenumber == start_frame):
-	export_mtl(mtlpath)
+	export_mtl(mtlpath, export_mode)
 	copy_textures(texture_export_dir.replace("/", "\\"))
 	messagebox("alembic export started")
 	start_alembic_export("", export_mode, export_normals, export_uvs)
