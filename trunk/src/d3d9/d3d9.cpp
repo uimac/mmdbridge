@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <shlwapi.h>
 
+
 #include <Python.h>
 #include <commctrl.h>
 #include <richedit.h>
@@ -222,8 +223,8 @@ extern "C" {
 	static std::vector<std::wstring> pythonScripts; //スクリプトパス
 	static std::string python_error_string; //pythonから出たエラー
 	static int scriptCallSetting = 2; // スクリプト呼び出し設定
-	//static int startFrame = 0;
-	//static int endFrame = 100;
+	static int startFrame = 5;
+	static int endFrame = 100;
 	static int frameWidth = 800;
 	static int frameHeight = 450;
 	static int exportFPS = 30;
@@ -638,6 +639,16 @@ extern "C" {
 		preFrameNumber = frame;
 
 		return Py_BuildValue("i", frame);
+	}
+
+	static PyObject * get_start_frame(PyObject *self, PyObject *args)
+	{
+		return Py_BuildValue("i", startFrame);
+	}
+	
+	static PyObject * get_end_frame(PyObject *self, PyObject *args)
+	{
+		return Py_BuildValue("i", endFrame);
 	}
 
 	static PyObject * get_frame_width(PyObject *self, PyObject *args)
@@ -1176,6 +1187,8 @@ extern "C" {
 		{ "export_uncopied_textures", (PyCFunction)export_textures, METH_VARARGS },
 		{ "copy_textures", (PyCFunction)copy_textures, METH_VARARGS },
 		{ "get_frame_number", (PyCFunction)get_frame_number, METH_VARARGS },
+		{ "get_start_frame", (PyCFunction)get_start_frame, METH_VARARGS },
+		{ "get_end_frame", (PyCFunction)get_end_frame, METH_VARARGS },
 		{ "get_frame_width", (PyCFunction)get_frame_width, METH_VARARGS },
 		{ "get_frame_height", (PyCFunction)get_frame_height, METH_VARARGS },
 		{ "get_base_path", (PyCFunction)get_base_path, METH_VARARGS },
@@ -1257,6 +1270,8 @@ extern "C" {
 
 // Direct3DCreate9
 IDirect3D9 *(WINAPI *original_direct3d_create)(UINT)(NULL);
+// MME
+IDirect3D9 *(WINAPI *mme_direct3d_create)(UINT)(NULL);
 // IDirect3D9::CreateDevice
 HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, IDirect3DDevice9**)(NULL);
 // IDirect3DDevice9::BeginScene
@@ -1610,10 +1625,10 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
 				SendMessage(hCombo2, CB_SETCURSEL, scriptCallSetting, 0);
 
-				::SetWindowTextA(hEdit1, to_string(frameWidth).c_str());
-				::SetWindowTextA(hEdit2, to_string(frameHeight).c_str());
-				//::SetWindowTextA(hEdit3, to_string(startFrame).c_str());
-				//::SetWindowTextA(hEdit4, to_string(endFrame).c_str());
+				::SetWindowTextA(hEdit1, to_string(startFrame).c_str());
+				::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
+				//::SetWindowTextA(hEdit3, to_string().c_str());
+				//::SetWindowTextA(hEdit4, to_string().c_str());
 				::SetWindowTextA(hEdit5, to_string(exportFPS).c_str());
 			}
 			return TRUE;
@@ -1650,12 +1665,23 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						//::GetWindowTextA(hEdit3, text3, sizeof(text3)/sizeof(text3[0]));
 						//::GetWindowTextA(hEdit4, text4, sizeof(text4)/sizeof(text4[0]));
 						::GetWindowTextA(hEdit5, text5, sizeof(text5)/sizeof(text5[0]));
-						frameWidth = atoi(text1);
-						frameHeight = atoi(text2);
+						startFrame = atoi(text1);
+						endFrame = atoi(text2);
 						//startFrame = atoi(text3);
 						//endFrame = atoi(text4);
 						exportFPS = atoi(text5);
-
+						
+						if (startFrame < 2)
+						{
+							messagebox("info", "スタートフレームは2以上にしてください");
+							startFrame = 2;
+							::SetWindowTextA(hEdit1, to_string(2).c_str());
+						}
+						if (startFrame >= endFrame)
+						{
+							endFrame = startFrame + 1;
+							::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
+						}
 
 						EndDialog(hWnd, IDOK);
 
@@ -1863,6 +1889,11 @@ static HRESULT WINAPI present(
 
 	float time = ExpGetFrameTime();
 
+	if (pDestRect)
+	{
+		frameWidth = pDestRect->right - pDestRect->left;
+		frameHeight = pDestRect->bottom - pDestRect->top;
+	}
 	overrideGLWindow();
 
 	if (time > 0 && primitiveCounter > 0 && scriptCallSetting != 2) {
@@ -2676,6 +2707,7 @@ static void originalDevice()
 	}
 }
 
+
 static HRESULT WINAPI createDevice(
 	IDirect3D9 *direct3d,
 	UINT adapter,
@@ -2727,7 +2759,14 @@ extern "C" {
 		//InitializeCriticalSection(&criticalSection);
 		hMutex = CreateMutex(NULL,FALSE,NULL);	//ミューテックス生成
 
-		return direct3d;
+		if (mme_direct3d_create)
+		{
+			return ((*mme_direct3d_create)(SDKVersion));
+		}
+		else
+		{
+			return direct3d;
+		}
 	}
 } // extern "C"
 
@@ -2756,6 +2795,30 @@ static BOOL init() {
 	if (!d3d9_module) {
 		return FALSE;
 	}
+	
+	// MME
+	{
+		TCHAR app_full_path[1024];	// アプリフルパス
+		GetModuleFileNameW(NULL, app_full_path, sizeof(app_full_path) / sizeof(char));
+		std::wstring full_path(app_full_path);
+		std::wstring mme_path = full_path.substr(0, full_path.rfind(_T("MikuMikuDance.exe")));
+		mme_path.append(_T("\\d3d9_mme.dll"));
+		HMODULE mme_module = NULL;
+		if (PathFileExists(mme_path.c_str()))
+		{
+			mme_module = (LoadLibrary(mme_path.c_str()));
+		}
+		if (mme_module)
+		{
+			// MMEのDirect3DCreate9の関数ポインタを取得
+			mme_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(mme_module, "Direct3DCreate9"));
+		}
+		else
+		{
+			mme_direct3d_create = NULL;
+		}
+	}
+
 	// オリジナルDirect3DCreate9の関数ポインタを取得
 	original_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(d3d9_module, "Direct3DCreate9"));
 	if (!original_direct3d_create ) {

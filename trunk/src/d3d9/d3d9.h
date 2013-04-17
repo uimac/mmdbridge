@@ -17,8 +17,6 @@
 #include <vector>
 #include <map>
 
-
-
 typedef union um_vector4 {
 	struct {
 		float x, y, z, w;
