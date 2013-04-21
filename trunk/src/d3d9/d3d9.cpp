@@ -54,11 +54,23 @@ public:
 	typedef std::map<int, Alembic::AbcGeom::OXform > XformMap;
 	XformMap xformMap;
 
+	typedef std::map<int, Alembic::AbcGeom::OXformSchema > XformSchemaMap;
+	XformSchemaMap xformSchemaMap;
+
 	typedef std::map<int, Alembic::AbcGeom::OPolyMesh > MeshMap;
 	MeshMap meshMap;
 
 	typedef std::map<int, Alembic::AbcGeom::OPolyMeshSchema > SchemaMap;
 	SchemaMap schemaMap;
+	
+	typedef std::map<int, int > SurfaceSizeMap;
+	SurfaceSizeMap surfaceSizeMap;
+	
+	typedef std::map<int, Alembic::AbcGeom::OCamera > CameraMap;
+	CameraMap cameraMap;
+	
+	typedef std::map<int, Alembic::AbcGeom::OCameraSchema  > CameraSchemaMap;
+	CameraSchemaMap cameraSchemaMap;
 
 	typedef std::map<int, int> FiToVi;
 	typedef std::map<int, FiToVi> FiToViMap;
@@ -70,9 +82,13 @@ public:
 
 	void end() { 
 		xformMap.clear();
+		xformSchemaMap.clear();
 		meshMap.clear();
 		schemaMap.clear();
+		cameraMap.clear();
+		cameraSchemaMap.clear();
 		fiToViMap.clear();
+		surfaceSizeMap.clear();
 		{
 			delete archive; archive = NULL;
 		}
@@ -911,15 +927,18 @@ extern "C" {
 				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
 				archive.schemaMap[key] = meshSchema;
 			}
-			
+
+			if (archive.surfaceSizeMap.find(key) == archive.surfaceSizeMap.end())
+			{
+				archive.surfaceSizeMap[key] = 0;
+			}
+
 			if (archive.fiToViMap.find(key) == archive.fiToViMap.end())
 			{
 				AlembicArchive::FiToVi fiToVi;
 				archive.fiToViMap[key] = fiToVi;
 			}
 			
-			AlembicArchive::FiToVi &fiToVi = archive.fiToViMap[key];
-
 			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
 			meshSchema.setTimeSampling(archive.timesampling);
 
@@ -949,6 +968,14 @@ extern "C" {
 			if (!normalList.empty())
 			{
 				normalListByMaterial.resize(materialSurfaceSize * 3);
+			}
+			
+			AlembicArchive::FiToVi& fiToVi = archive.fiToViMap[key];
+			int& preSurfaceSize = archive.surfaceSizeMap[key];
+			bool isFirstSurface = material->surface.faces.size() != preSurfaceSize;
+			if (!isFirstMesh && isFirstSurface)
+			{
+				continue;
 			}
 
 			// re assign par material
@@ -1019,6 +1046,7 @@ extern "C" {
 				faceCountList.push_back(3);
 			}
 
+			preSurfaceSize = material->surface.faces.size();
 			vertexListByMaterial.resize(fiToVi.size());
 			normalListByMaterial.resize(fiToVi.size());
 				
@@ -1067,7 +1095,7 @@ extern "C" {
 				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
 				sample.setNormals(normalSample);
 			}
-
+			
 			meshSchema.set(sample);
 		}
 	}
@@ -1172,6 +1200,142 @@ extern "C" {
 		}
 
 		meshSchema.set(sample);
+
+	}
+
+	static double to_degree(double radian)
+	{
+		return (radian * 180) / M_PI;
+	}
+
+	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer)
+	{
+		static const int cameraKey = 0xFFFFFF;
+		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
+
+		Alembic::AbcGeom::OXform xform;
+		if (archive.xformMap.find(cameraKey) != archive.xformMap.end())
+		{
+			xform = archive.xformMap[cameraKey];
+		}
+		else
+		{
+			xform = Alembic::AbcGeom::OXform(topObj, "camera_xform", archive.timesampling);
+			archive.xformMap[cameraKey] = xform;
+
+			Alembic::AbcGeom::OXformSchema &xformSchema = xform.getSchema();
+			archive.xformSchemaMap[cameraKey] = xformSchema;
+		}
+		
+		// set camera transform
+		{
+			Alembic::AbcGeom::OXformSchema &xformSchema = archive.xformSchemaMap[cameraKey];
+			xformSchema.setTimeSampling(archive.timesampling);
+
+			Alembic::AbcGeom::XformSample xformSample;
+			
+			D3DXVECTOR3 eye;
+			{
+				D3DXVECTOR3 v;
+				UMGetCameraEye(&v);
+				d3d_vector3_transform(eye, v, renderedBuffers.begin()->second.world_inv);
+				eye.z = -eye.z;
+			}
+			
+			D3DXVECTOR3 at;
+			{
+				D3DXVECTOR3 v;
+				UMGetCameraAt(&v);
+				d3d_vector3_transform(at, v,  renderedBuffers.begin()->second.world_inv);
+				at.z = -at.z;
+			}
+
+			D3DXVECTOR3 up;
+			{
+				D3DXVECTOR3 v;
+				UMGetCameraUp(&v);
+				d3d_vector3_transform(up, v,  renderedBuffers.begin()->second.world_inv);
+				::D3DXVec3Normalize(&up, &up);
+				up.z = -up.z;
+			}
+
+			Imath::V3d trans((double)eye.x, (double)eye.y, (double)(eye.z));
+			xformSample.setTranslation(trans);
+
+			//D3DXMATRIX view;
+			//::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
+
+			{
+				D3DXVECTOR3 xaxis;
+				D3DXVECTOR3 yaxis;
+				D3DXVECTOR3 zaxis;
+
+				// z
+				{
+					D3DXVECTOR3 temp(eye - at);
+					D3DXVec3Normalize(&zaxis, &temp);
+				}
+				// x
+				{
+					D3DXVECTOR3 temp;
+					D3DXVec3Cross(&temp, &up, &zaxis);
+					D3DXVec3Normalize(&xaxis, &temp);
+				}
+				// y
+				{
+					D3DXVECTOR3 temp;
+					D3DXVec3Cross(&yaxis, &zaxis, &xaxis);
+				}
+
+				Imath::M44d rot(
+					xaxis.x, xaxis.y, xaxis.z, 0,
+					yaxis.x, yaxis.y, yaxis.z, 0,
+					zaxis.x, zaxis.y, zaxis.z, 0,
+					0, 0, 0, 1);
+				
+				//Imath::M44d rot(
+				//	view.m[0][0], view.m[0][1], view.m[0][2], view.m[0][3],
+				//	view.m[1][0], view.m[1][1], view.m[1][2], view.m[1][3],
+				//	view.m[2][0], view.m[2][1], view.m[2][2], view.m[2][3],
+				//	0, 0, 0, 1);
+
+				Imath::V3d xyzRot;
+				Imath::extractEulerXYZ(rot, xyzRot);
+				
+				xformSample.setXRotation(to_degree(xyzRot.x));
+				xformSample.setYRotation(to_degree(xyzRot.y));
+				xformSample.setZRotation(to_degree(xyzRot.z));
+			}
+
+			xformSchema.set(xformSample);
+		}
+		
+		Alembic::AbcGeom::OCamera camera;
+		if (archive.cameraMap.find(cameraKey) != archive.cameraMap.end())
+		{
+			camera = archive.cameraMap[cameraKey];
+		}
+		else
+		{
+			camera = Alembic::AbcGeom::OCamera(xform, "camera", archive.timesampling);
+			archive.cameraMap[cameraKey] = camera;
+			
+			Alembic::AbcGeom::OCameraSchema &cameraSchema = camera.getSchema();
+			archive.cameraSchemaMap[cameraKey] = cameraSchema;
+		}
+
+		Alembic::AbcGeom::OCameraSchema &cameraSchema = archive.cameraSchemaMap[cameraKey];
+		cameraSchema.setTimeSampling(archive.timesampling);
+		Alembic::AbcGeom::CameraSample sample;
+
+		
+		D3DXVECTOR4 v;
+		UMGetCameraFovLH(&v);
+
+		sample.setNearClippingPlane(v.y);
+		sample.setFarClippingPlane(v.w);
+
+		cameraSchema.set(sample);
 	}
 
 	static PyObject * execute_alembic_export(PyObject *self, PyObject* args)
@@ -1185,6 +1349,11 @@ extern "C" {
 		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
+
+			if (i == 0)
+			{
+				export_alembic_camera(archive, renderedBuffer);
+			}
 
 			if (archive.exportMode == 0)
 			{
@@ -2162,15 +2331,15 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 			}
 
 			renderedBuffer.isAccessory = false;
-			int accessoryIndex = -1;
+			D3DXMATRIX accesosoryMat;
 			for (int i = 0; i < ExpGetAcsNum(); ++i)
 			{
 				int order = ExpGetAcsOrder(i);
 				if (order == currentObject)
 				{
 					renderedBuffer.isAccessory = true;
-					accessoryIndex = i;
 					renderedBuffer.accessory = i;
+					accesosoryMat = ExpGetAcsWorldMat(i);
 				}
 			}
 
@@ -2185,8 +2354,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 					if (renderedBuffer.isAccessory)
 					{
 						D3DXVECTOR4 dst;
-						D3DXMATRIX mat = ExpGetAcsWorldMat(accessoryIndex);
-						::D3DXVec3Transform(&dst, &v, &mat);
+						::D3DXVec3Transform(&dst, &v, &accesosoryMat);
 						v.x = dst.x;
 						v.y = dst.y;
 						v.z = dst.z;
@@ -2505,9 +2673,9 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 				{
 					um_vector3 face;
-					face.ix = (int)(pIndexBuf[startIndex + i]) + 1;
-					face.iy = (int)(pIndexBuf[startIndex + i+1]) + 1;
-					face.iz = (int)(pIndexBuf[startIndex + i+2]) + 1;
+					face.ix = (int)(pIndexBuf[startIndex + i + 0]) + 1;
+					face.iy = (int)(pIndexBuf[startIndex + i + 1]) + 1;
+					face.iz = (int)(pIndexBuf[startIndex + i + 2]) + 1;
 					renderedSurface.faces.push_back(face);
 					if (!renderData.normal)
 					{
