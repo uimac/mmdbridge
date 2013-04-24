@@ -960,6 +960,7 @@ extern "C" {
 			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
 			vertexListByMaterial.resize(materialSurfaceSize * 3);
 			faceList.resize(materialSurfaceSize * 3);
+			//normalFaceList.resize(materialSurfaceSize * 3);
 
 			if (!uvList.empty())
 			{
@@ -1043,6 +1044,9 @@ extern "C" {
 				faceList[n * 3 + 0] = vi1;
 				faceList[n * 3 + 1] = vi2;
 				faceList[n * 3 + 2] = vi3;
+				//normalFaceList[n * 3 + 0] = vi1;
+				//normalFaceList[n * 3 + 1] = vi2;
+				//normalFaceList[n * 3 + 2] = vi3;
 				faceCountList.push_back(3);
 			}
 
@@ -1091,7 +1095,7 @@ extern "C" {
 					normalListByMaterial[n].z = -normalListByMaterial[n].z;
 				}
 				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kFacevaryingScope );
+				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
 				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
 				sample.setNormals(normalSample);
 			}
@@ -1208,6 +1212,125 @@ extern "C" {
 		return (radian * 180) / M_PI;
 	}
 
+
+	static float NormalizeAngle (float angle)
+	{
+		while (angle > M_PI)
+			angle -= 2*M_PI;
+		while (angle < -M_PI)
+			angle += 2*M_PI;
+		return angle;
+	}
+
+	static Imath::V3d  NormalizeAngles (Imath::V3d  angles)
+	{
+		angles.x = NormalizeAngle (angles.x);
+		angles.y = NormalizeAngle (angles.y);
+		angles.z = NormalizeAngle (angles.z);
+		return angles;
+	}
+
+	static Imath::V3d quatToEuler(Imath::Quatd quat) {
+		double wy = quat.r * quat.v.y;
+		double zx = quat.v.z * quat.v.x;
+
+		double test = wy - zx;
+		if (test > 0.499) { // singularity at north pole
+			double roll = 2 * atan2(quat.v.x, quat.r);
+			double pitch = M_PI/2;
+			double yaw = 0;
+			return Imath::V3d(pitch, yaw, roll);
+		}
+		if (test < -0.499) { // singularity at south pole
+			double roll = -2 * atan2(quat.v.x, quat.r);
+			double pitch = - M_PI/2;
+			double yaw = 0;
+			return Imath::V3d(pitch, yaw, roll);
+		}
+		double xx = quat.v.x * quat.v.x;
+		double yy = quat.v.y * quat.v.y;
+		double zz = quat.v.z * quat.v.z;
+		
+		double xy = quat.v.x * quat.v.y;
+		double yz = quat.v.y * quat.v.z;
+		double wx = quat.r * quat.v.x;
+		double wz = quat.r * quat.v.z;
+
+		double roll = atan2( 2*(wx + yz), 1 - 2*(xx +yy));
+		double pitch = asin( 2*(wy - zx));
+		double yaw = atan2( 2*(wz + xy), 1 - 2*(yy + zz));
+		return Imath::V3d(pitch, yaw, roll);
+	}
+	
+	static Imath::V3d quatToEuler2(Imath::Quatd quat) {
+		
+		double ww = quat.r * quat.r;
+		double xx = quat.v.x * quat.v.x;
+		double yy = quat.v.y * quat.v.y;
+		double zz = quat.v.z * quat.v.z;
+		double unit = xx + yy + zz + ww;
+		
+		double xy = quat.v.x * quat.v.y;
+		double zw = quat.v.z * quat.r;
+
+		double test = xy + zw;
+		if (test > 0.499*unit) { // singularity at north pole
+			double y = 2 * atan2(quat.v.x, quat.r);
+			double x = M_PI/2;
+			double z = 0;
+			return NormalizeAngles(Imath::V3d(y, x, z));
+		}
+		if (test < -0.499*unit) { // singularity at south pole
+			double y = -2 * atan2(quat.v.x, quat.r);
+			double x = - M_PI/2;
+			double z = 0;
+			return NormalizeAngles(Imath::V3d(y, x, z));
+		}
+		
+		double xz = quat.v.x * quat.v.z;
+		double yz = quat.v.y * quat.v.z;
+		double xw = quat.v.x * quat.r;
+		double yw = quat.v.y * quat.r;
+
+		double y = atan2( 2*(yw - xz), xx - yy - zz + ww);
+		double x = asin( 2* test / unit);
+		double z = atan2( 2*(xw - yz), -xx + yy - zz + ww);
+		return NormalizeAngles(Imath::V3d(y, x, z));
+	}
+	
+	static Imath::V3d quatToEuler3(Imath::Quatd quat) {
+		double yz = quat.v.y * quat.v.z;
+		double wx = quat.r * quat.v.x;
+
+		double test = wx + yz;
+		if (test > 0.499) { // singularity at north pole
+			double yaw = 2 * atan2(quat.v.y, quat.r);
+			double pitch = M_PI;
+			double roll = 0;
+			return Imath::V3d(pitch, yaw, roll);
+		}
+		if (test < -0.499) { // singularity at south pole
+			double yaw = -2 * atan2(quat.v.y, quat.r);
+			double pitch = - M_PI;
+			double roll = 0;
+			return Imath::V3d(pitch, yaw, roll);
+		}
+		double xx = quat.v.x * quat.v.x;
+		double yy = quat.v.y * quat.v.y;
+		double zz = quat.v.z * quat.v.z;
+		double ww = quat.r * quat.r;
+		
+		double xy = quat.v.x * quat.v.y;
+		double wz = quat.r * quat.v.z;
+		double wy = quat.r * quat.v.y;
+		double xz = quat.v.z * quat.v.x;
+		
+		double yaw = atan2( 2*(wz - xy), 1 - 2*(xx + zz));
+		double pitch = asin( 2*(wx + yz) / (xx + yy + zz + ww));
+		double roll = atan2( 2*(wy - xz), 1 - 2*(yy + xx));
+		return Imath::V3d(pitch, yaw, roll);
+	}
+
 	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer)
 	{
 		static const int cameraKey = 0xFFFFFF;
@@ -1233,79 +1356,53 @@ extern "C" {
 			xformSchema.setTimeSampling(archive.timesampling);
 
 			Alembic::AbcGeom::XformSample xformSample;
+
+			D3DXMATRIX convertMat(
+				1, 0, 0, 0,
+				0, 1, 0, 0,
+				0, 0, -1, 0,
+				0, 0, 0, 1);
+
+			D3DXMATRIX convertedWordInv;
+			::D3DXMatrixMultiply(&convertedWordInv, &renderedBuffer.world_inv, &convertMat);
 			
 			D3DXVECTOR3 eye;
 			{
 				D3DXVECTOR3 v;
 				UMGetCameraEye(&v);
-				d3d_vector3_transform(eye, v, renderedBuffers.begin()->second.world_inv);
-				eye.z = -eye.z;
+				d3d_vector3_transform(eye, v,convertedWordInv);
 			}
 			
 			D3DXVECTOR3 at;
 			{
 				D3DXVECTOR3 v;
 				UMGetCameraAt(&v);
-				d3d_vector3_transform(at, v,  renderedBuffers.begin()->second.world_inv);
-				at.z = -at.z;
+				d3d_vector3_transform(at, v, convertedWordInv);
 			}
 
 			D3DXVECTOR3 up;
 			{
 				D3DXVECTOR3 v;
 				UMGetCameraUp(&v);
-				d3d_vector3_transform(up, v,  renderedBuffers.begin()->second.world_inv);
+				d3d_vector3_dir_transform(up, v, convertedWordInv);
 				::D3DXVec3Normalize(&up, &up);
-				up.z = -up.z;
 			}
 
 			Imath::V3d trans((double)eye.x, (double)eye.y, (double)(eye.z));
 			xformSample.setTranslation(trans);
 
-			//D3DXMATRIX view;
-			//::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
+			D3DXMATRIX view;
+			::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
 
-			{
-				D3DXVECTOR3 xaxis;
-				D3DXVECTOR3 yaxis;
-				D3DXVECTOR3 zaxis;
+			Imath::M44d rot(
+				-view.m[0][0], view.m[0][1], view.m[0][2], 0,
+				-view.m[1][0], view.m[1][1], view.m[1][2], 0,
+				view.m[2][0], -view.m[2][1], -view.m[2][2], 0,
+				0, 0, 0, 1);
 
-				// z
-				{
-					D3DXVECTOR3 temp(eye - at);
-					D3DXVec3Normalize(&zaxis, &temp);
-				}
-				// x
-				{
-					D3DXVECTOR3 temp;
-					D3DXVec3Cross(&temp, &up, &zaxis);
-					D3DXVec3Normalize(&xaxis, &temp);
-				}
-				// y
-				{
-					D3DXVECTOR3 temp;
-					D3DXVec3Cross(&yaxis, &zaxis, &xaxis);
-				}
-
-				Imath::M44d rot(
-					xaxis.x, xaxis.y, xaxis.z, 0,
-					yaxis.x, yaxis.y, yaxis.z, 0,
-					zaxis.x, zaxis.y, zaxis.z, 0,
-					0, 0, 0, 1);
-				
-				//Imath::M44d rot(
-				//	view.m[0][0], view.m[0][1], view.m[0][2], view.m[0][3],
-				//	view.m[1][0], view.m[1][1], view.m[1][2], view.m[1][3],
-				//	view.m[2][0], view.m[2][1], view.m[2][2], view.m[2][3],
-				//	0, 0, 0, 1);
-
-				Imath::V3d xyzRot;
-				Imath::extractEulerXYZ(rot, xyzRot);
-				
-				xformSample.setXRotation(to_degree(xyzRot.x));
-				xformSample.setYRotation(to_degree(xyzRot.y));
-				xformSample.setZRotation(to_degree(xyzRot.z));
-			}
+			Imath::Quatd quat = Imath::extractQuat(rot);
+			quat.normalize();
+			xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
 
 			xformSchema.set(xformSample);
 		}
@@ -1350,7 +1447,7 @@ extern "C" {
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
 
-			if (i == 0)
+			if (i == 1)
 			{
 				export_alembic_camera(archive, renderedBuffer);
 			}
@@ -2317,6 +2414,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 			::D3DXMatrixIdentity(&renderedBuffer.world);
 			::D3DXMatrixIdentity(&renderedBuffer.view);
 			::D3DXMatrixIdentity(&renderedBuffer.projection);
+			::D3DXMatrixIdentity(&renderedBuffer.world_inv);
 			device->lpVtbl->GetTransform(device ,D3DTS_WORLD, &renderedBuffer.world);
 			device->lpVtbl->GetTransform(device ,D3DTS_VIEW, &renderedBuffer.view);
 			device->lpVtbl->GetTransform(device ,D3DTS_PROJECTION, &renderedBuffer.projection);
@@ -2347,7 +2445,9 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 			if (renderData.pos_xyz)
 			{
 				int initialVertexSize = renderedBuffer.vertecies.size();
-				for (size_t i =  bytePos; i < vit->second; i += renderData.stride)
+				const int size = (vit->second - bytePos) / renderData.stride;
+				renderedBuffer.vertecies.resize(size);
+				for (size_t i =  bytePos, n = 0; i < vit->second; i += renderData.stride, ++n)
 				{
 					D3DXVECTOR3 v;
 					memcpy(&v, &pVertexBuf[i], sizeof( D3DXVECTOR3 ));
@@ -2360,7 +2460,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 						v.z = dst.z;
 					}
 
-					renderedBuffer.vertecies.push_back(v);
+					renderedBuffer.vertecies[n] = v;
 				}
 				bytePos += (sizeof(DWORD) * 3);
 			}
