@@ -1231,106 +1231,38 @@ extern "C" {
 	}
 
 	static Imath::V3d quatToEuler(Imath::Quatd quat) {
-		double wy = quat.r * quat.v.y;
-		double zx = quat.v.z * quat.v.x;
-
-		double test = wy - zx;
-		if (test > 0.499) { // singularity at north pole
-			double roll = 2 * atan2(quat.v.x, quat.r);
-			double pitch = M_PI/2;
-			double yaw = 0;
-			return Imath::V3d(pitch, yaw, roll);
-		}
-		if (test < -0.499) { // singularity at south pole
-			double roll = -2 * atan2(quat.v.x, quat.r);
-			double pitch = - M_PI/2;
-			double yaw = 0;
-			return Imath::V3d(pitch, yaw, roll);
-		}
-		double xx = quat.v.x * quat.v.x;
-		double yy = quat.v.y * quat.v.y;
-		double zz = quat.v.z * quat.v.z;
-		
-		double xy = quat.v.x * quat.v.y;
-		double yz = quat.v.y * quat.v.z;
-		double wx = quat.r * quat.v.x;
-		double wz = quat.r * quat.v.z;
-
-		double roll = atan2( 2*(wx + yz), 1 - 2*(xx +yy));
-		double pitch = asin( 2*(wy - zx));
-		double yaw = atan2( 2*(wz + xy), 1 - 2*(yy + zz));
-		return Imath::V3d(pitch, yaw, roll);
-	}
-	
-	static Imath::V3d quatToEuler2(Imath::Quatd quat) {
-		
-		double ww = quat.r * quat.r;
-		double xx = quat.v.x * quat.v.x;
-		double yy = quat.v.y * quat.v.y;
-		double zz = quat.v.z * quat.v.z;
-		double unit = xx + yy + zz + ww;
-		
 		double xy = quat.v.x * quat.v.y;
 		double zw = quat.v.z * quat.r;
 
 		double test = xy + zw;
-		if (test > 0.499*unit) { // singularity at north pole
-			double y = 2 * atan2(quat.v.x, quat.r);
-			double x = M_PI/2;
-			double z = 0;
-			return NormalizeAngles(Imath::V3d(y, x, z));
-		}
-		if (test < -0.499*unit) { // singularity at south pole
-			double y = -2 * atan2(quat.v.x, quat.r);
-			double x = - M_PI/2;
-			double z = 0;
-			return NormalizeAngles(Imath::V3d(y, x, z));
-		}
-		
-		double xz = quat.v.x * quat.v.z;
-		double yz = quat.v.y * quat.v.z;
-		double xw = quat.v.x * quat.r;
-		double yw = quat.v.y * quat.r;
-
-		double y = atan2( 2*(yw - xz), xx - yy - zz + ww);
-		double x = asin( 2* test / unit);
-		double z = atan2( 2*(xw - yz), -xx + yy - zz + ww);
-		return NormalizeAngles(Imath::V3d(y, x, z));
-	}
-	
-	static Imath::V3d quatToEuler3(Imath::Quatd quat) {
-		double yz = quat.v.y * quat.v.z;
-		double wx = quat.r * quat.v.x;
-
-		double test = wx + yz;
 		if (test > 0.499) { // singularity at north pole
-			double yaw = 2 * atan2(quat.v.y, quat.r);
-			double pitch = M_PI;
+			double yaw = 2 * atan2(quat.v.x, quat.r);
+			double pitch = M_PI/2;
 			double roll = 0;
-			return Imath::V3d(pitch, yaw, roll);
+			return Imath::V3d(yaw, pitch, roll);
 		}
 		if (test < -0.499) { // singularity at south pole
-			double yaw = -2 * atan2(quat.v.y, quat.r);
-			double pitch = - M_PI;
+			double yaw = -2 * atan2(quat.v.x, quat.r);
+			double pitch = - M_PI/2;
 			double roll = 0;
-			return Imath::V3d(pitch, yaw, roll);
+			return Imath::V3d(yaw, pitch, roll);
 		}
 		double xx = quat.v.x * quat.v.x;
 		double yy = quat.v.y * quat.v.y;
 		double zz = quat.v.z * quat.v.z;
-		double ww = quat.r * quat.r;
 		
-		double xy = quat.v.x * quat.v.y;
-		double wz = quat.r * quat.v.z;
+		double yz = quat.v.y * quat.v.z;
+		double xz = quat.v.x * quat.v.z;
+		double wx = quat.r * quat.v.x;
 		double wy = quat.r * quat.v.y;
-		double xz = quat.v.z * quat.v.x;
+		double wz = quat.r * quat.v.z;
 		
-		double yaw = atan2( 2*(wz - xy), 1 - 2*(xx + zz));
-		double pitch = asin( 2*(wx + yz) / (xx + yy + zz + ww));
-		double roll = atan2( 2*(wy - xz), 1 - 2*(yy + xx));
-		return Imath::V3d(pitch, yaw, roll);
+		double yaw = atan2( 2*(wy - xz), 1 - 2*(yy + zz));
+		double pitch = atan2( 2*(wx - yz), 1 - 2*(xx +zz));
+		double roll = asin( 2*(test));
+		return Imath::V3d(yaw, pitch, roll);
 	}
-
+	
 	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer)
 	{
 		static const int cameraKey = 0xFFFFFF;
@@ -1393,7 +1325,8 @@ extern "C" {
 
 			D3DXMATRIX view;
 			::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
-
+			
+			
 			Imath::M44d rot(
 				-view.m[0][0], view.m[0][1], view.m[0][2], 0,
 				-view.m[1][0], view.m[1][1], view.m[1][2], 0,
@@ -1402,7 +1335,12 @@ extern "C" {
 
 			Imath::Quatd quat = Imath::extractQuat(rot);
 			quat.normalize();
-			xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
+
+			Imath::V3d euler = quatToEuler(quat);
+			xformSample.setXRotation(to_degree(euler.y));
+			xformSample.setYRotation(to_degree(euler.x));
+			xformSample.setZRotation(-to_degree(euler.z));
+			//xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
 
 			xformSchema.set(xformSample);
 		}
