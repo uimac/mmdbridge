@@ -960,7 +960,6 @@ extern "C" {
 			
 			std::vector<Alembic::Util::int32_t> faceList;
 			std::vector<Alembic::Util::int32_t> faceCountList;
-			std::vector<Alembic::Util::uint32_t> normalFaceList;
 
 			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
 			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
@@ -974,7 +973,7 @@ extern "C" {
 			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
 			vertexListByMaterial.resize(materialSurfaceSize * 3);
 			faceList.resize(materialSurfaceSize * 3);
-			//normalFaceList.resize(materialSurfaceSize * 3);
+			faceCountList.resize(materialSurfaceSize);
 
 			if (!uvList.empty())
 			{
@@ -1058,10 +1057,7 @@ extern "C" {
 				faceList[n * 3 + 0] = vi1;
 				faceList[n * 3 + 1] = vi2;
 				faceList[n * 3 + 2] = vi3;
-				//normalFaceList[n * 3 + 0] = vi1;
-				//normalFaceList[n * 3 + 1] = vi2;
-				//normalFaceList[n * 3 + 2] = vi3;
-				faceCountList.push_back(3);
+				faceCountList[n] = 3;
 			}
 
 			preSurfaceSize = material->surface.faces.size();
@@ -1159,16 +1155,30 @@ extern "C" {
 		RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
 		RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
 
-		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
+		const int materialSize = static_cast<int>(renderedBuffer.materials.size());
+
+		int totalFaceCount = 0;
+		for (int k = 0; k < materialSize; ++k)
 		{
 			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			for (int n = 0, nsize = material->surface.faces.size(); n < nsize; ++n)
+			totalFaceCount += material->surface.faces.size();
+		}
+		faceCountList.resize(totalFaceCount);
+		faceList.resize(totalFaceCount * 3);
+
+		int faceCounter = 0;
+		for (int k = 0; k < materialSize; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int faceSize = material->surface.faces.size();
+			for (int n = 0; n < faceSize; ++n)
 			{
 				um_vector3 face = material->surface.faces[n];
-				faceList.push_back(face.ix - 1);
-				faceList.push_back(face.iy - 1);
-				faceList.push_back(face.iz - 1);
-				faceCountList.push_back(3);
+				faceList[faceCounter * 3 + 0] = (face.ix - 1);
+				faceList[faceCounter * 3 + 1] = (face.iy - 1);
+				faceList[faceCounter * 3 + 2] = (face.iz - 1);
+				faceCountList[faceCounter] = 3;
+				++faceCounter;
 			}
 		}
 
