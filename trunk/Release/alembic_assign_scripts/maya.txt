@@ -13,6 +13,7 @@ class Mtl():
         self.trans = 1.0
         self.power = 0.0
         self.lum = 1
+	self.isAccessory = False
 
 def import_mtl(path, result):
     current = None
@@ -48,6 +49,13 @@ def import_mtl(path, result):
             current.textureMap = str(words[1])
         elif "map_d" == words[0]:
             current.alphaMap = str(words[1])
+        elif "#" == words[0]:
+            if words[1] == "is_accessory":
+		current.isAccessory = True
+
+    if current != None and current.name != "":
+        result[current.name] = current
+
     mtl.close()
 
 def execute():

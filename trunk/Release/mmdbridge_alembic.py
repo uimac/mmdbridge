@@ -25,6 +25,9 @@ def export_mtl(mtlpath, export_mode):
 			material_name = "material_" + str(buf) + "_" + str(mat)
 			mtlfile.write("newmtl "+material_name+"\n")
 
+			if is_accessory(buf):
+				mtlfile.write("# is_accessory"+"\n")
+
 			if export_mode == 1:
 				face_size = get_face_size(buf, mat)
 				mtlfile.write("# face_size "+str(face_size)+"\n")
@@ -36,9 +39,19 @@ def export_mtl(mtlpath, export_mode):
 			power = get_power(buf, mat)
 			texture = get_texture(buf, mat)
 			if len(texture) == 0:
-				texture = get_exported_texture(buf, mat) + ".png"
+				texture = get_exported_texture(buf, mat)
+				if len(texture) > 0:
+					texture = texture + ".png"
+
+			if material_name is "material_0_10":
+				messagebox(texture)
 
 			mtlfile.write("Ka "+str(ambient[0])+" "+str(ambient[1])+" "+str(ambient[2])+"\n")
+			if diffuse[0] < 0 or diffuse[1] < 0 or diffuse[2] < 0:
+				diffuse[0] = 1
+				diffuse[1] = 1
+				diffuse[2] = 1
+
 			mtlfile.write("Kd "+str(diffuse[0])+" "+str(diffuse[1])+" "+str(diffuse[2])+"\n")
 			mtlfile.write("Ks "+str(specular[0])+" "+str(specular[1])+" "+str(specular[2])+"\n")
 			if (diffuse[3] < 1):
@@ -48,16 +61,19 @@ def export_mtl(mtlpath, export_mode):
 			# lum = 1 no specular highlights, lum = 2 light normaly
 			mtlfile.write("lum 1\n")
 			if len(texture) > 0:
-				mtlfile.write("map_Kd "+texture+"\n")
-				if (diffuse[3] < 1):
-					texname, ext = os.path.splitext(texture)
-					if (ext is not "bmp") and (ext is not "png") and (ext is not "tif") and \
-							(ext is not "BMP") and (ext is not "PNG") and (ext is not "TIF"):
-						export_path = get_base_path() + "out\\" + texname + ".png"
-						export_texture(buf, mat, export_path)
-						mtlfile.write("map_d "+texname + ".png"+"\n")
-					else:
+				texname, ext = os.path.splitext(texture)
+				if (ext is not ".bmp") and (ext is not ".png") and (ext is not ".tif") and \
+						(ext is not ".BMP") and (ext is not ".PNG") and (ext is not ".TIF"):
+					export_path = get_base_path() + "out\\" + texname + ".png"
+					if export_texture(buf, mat, export_path):
+						mtlfile.write("map_Kd "+texname + ".png"+"\n")
+						if (diffuse[3] < 1):
+							mtlfile.write("map_d "+texname + ".png"+"\n")
+				else:
+					mtlfile.write("map_Kd "+texture+"\n")
+					if (diffuse[3] < 1):
 						mtlfile.write("map_d "+texture+"\n")
+
 
 outpath = get_base_path().replace("\\", "/") + "out/"
 mtlpath = outpath + "alembic_file" + "_mode_" + str(export_mode) + ".mtl"

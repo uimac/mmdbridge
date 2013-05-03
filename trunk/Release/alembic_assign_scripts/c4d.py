@@ -15,7 +15,7 @@ class Mtl():
         self.trans = 1.0
         self.power = 0.0
         self.lum = 1
-
+	self.isAccessory = False
 
 def import_mtl(path, result):
     
@@ -53,6 +53,13 @@ def import_mtl(path, result):
             current.textureMap = str(words[1])
         elif "map_d" == words[0]:
             current.alphaMap = str(words[1])
+        elif "#" == words[0]:
+            if words[1] == "is_accessory":
+		current.isAccessory = True
+
+    if current != None and current.name != "":
+        result[current.name] = current
+
     mtl.close()
         
 def main():
@@ -127,21 +134,23 @@ def main():
                     print("alpha map:", texturePath,mtlData.name )
                 # assign color
                 mat.SetName(mtlData.name)
-                mat[c4d.MATERIAL_COLOR_COLOR] = c4d.Vector(\
-                    mtlData.diffuse[0], \
-                    mtlData.diffuse[1], \
-                    mtlData.diffuse[2])
+
+		if mtlData.isAccessory:
+	                mat[c4d.MATERIAL_COLOR_COLOR] = c4d.Vector(\
+	                    mtlData.diffuse[0] + 0.5 * mtlData.ambient[0], \
+	                    mtlData.diffuse[1] + 0.5 * mtlData.ambient[1], \
+	                    mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
+		else:
+	                mat[c4d.MATERIAL_COLOR_COLOR] = c4d.Vector(\
+	                    mtlData.diffuse[0], \
+	                    mtlData.diffuse[1], \
+	                    mtlData.diffuse[2])
                     
                 mat[c4d.MATERIAL_SPECULAR_COLOR] = c4d.Vector(\
                     mtlData.specular[0], \
                     mtlData.specular[1], \
                     mtlData.specular[2])
-                
-                mat[c4d.MATERIAL_ENVIRONMENT_COLOR] = c4d.Vector(\
-                    mtlData.ambient[0], \
-                    mtlData.ambient[1], \
-                    mtlData.ambient[2])
-                
+                                
                 if mtlData.trans < 0.9999:
                     mat[c4d.MATERIAL_USE_ALPHA] = True
                     mat[c4d.MATERIAL_TRANSPARENCY_BRIGHTNESS] = mtlData.trans
