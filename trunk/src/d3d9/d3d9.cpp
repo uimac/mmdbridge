@@ -2169,8 +2169,7 @@ static HRESULT WINAPI present(
 			{
 				isExportedFrame = true;
 			}
-			if (isExportedFrame)
-			if (currentFrame >= startFrame && currentFrame <= endFrame)
+			if (isExportedFrame && currentFrame >= startFrame && currentFrame <= endFrame)
 			{
 				if (exportedFrames.find(currentFrame) == exportedFrames.end())
 				{
