@@ -122,7 +122,7 @@ def main():
                     if len(mtlData.textureMap) > 0:
                         texturePath = os.path.join(abc, mtlData.textureMap)
                         root, ext = os.path.splitext(texturePath)
-                        if ext == '.bmp':
+                        if ext == '.bmp' or ext == '.tga':
                             searchPath = root + '.png'
                             if os.path.exists(searchPath):
                                 texturePath = searchPath
