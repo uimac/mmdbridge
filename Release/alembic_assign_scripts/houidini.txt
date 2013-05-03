@@ -13,7 +13,7 @@ class Mtl():
         self.trans = 1.0
         self.power = 0.0
         self.lum = 1
-
+	self.isAccessory = False
 
 def import_mtl(path, result):
     
@@ -51,6 +51,13 @@ def import_mtl(path, result):
             current.textureMap = str(words[1])
         elif "map_d" == words[0]:
             current.alphaMap = str(words[1])
+        elif "#" == words[0]:
+            if words[1] == "is_accessory":
+		current.isAccessory = True
+
+    if current != None and current.name != "":
+        result[current.name] = current
+
     mtl.close()
 
 def main():
@@ -123,12 +130,21 @@ def main():
                         mat.parm('baseColorMap').set(texturePath)
                         mat.parm('ogl_tex1').set(texturePath)
 
-                    mat.parm('baseColorr').set(mtlData.diffuse[0])
-                    mat.parm('baseColorg').set(mtlData.diffuse[1])
-                    mat.parm('baseColorb').set(mtlData.diffuse[2])
-                    mat.parm('ogl_diffr').set(mtlData.diffuse[0])
-                    mat.parm('ogl_diffg').set(mtlData.diffuse[1])
-                    mat.parm('ogl_diffb').set(mtlData.diffuse[2])
+                    if mtlData.isAccessory:
+	                mat.parm('baseColorr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
+	                mat.parm('baseColorg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
+	                mat.parm('baseColorb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
+	                mat.parm('ogl_diffr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
+	                mat.parm('ogl_diffg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
+	                mat.parm('ogl_diffb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
+                    else:
+	                mat.parm('baseColorr').set(mtlData.diffuse[0])
+	                mat.parm('baseColorg').set(mtlData.diffuse[1])
+	                mat.parm('baseColorb').set(mtlData.diffuse[2])
+	                mat.parm('ogl_diffr').set(mtlData.diffuse[0])
+	                mat.parm('ogl_diffg').set(mtlData.diffuse[1])
+	                mat.parm('ogl_diffb').set(mtlData.diffuse[2])
+
                     mat.parm('ogl_specr').set(mtlData.specular[0])
                     mat.parm('ogl_specg').set(mtlData.specular[1])
                     mat.parm('ogl_specb').set(mtlData.specular[2])
