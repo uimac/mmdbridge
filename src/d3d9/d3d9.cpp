@@ -246,6 +246,8 @@ extern "C" {
 	static int scriptCallSetting = 2; // スクリプト呼び出し設定
 	static int startFrame = 5;
 	static int endFrame = 100;
+	std::map<int, int> exportedFrames;
+	bool isExportedFrame = false;
 	static int frameWidth = 800;
 	static int frameHeight = 450;
 	static int exportFPS = 30;
@@ -1224,24 +1226,6 @@ extern "C" {
 		return (radian * 180) / M_PI;
 	}
 
-
-	static float NormalizeAngle (float angle)
-	{
-		while (angle > M_PI)
-			angle -= 2*M_PI;
-		while (angle < -M_PI)
-			angle += 2*M_PI;
-		return angle;
-	}
-
-	static Imath::V3d  NormalizeAngles (Imath::V3d  angles)
-	{
-		angles.x = NormalizeAngle (angles.x);
-		angles.y = NormalizeAngle (angles.y);
-		angles.z = NormalizeAngle (angles.z);
-		return angles;
-	}
-
 	static Imath::V3d quatToEuler(Imath::Quatd quat) {
 		double xy = quat.v.x * quat.v.y;
 		double zw = quat.v.z * quat.r;
@@ -1885,13 +1869,14 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				{
 					SendMessage(hCombo1 , CB_ADDSTRING , 0 , (LPARAM)pythonNames[i].c_str());
 				}
-				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("画面操作時に実行"));
-				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("ＡＶＩ出力時に実行"));
+				//SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("画面操作時に実行"));
+				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行する"));
 				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行しない"));
 				// ウインドウ生成時にはじめに表示するデータを指定
 				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str());
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
-				SendMessage(hCombo2, CB_SETCURSEL, scriptCallSetting, 0);
+				// 実行しないに設定
+				SendMessage(hCombo2, CB_SETCURSEL, 1, 0);
 
 				::SetWindowTextA(hEdit1, to_string(startFrame).c_str());
 				::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
@@ -1918,9 +1903,9 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							}
 						}
 						UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
-						if (num2 < 3)
+						if (num2 < 2)
 						{
-							scriptCallSetting = num2;
+							scriptCallSetting = num2 + 1;
 						}
 
 						char text1[32];
@@ -2180,7 +2165,25 @@ static HRESULT WINAPI present(
 		}
 		else if (scriptCallSetting == 1)
 		{
-			runScriptMain();
+			if (currentFrame == startFrame)
+			{
+				isExportedFrame = true;
+			}
+			if (isExportedFrame)
+			if (currentFrame >= startFrame && currentFrame <= endFrame)
+			{
+				if (exportedFrames.find(currentFrame) == exportedFrames.end())
+				{
+					runScriptMain();
+					exportedFrames[currentFrame] = 1;
+					preFrame = currentFrame;
+				}
+				if (currentFrame == endFrame)
+				{
+					exportedFrames.clear();
+					isExportedFrame = false;
+				}
+			}
 		}
 		else if (scriptCallSetting == 3)
 		{
