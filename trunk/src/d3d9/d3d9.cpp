@@ -1875,8 +1875,7 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				// ウインドウ生成時にはじめに表示するデータを指定
 				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str());
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
-				// 実行しないに設定
-				SendMessage(hCombo2, CB_SETCURSEL, 1, 0);
+				SendMessage(hCombo2, CB_SETCURSEL, scriptCallSetting - 1, 0);
 
 				::SetWindowTextA(hEdit1, to_string(startFrame).c_str());
 				::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
@@ -1903,7 +1902,7 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 							}
 						}
 						UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
-						if (num2 < 2)
+						if (num2 <= 2)
 						{
 							scriptCallSetting = num2 + 1;
 						}
@@ -2165,22 +2164,41 @@ static HRESULT WINAPI present(
 		}
 		else if (scriptCallSetting == 1)
 		{
-			if (currentFrame == startFrame)
+			float time = ExpGetFrameTime();
+			int frame = static_cast<int>(time * exportFPS);
+			if (currentFrame == startFrame || frame == startFrame)
 			{
 				isExportedFrame = true;
 			}
-			if (isExportedFrame && currentFrame >= startFrame && currentFrame <= endFrame)
+			if (isExportedFrame)
 			{
-				if (exportedFrames.find(currentFrame) == exportedFrames.end())
+				if (currentFrame >= startFrame && currentFrame <= endFrame)
 				{
-					runScriptMain();
-					exportedFrames[currentFrame] = 1;
-					preFrame = currentFrame;
+					if (exportedFrames.find(currentFrame) == exportedFrames.end())
+					{
+						runScriptMain();
+						exportedFrames[currentFrame] = 1;
+						preFrame = currentFrame;
+					}
+					if (currentFrame == endFrame)
+					{
+						exportedFrames.clear();
+						isExportedFrame = false;
+					}
 				}
-				if (currentFrame == endFrame)
+				else if (frame >= startFrame && frame <= endFrame)
 				{
-					exportedFrames.clear();
-					isExportedFrame = false;
+					if (exportedFrames.find(frame) == exportedFrames.end())
+					{
+						runScriptMain();
+						exportedFrames[frame] = 1;
+						preFrame = frame;
+					}
+					if (frame == endFrame)
+					{
+						exportedFrames.clear();
+						isExportedFrame = false;
+					}
 				}
 			}
 		}
@@ -2535,22 +2553,25 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 
 				D3DXHANDLE hEdge = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "EgColor");
 				D3DXHANDLE hDiffuse = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "DifColor");
+				D3DXHANDLE hToon = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "ToonColor");
 				D3DXHANDLE hSpecular = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "SpcColor");
 				D3DXHANDLE hTransp = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "transp");
 				
 				float edge[4];
 				float diffuse[4];
 				float specular[4];
+				float toon[4];
 				BOOL transp;
 				(*effect)->lpVtbl->GetFloatArray(*effect, hEdge, edge, 4);
-				(*effect)->lpVtbl->GetFloatArray(*effect, hSpecular, diffuse, 4);
+				(*effect)->lpVtbl->GetFloatArray(*effect, hToon, toon, 4);
+				(*effect)->lpVtbl->GetFloatArray(*effect, hDiffuse, diffuse, 4);
 				(*effect)->lpVtbl->GetFloatArray(*effect, hSpecular, specular, 4);
 				(*effect)->lpVtbl->GetBool(*effect, hTransp, &transp);
-				mat->diffuse.x = edge[0] + diffuse[0];
+				mat->diffuse.x = edge[0] * toon[0] + specular[0];
 				if (mat->diffuse.x > 1) { mat->diffuse.x = 1.0f; }
-				mat->diffuse.y = edge[1] + diffuse[1];
+				mat->diffuse.y = edge[1] * toon[1] + specular[1];
 				if (mat->diffuse.y > 1) { mat->diffuse.y = 1.0f; }
-				mat->diffuse.z = edge[2] + diffuse[2];
+				mat->diffuse.z = edge[2] * toon[2] + specular[2];
 				if (mat->diffuse.z > 1) { mat->diffuse.z = 1.0f; }
 				mat->diffuse.w = edge[3];
 
