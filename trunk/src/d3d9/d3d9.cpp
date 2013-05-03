@@ -383,6 +383,18 @@ extern "C" {
 		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].materials.size());
 	}
 
+	static PyObject * is_accessory(PyObject *self, PyObject *args)
+	{
+		int at;
+		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; } 
+		int result = 0;
+		if (renderedBuffers[finishBuffers[at]].isAccessory)
+		{
+			result = 1;
+		}
+		return Py_BuildValue("i", result);
+	}
+
 	static PyObject * get_diffuse(PyObject *self, PyObject *args)
 	{
 		int at;
@@ -1385,7 +1397,7 @@ extern "C" {
 		{
 			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
 
-			if (i == 1)
+			if (i == 0)
 			{
 				export_alembic_camera(archive, renderedBuffer);
 			}
@@ -1414,6 +1426,7 @@ extern "C" {
 		{ "get_uv_size", (PyCFunction)get_uv_size, METH_VARARGS },
 		{ "get_uv", (PyCFunction)get_uv, METH_VARARGS },
 		{ "get_material_size", (PyCFunction)get_material_size, METH_VARARGS },
+		{ "is_accessory", (PyCFunction)is_accessory, METH_VARARGS },
 		{ "get_ambient", (PyCFunction)get_ambient, METH_VARARGS },
 		{ "get_diffuse", (PyCFunction)get_diffuse, METH_VARARGS },
 		{ "get_specular", (PyCFunction)get_specular, METH_VARARGS },
@@ -2472,9 +2485,9 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	if (notFoundObjectMaterial || renderedMaterials[currentObject].find(currentMaterial) == renderedMaterials[currentObject].end())
 	{
 		// D3DMATERIAL9 取得
-		D3DMATERIAL9 material;
-		p_device->lpVtbl->GetMaterial(p_device, &material);
-
+		D3DMATERIAL9 material = ExpGetPmdMaterial(currentObject, currentMaterial);
+		//p_device->lpVtbl->GetMaterial(p_device, &material);
+		
 		RenderedMaterial *mat = new RenderedMaterial();
 		mat->diffuse.x = material.Diffuse.r;
 		mat->diffuse.y = material.Diffuse.g;
@@ -2490,7 +2503,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		mat->emissive.y = material.Emissive.g;
 		mat->emissive.z = material.Emissive.b;
 		mat->power = material.Power;
-
+		
 		// シェーダー時
 		if (currentTechnic == 2) {
 			LPD3DXEFFECT* effect =  UMGetEffect();
@@ -2583,6 +2596,16 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		RenderedBuffer &renderedBuffer = renderedBuffers[pStreamData];
 		if (renderedBuffer.isAccessory)
 		{
+			D3DMATERIAL9 accessoryMat = ExpGetAcsMaterial(renderedBuffer.accessory, currentMaterial);
+			mat->diffuse.x = accessoryMat.Diffuse.r;
+			mat->diffuse.y = accessoryMat.Diffuse.g;
+			mat->diffuse.z = accessoryMat.Diffuse.b;
+			mat->specular.x = accessoryMat.Specular.r;
+			mat->specular.y = accessoryMat.Specular.g;
+			mat->specular.z = accessoryMat.Specular.b;
+			mat->ambient.x = accessoryMat.Ambient.r;
+			mat->ambient.y = accessoryMat.Ambient.g;
+			mat->ambient.z = accessoryMat.Ambient.b;
 			mat->diffuse.w = ::ExpGetAcsTr(renderedBuffer.accessory);
 		}
 
