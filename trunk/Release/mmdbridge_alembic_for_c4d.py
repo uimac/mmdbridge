@@ -56,6 +56,11 @@ def export_mtl(mtlpath, export_mode):
 				diffuse[1] = 1
 				diffuse[2] = 1
 
+			if specular[0] < 0 or specular[1] < 0 or specular[2] < 0:
+				specular[0] = 0
+				specular[1] = 0
+				specular[2] = 0
+
 			mtlfile.write("Kd "+str(diffuse[0])+" "+str(diffuse[1])+" "+str(diffuse[2])+"\n")
 			mtlfile.write("Ks "+str(specular[0])+" "+str(specular[1])+" "+str(specular[2])+"\n")
 			if (diffuse[3] < 1):
