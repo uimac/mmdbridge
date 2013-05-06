@@ -167,6 +167,7 @@ typedef struct RenderedBuffer {
 		//}
 	}
 	um_vector3 light;
+	um_vector3 light_color;
 	D3DXMATRIX world;
 	D3DXMATRIX view;
 	D3DXMATRIX projection;

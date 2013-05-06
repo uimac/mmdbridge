@@ -704,6 +704,14 @@ extern "C" {
 		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
 	}
 
+	static PyObject * get_light_color(PyObject *self, PyObject *args)
+	{
+		int at;
+		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
+		um_vector3 &light = renderedBuffers[finishBuffers[at]].light_color;
+		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
+	}
+
 	static PyObject * messagebox(PyObject *self, PyObject *args)
 	{
 		const char *str = "";
@@ -1414,7 +1422,7 @@ extern "C" {
 		return (radian * 180) / M_PI;
 	}
 
-	static Imath::V3d quatToEuler(Imath::Quatd quat) {
+	static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 		double xy = quat.v.x * quat.v.y;
 		double zw = quat.v.z * quat.r;
 
@@ -1423,13 +1431,15 @@ extern "C" {
 			double yaw = 2 * atan2(quat.v.x, quat.r);
 			double pitch = M_PI/2;
 			double roll = 0;
-			return Imath::V3d(yaw, pitch, roll);
+			dst = Imath::V3d(yaw, pitch, roll);
+			return;
 		}
 		if (test < -0.499) { // singularity at south pole
 			double yaw = -2 * atan2(quat.v.x, quat.r);
 			double pitch = - M_PI/2;
 			double roll = 0;
-			return Imath::V3d(yaw, pitch, roll);
+			dst = Imath::V3d(yaw, pitch, roll);
+			return;
 		}
 		double xx = quat.v.x * quat.v.x;
 		double yy = quat.v.y * quat.v.y;
@@ -1444,7 +1454,7 @@ extern "C" {
 		double yaw = atan2( 2*(wy - xz), 1 - 2*(yy + zz));
 		double pitch = atan2( 2*(wx - yz), 1 - 2*(xx +zz));
 		double roll = asin( 2*(test));
-		return Imath::V3d(yaw, pitch, roll);
+		dst = Imath::V3d(yaw, pitch, roll);
 	}
 	
 	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer)
@@ -1520,7 +1530,8 @@ extern "C" {
 			Imath::Quatd quat = Imath::extractQuat(rot);
 			quat.normalize();
 
-			Imath::V3d euler = quatToEuler(quat);
+			Imath::V3d euler;
+			quatToEuler(euler, quat);
 			xformSample.setXRotation(to_degree(euler.y));
 			xformSample.setYRotation(to_degree(euler.x));
 			xformSample.setZRotation(-to_degree(euler.z));
@@ -1644,6 +1655,7 @@ extern "C" {
 		{ "get_frame_height", (PyCFunction)get_frame_height, METH_VARARGS },
 		{ "get_base_path", (PyCFunction)get_base_path, METH_VARARGS },
 		{ "get_light", (PyCFunction)get_light, METH_VARARGS },
+		{ "get_light_color", (PyCFunction)get_light_color, METH_VARARGS },
 		{ "get_world", (PyCFunction)get_world, METH_VARARGS },
 		{ "get_world_inv", (PyCFunction)get_world_inv, METH_VARARGS },
 		{ "get_view", (PyCFunction)get_view, METH_VARARGS },
@@ -2879,6 +2891,21 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 		umlight.x = v.x;
 		umlight.y = v.y;
 		umlight.z = v.z;
+		
+		renderedBuffer.light_color.x = light.Ambient.r;
+		renderedBuffer.light_color.y = light.Ambient.g;
+		renderedBuffer.light_color.z = light.Ambient.b;
+		//renderedBuffer.light_diffuse.x = light.Diffuse.r;
+		//renderedBuffer.light_diffuse.y = light.Diffuse.g;
+		//renderedBuffer.light_diffuse.z = light.Diffuse.b;
+		//renderedBuffer.light_diffuse.w = light.Diffuse.a;
+		//renderedBuffer.light_specular.x = light.Specular.r;
+		//renderedBuffer.light_specular.y = light.Specular.g;
+		//renderedBuffer.light_specular.z = light.Specular.b;
+		//renderedBuffer.light_specular.w = light.Specular.a;
+		//renderedBuffer.light_position.x = light.Position.x;
+		//renderedBuffer.light_position.y = light.Position.y;
+		//renderedBuffer.light_position.z = light.Position.z;
 	}
 }
 
