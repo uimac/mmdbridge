@@ -80,6 +80,8 @@ public:
 	bool isExportUvs;
 	int exportMode;
 
+	bool isUseEulerRotationForCamera;
+
 	void end() { 
 		xformMap.clear();
 		xformSchemaMap.clear();
@@ -94,7 +96,7 @@ public:
 		}
 	}
 private:
-	AlembicArchive() : archive(NULL), timeindex(0), exportMode(0) {}
+	AlembicArchive() : archive(NULL), timeindex(0), exportMode(0), isUseEulerRotationForCamera(false) {}
 };
 
 #endif //WITH_ALEMBIC
@@ -250,7 +252,7 @@ extern "C" {
 	bool isExportedFrame = false;
 	static int frameWidth = 800;
 	static int frameHeight = 450;
-	static int exportFPS = 30;
+	static double exportFPS = 30.0;
 	static bool is_texture_buffer_enabled = false;
 	static RenderedMaterial* currentRenderedMaterial = NULL;
 	static std::map<int, int> py_int_map;
@@ -872,13 +874,24 @@ extern "C" {
 	
 	static PyObject * start_alembic_export(PyObject *self, PyObject* args)
 	{
+		if (exportFPS <= 0)
+		{
+			return Py_BuildValue(""); //None 
+		}
+
 		if (!AlembicArchive::instance().archive)
 		{
 			int isExportNomals = 0;
 			int isExportUvs = 0;
+			int isUseEulerRotationForCamera = 0;
 			int exportMode = 0;
 			const char *filepath = "";
-			if (!PyArg_ParseTuple(args, "siii", &filepath, &exportMode, &isExportNomals, &isExportUvs)) { return NULL; }
+			if (!PyArg_ParseTuple(args, "siiii", 
+					&filepath, 
+					&exportMode, 
+					&isExportNomals, 
+					&isExportUvs,
+					&isUseEulerRotationForCamera)) { return NULL; }
 
 			std::string output_path(filepath);
 			if (output_path.empty()) 
@@ -891,12 +904,13 @@ extern "C" {
 				output_path.c_str());
 
 			AlembicArchive &archive = AlembicArchive::instance();
-				
-			const double dt = 1.0 / 30.0;
+
+			const double dt = 1.0 / exportFPS;
 			archive.timesampling = AbcA::TimeSamplingPtr(new AbcA::TimeSampling(dt, 0.0));
 			archive.archive->addTimeSampling(*archive.timesampling);
 			archive.isExportNormals = (isExportNomals != 0);
 			archive.isExportUvs = (isExportUvs != 0);
+			archive.isUseEulerRotationForCamera = (isUseEulerRotationForCamera != 0);
 			archive.exportMode = exportMode;
 
 			return Py_BuildValue("i", 1); //success
@@ -1457,7 +1471,7 @@ extern "C" {
 		dst = Imath::V3d(yaw, pitch, roll);
 	}
 	
-	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer)
+	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer, bool isUseEuler)
 	{
 		static const int cameraKey = 0xFFFFFF;
 		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
@@ -1530,12 +1544,18 @@ extern "C" {
 			Imath::Quatd quat = Imath::extractQuat(rot);
 			quat.normalize();
 
-			Imath::V3d euler;
-			quatToEuler(euler, quat);
-			xformSample.setXRotation(to_degree(euler.y));
-			xformSample.setYRotation(to_degree(euler.x));
-			xformSample.setZRotation(-to_degree(euler.z));
-			//xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
+			if (isUseEuler)
+			{
+				Imath::V3d euler;
+				quatToEuler(euler, quat);
+				xformSample.setXRotation(to_degree(euler.y));
+				xformSample.setYRotation(to_degree(euler.x));
+				xformSample.setZRotation(-to_degree(euler.z));
+			}
+			else
+			{
+				xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
+			}
 
 			xformSchema.set(xformSample);
 		}
@@ -1583,7 +1603,7 @@ extern "C" {
 
 			if (!exportedCamera && !renderedBuffer.isAccessory)
 			{
-				export_alembic_camera(archive, renderedBuffer);
+				export_alembic_camera(archive, renderedBuffer, archive.isUseEulerRotationForCamera);
 				exportedCamera = true;
 			}
 		}
@@ -2132,7 +2152,7 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 						endFrame = atoi(text2);
 						//startFrame = atoi(text3);
 						//endFrame = atoi(text4);
-						exportFPS = atoi(text5);
+						exportFPS = atof(text5);
 						
 						if (startFrame < 2)
 						{
