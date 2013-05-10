@@ -31,7 +31,7 @@ FONT 8, "Ms Shell Dlg"
     EDITTEXT        1105, 116, 108, 50, 15, ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "～", 5, 104, 114, 8, 8, SS_LEFT
     LTEXT           "フレームレート(AVI出力設定とおなじにしてください)", 6, 35, 138, 145, 8, SS_LEFT
-    EDITTEXT        1108, 83, 154, 50, 15, ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        1108, 83, 154, 50, 15, ES_AUTOHSCROLL
     LTEXT           "fps", 7, 139, 158, 10, 8, SS_LEFT
     PUSHBUTTON      "詳細設定", 1000, 159, 11, 50, 15, NOT WS_VISIBLE
 }
