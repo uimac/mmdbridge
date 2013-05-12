@@ -2984,7 +2984,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 			// インデックスバッファをメモリに書き込み
 			// 法線がない場合法線を計算
 			IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
-			WORD *pIndexBuf;
+			DWORD *pIndexBuf;
 			IDirect3DIndexBuffer9 *pIndexData = renderData.pIndexData;
 			pIndexData->lpVtbl->Lock(pIndexData, 0, 0, (void**)&pIndexBuf, D3DLOCK_READONLY);
 			{
