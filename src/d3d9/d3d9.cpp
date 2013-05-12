@@ -2984,57 +2984,73 @@ static HRESULT WINAPI drawIndexedPrimitive(
 			// インデックスバッファをメモリに書き込み
 			// 法線がない場合法線を計算
 			IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
-			DWORD *pIndexBuf;
 			IDirect3DIndexBuffer9 *pIndexData = renderData.pIndexData;
-			pIndexData->lpVtbl->Lock(pIndexData, 0, 0, (void**)&pIndexBuf, D3DLOCK_READONLY);
+
+			D3DINDEXBUFFER_DESC indexDesc;
+			if (pIndexData->lpVtbl->GetDesc(pIndexData, &indexDesc) == D3D_OK)
 			{
-				RenderedBuffer &renderedBuffer = renderedBuffers[pStreamData];
-				RenderedSurface &renderedSurface = renderedBuffer.material_map[currentMaterial]->surface;
-				renderedSurface.faces.clear();
-
-				// 変換行列をメモリに書き込み
-				writeMatrixToMemory(device, renderedBuffer);
-
-				// ライトをメモリに書き込み
-				writeLightToMemory(device, renderedBuffer);
-
-				// インデックスバッファをメモリに書き込み
-				// 法線を修正
-				for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
+				void *pIndexBuf;
+				if (pIndexData->lpVtbl->Lock(pIndexData, 0, 0, (void**)&pIndexBuf, D3DLOCK_READONLY) == D3D_OK)
 				{
-					um_vector3 face;
-					face.ix = (int)(pIndexBuf[startIndex + i + 0]) + 1;
-					face.iy = (int)(pIndexBuf[startIndex + i + 1]) + 1;
-					face.iz = (int)(pIndexBuf[startIndex + i + 2]) + 1;
-					renderedSurface.faces.push_back(face);
-					if (!renderData.normal)
-					{
-						int vsize = renderedBuffer.vertecies.size();
-						if (renderedBuffer.normals.size() != vsize)
-						{
-							renderedBuffer.normals.resize(vsize);
-						}
-						if (face.ix >= vsize || face.iy >= vsize || face.iz >= vsize) continue;
-						if (face.ix < 0 || face.iy < 0 || face.iz < 0) continue;
+					RenderedBuffer &renderedBuffer = renderedBuffers[pStreamData];
+					RenderedSurface &renderedSurface = renderedBuffer.material_map[currentMaterial]->surface;
+					renderedSurface.faces.clear();
 
-						D3DXVECTOR3 n;
-						D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.ix];
-						D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.iy];
-						D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.iz];
-						D3DXVECTOR3 v10 = v1-v0;
-						D3DXVECTOR3 v20 = v2-v0;
-						::D3DXVec3Cross(&n, &v10, &v20);
-						renderedBuffer.normals[face.ix] += n;
-						renderedBuffer.normals[face.iy] += n;
-						renderedBuffer.normals[face.iz] += n;
-					}
-					if (!renderData.normal)
+					// 変換行列をメモリに書き込み
+					writeMatrixToMemory(device, renderedBuffer);
+
+					// ライトをメモリに書き込み
+					writeLightToMemory(device, renderedBuffer);
+
+					// インデックスバッファをメモリに書き込み
+					// 法線を修正
+					for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 					{
-						for (size_t i = 0, size = renderedBuffer.normals.size(); i < size; ++i)
+						um_vector3 face;
+						if (indexDesc.Format == D3DFMT_INDEX16)
 						{
-							D3DXVec3Normalize(
-								&renderedBuffer.normals[i],
-								&renderedBuffer.normals[i]);
+							WORD* p = (WORD*)pIndexBuf;
+							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+						}
+						else
+						{
+							DWORD* p = (DWORD*)pIndexBuf;
+							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+						}
+						renderedSurface.faces.push_back(face);
+						if (!renderData.normal)
+						{
+							int vsize = renderedBuffer.vertecies.size();
+							if (renderedBuffer.normals.size() != vsize)
+							{
+								renderedBuffer.normals.resize(vsize);
+							}
+							if (face.ix >= vsize || face.iy >= vsize || face.iz >= vsize) continue;
+							if (face.ix < 0 || face.iy < 0 || face.iz < 0) continue;
+
+							D3DXVECTOR3 n;
+							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.ix];
+							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.iy];
+							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.iz];
+							D3DXVECTOR3 v10 = v1-v0;
+							D3DXVECTOR3 v20 = v2-v0;
+							::D3DXVec3Cross(&n, &v10, &v20);
+							renderedBuffer.normals[face.ix] += n;
+							renderedBuffer.normals[face.iy] += n;
+							renderedBuffer.normals[face.iz] += n;
+						}
+						if (!renderData.normal)
+						{
+							for (size_t i = 0, size = renderedBuffer.normals.size(); i < size; ++i)
+							{
+								D3DXVec3Normalize(
+									&renderedBuffer.normals[i],
+									&renderedBuffer.normals[i]);
+							}
 						}
 					}
 				}
