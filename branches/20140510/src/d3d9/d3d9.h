@@ -169,5 +169,7 @@ struct TextureParameter
 	std::string textureMemoryName;
 };
 
+typedef std::vector<IDirect3DVertexBuffer9* > VertexBufferList;
+
 
 #endif
