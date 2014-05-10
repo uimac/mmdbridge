@@ -41,13 +41,13 @@
     <_ProjectFileVersion>11.0.61030.0</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
-    <IntDir>$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)out/$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
-    <IntDir>$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)out/$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -75,9 +75,9 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/mmd/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;HOOK_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/mmd/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;HOOK_EXPORTS;WITH_ALEMBIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
@@ -103,23 +103,26 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\d3d9\d3d9.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\src\d3d9\d3d9.h" />
-    <ClInclude Include="..\src\d3d9\resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="..\src\d3d9\d3d9.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\src\d3d9\hook.def" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\d3dx9\d3dx9.vcxproj">
       <Project>{48ecc702-208d-4077-8788-e233814ef6c0}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\umbase\umbase.vcxproj">
+      <Project>{8b753bf7-2ccf-4324-9ac4-28863a3e1422}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\d3d9\hook.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\src\d3d9\d3d9.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\d3d9\d3d9.h" />
+    <ClInclude Include="..\..\src\d3d9\resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\d3d9\d3d9.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

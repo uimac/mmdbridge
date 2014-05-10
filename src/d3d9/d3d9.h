@@ -17,44 +17,13 @@
 #include <vector>
 #include <map>
 
-typedef union um_vector4 {
-	struct {
-		float x, y, z, w;
-	};
-	struct {
-		int ix, iy, iz, iw;
-	};
-	struct {
-		float xyzw[4];
-	};
-	um_vector4(){}
-	um_vector4(float x_, float y_, float z_, float w_) { x = x_; y = y_; z = z_; w =w_; }
-} um_vector4;
-
-typedef union um_vector3 {
-	struct {
-		float x, y, z;
-	};
-	struct {
-		int ix, iy, iz;
-	};
-	um_vector3(){}
-	um_vector3(float x_, float y_, float z_) { x = x_; y = y_; z = z_; }
-} um_vector3;
-
-
-typedef union um_vector2 {
-	struct {
-		float x, y;
-	};
-	struct {
-		int ix, iy;
-	};
-} um_vector2;
+#include "UMMathTypes.h"
+#include "UMMath.h"
+#include "UMVector.h"
 
 typedef struct TextureInfo
 {
-	um_vector2 wh;
+	UMVec2i wh;
 	D3DFORMAT format;
 } TextureInfo;
 
@@ -127,14 +96,14 @@ typedef struct RenderData {
 } RenderData;
 
 typedef struct RenderedSurface {
-	std::vector<um_vector3> faces;
+	std::vector<UMVec3i> faces;
 } RenderedSurface;
 
 typedef struct RenderedMaterial {
-    um_vector4   diffuse;        /* Diffuse color RGBA */
-    um_vector3   ambient;        /* Ambient color RGB */
-    um_vector3   specular;       /* Specular 'shininess' */
-    um_vector3   emissive;       /* Emissive color RGB */
+    UMVec4f   diffuse;        /* Diffuse color RGBA */
+    UMVec3f   ambient;        /* Ambient color RGB */
+    UMVec3f   specular;       /* Specular 'shininess' */
+    UMVec3f   emissive;       /* Emissive color RGB */
     float        power; 
 	IDirect3DTexture9 *tex;
 	std::string texture;
@@ -143,7 +112,7 @@ typedef struct RenderedMaterial {
 } RenderedMaterial;
 
 typedef struct RenderedBuffer {
-	typedef std::vector<um_vector2>		UVList;
+	typedef std::vector<UMVec2f>		UVList;
 	typedef std::vector<D3DXVECTOR3>	VertexList;
 	typedef std::vector<D3DXVECTOR3>	NormalList;
 	typedef	std::vector<DWORD>			DiffuseList;
@@ -166,8 +135,8 @@ typedef struct RenderedBuffer {
 		//	if (materials[i]) { delete materials[i]; }
 		//}
 	}
-	um_vector3 light;
-	um_vector3 light_color;
+	UMVec3f light;
+	UMVec3f light_color;
 	D3DXMATRIX world;
 	D3DXMATRIX view;
 	D3DXMATRIX projection;
@@ -176,9 +145,9 @@ typedef struct RenderedBuffer {
 
 
 typedef struct RenderedTexture {
-	um_vector2 size;
+	UMVec2f size;
 	std::string name;
-	std::vector<um_vector4> texture;
+	std::vector<UMVec4f> texture;
 } RenderedTexture;
 
 
