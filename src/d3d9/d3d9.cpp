@@ -12,8 +12,21 @@
 #include <algorithm>
 #include <shlwapi.h>
 
+//#include <Python.h>
 
-#include <Python.h>
+#include <boost/python/detail/wrap_python.hpp>
+#include <boost/python.hpp>
+#include <boost/python/make_constructor.hpp>
+#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
+#include <boost/python/suite/indexing/map_indexing_suite.hpp>
+#include <boost/python/copy_non_const_reference.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+#include <boost/python/args.hpp>
+#include <boost/python/tuple.hpp>
+#include <boost/python/class.hpp>
+#include <boost/python/overloads.hpp>
+#include <boost/format.hpp>
 #include <commctrl.h>
 #include <richedit.h>
 
@@ -21,6 +34,8 @@
 
 #include "resource.h"
 #include "MMDExport.h"
+#include "UMStringUtil.h"
+#include "UMPath.h"
 
 #ifdef _WIN64
 #define _LONG_PTR LONG_PTR
@@ -114,15 +129,6 @@ private:
 
 #endif //WITH_ALEMBIC
 
-template <class T> std::wstring to_wstring(T value)
-{
-    std::wstringstream converter;
-    std::wstring  wstr;
-    converter << value;
-    converter >> wstr;
-    return wstr;
-}
-
 template <class T> std::string to_string(T value)
 {
     std::stringstream converter;
@@ -134,25 +140,22 @@ template <class T> std::string to_string(T value)
 
 //ワイド文字列からマルチバイト文字列
 //ロケール依存
-static void to_string(std::string &dest, const std::wstring &src) {
+static void to_string(std::string &dest, const std::wstring &src) 
+{
 	char *mbs = new char[src.length() * MB_CUR_MAX + 1];
 	wcstombs(mbs, src.c_str(), src.length() * MB_CUR_MAX + 1);
 	dest = mbs;
 	delete [] mbs;
 }
 
-//マルチバイト文字列からワイド文字列
-//ロケール依存
-static void to_wstring(std::wstring &dest, const std::string &src) {
-	wchar_t *wcs = new wchar_t[src.length() + 1];
-	mbstowcs(wcs, src.c_str(), src.length() + 1);
-	dest = wcs;
-	delete [] wcs;
-}
-
 static void messagebox(std::string title, std::string message)
 {
 	::MessageBoxA(NULL, message.c_str(), title.c_str(), MB_OK);
+}
+
+static void message(std::string message)
+{
+	::MessageBoxA(NULL, message.c_str(), "message", MB_OK);
 }
 
 static void messagebox_float4(float v[4], const char *title)
@@ -180,9 +183,6 @@ void originalDevice(void);
 // フックしたデバイス
 IDirect3DDevice9 *p_device;
 
-// pythonマルチスレッド
-unsigned int WINAPI runScript(void* data);
-
 RenderData renderData;
 
 int primitiveCounter = 0;
@@ -197,20 +197,15 @@ std::map<IDirect3DTexture9*, RenderedTexture> renderedTextures;
 std::map<int, std::map<int , RenderedMaterial*> > renderedMaterials;
 //-----------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat);
+static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat);
 
-static bool writeTextureToFiles(std::string &texturePath, std::string &textureType, bool uncopied = false);
+static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied = false);
 
-static bool copyTextureToFiles(std::string &texturePath);
+static bool copyTextureToFiles(const std::u16string &texturePath);
 
-static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * texture, bool copied);
-
-
+static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
 
 //------------------------------------------Python呼び出し--------------------------------------------------------
-CRITICAL_SECTION criticalSection;
-HANDLE	hMutex; //ミューテックスのハンドル
-
 static float preFrameTime = 0.0f;
 static int preFrame = 0;
 static int presentCount = 0;
@@ -249,32 +244,34 @@ static void d3d_vector3_transform(
 }
 
 // python
-extern "C" {
-	static std::string basePath; //ベースディレクトリ
-	static std::wstring wBasePath; //ベースディレクトリ
-	static std::string mmdbridge_python_script; //pythonスクリプト
-	static std::wstring pythonScript; // スクリプトパス
-	static std::wstring pythonName; // スクリプト名
-	static std::vector<std::wstring> pythonNames; //スクリプト名
-	static std::vector<std::wstring> pythonScripts; //スクリプトパス
-	static std::string python_error_string; //pythonから出たエラー
-	static int scriptCallSetting = 2; // スクリプト呼び出し設定
-	static int startFrame = 5;
-	static int endFrame = 100;
+namespace
+{
+	using namespace boost::python;
+	std::string basePath; //ベースディレクトリ
+	std::wstring wBasePath; //ベースディレクトリ
+	std::string mmdbridge_python_script; //pythonスクリプト
+	std::wstring pythonScript; // スクリプトパス
+	std::wstring pythonName; // スクリプト名
+	std::vector<std::wstring> pythonNames; //スクリプト名
+	std::vector<std::wstring> pythonScripts; //スクリプトパス
+	//static std::string python_error_string; //pythonから出たエラー
+	int scriptCallSetting = 2; // スクリプト呼び出し設定
+	int startFrame = 5;
+	int endFrame = 100;
 	std::map<int, int> exportedFrames;
 	bool isExportedFrame = false;
-	static int frameWidth = 800;
-	static int frameHeight = 450;
-	static double exportFPS = 30.0;
-	static bool is_texture_buffer_enabled = false;
-	static RenderedMaterial* currentRenderedMaterial = NULL;
-	static std::map<int, int> py_int_map;
-	static std::map<int, float> py_float_map;
+	int frameWidth = 800;
+	int frameHeight = 450;
+	double exportFPS = 30.0;
+	bool is_texture_buffer_enabled = false;
+	RenderedMaterial* currentRenderedMaterial = NULL;
+	std::map<int, int> py_int_map;
+	std::map<int, float> py_float_map;
 
-	static HANDLE pythonThreadHandle = NULL;
+	HANDLE pythonThreadHandle = NULL;
 
 	// 非エクスポート	
-	static bool relaod_python_script()
+	bool relaod_python_script()
 	{
 		mmdbridge_python_script = "";
 		std::ifstream ifs(pythonScript.c_str());
@@ -290,7 +287,7 @@ extern "C" {
 
 	
 	// 非エクスポート
-	static void reload_python_file_paths()
+	void reload_python_file_paths()
 	{
 		TCHAR app_full_path[1024];	// アプリフルパス
 		
@@ -326,216 +323,192 @@ extern "C" {
 	}
 
 	// Get a reference to the main module.
-	static PyObject* main_module = NULL; 
+	PyObject* main_module = NULL; 
 
 	// Get the main module's dictionary
 	// and make a copy of it.
-	static PyObject* main_dict = NULL;
+	PyObject* main_dict = NULL;
 
-	static PyObject * get_vertex_buffer_size(PyObject *self, PyObject *args)
+	int get_vertex_buffer_size()
 	{
-		return Py_BuildValue("i", finishBuffers.size());
+		return finishBuffers.size();
 	}
 
-	static PyObject * get_vertex_size(PyObject *self, PyObject *args)
+	int get_vertex_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].vertecies.size());
+		return renderedBuffers[finishBuffers[at]].vertecies.size();
 	}
 
-	static PyObject * get_vertex(PyObject *self, PyObject *args)
+	boost::python::list get_vertex(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
 		float x = renderedBuffers[finishBuffers[at]].vertecies[vpos].x;
 		float y = renderedBuffers[finishBuffers[at]].vertecies[vpos].y;
 		float z = renderedBuffers[finishBuffers[at]].vertecies[vpos].z;
-
-		return Py_BuildValue("[f,f,f]", x, y, z);
+		boost::python::list result;
+		result.append(x);
+		result.append(y);
+		result.append(z);
+		return result;
 	}
 
-	static PyObject * get_normal_size(PyObject *self, PyObject *args)
+	int get_normal_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].normals.size());
+		return renderedBuffers[finishBuffers[at]].normals.size();
 	}
 
-	static PyObject * get_normal(PyObject *self, PyObject *args)
+	boost::python::list get_normal(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
 		float x = renderedBuffers[finishBuffers[at]].normals[vpos].x;
 		float y = renderedBuffers[finishBuffers[at]].normals[vpos].y;
 		float z = renderedBuffers[finishBuffers[at]].normals[vpos].z;
-
-		return Py_BuildValue("[f,f,f]", x, y, z);
+		boost::python::list result;
+		result.append(x);
+		result.append(y);
+		result.append(z);
+		return result;
 	}
 
-	static PyObject * get_uv_size(PyObject *self, PyObject *args)
+	int get_uv_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].uvs.size());
+		return renderedBuffers[finishBuffers[at]].uvs.size();
 	}
 
-	static PyObject * get_uv(PyObject *self, PyObject *args)
+	boost::python::list get_uv(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
 		float u = renderedBuffers[finishBuffers[at]].uvs[vpos].x;
 		float v = renderedBuffers[finishBuffers[at]].uvs[vpos].y;
-
-		return Py_BuildValue("[f, f]", u, v);
+		boost::python::list result;
+		result.append(u);
+		result.append(v);
+		return result;
 	}
 
-	static PyObject * get_material_size(PyObject *self, PyObject *args)
+	int get_material_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; } 
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].materials.size());
+		return renderedBuffers[finishBuffers[at]].materials.size();
 	}
 
-	static PyObject * is_accessory(PyObject *self, PyObject *args)
+	bool is_accessory(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; } 
 		int result = 0;
 		if (renderedBuffers[finishBuffers[at]].isAccessory)
 		{
-			result = 1;
+			return true;
 		}
-		return Py_BuildValue("i", result);
+		return false;
 	}
 
-	static PyObject * get_diffuse(PyObject *self, PyObject *args)
+	boost::python::list get_diffuse(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f,f]", mat->diffuse.x, mat->diffuse.y, mat->diffuse.z, mat->diffuse.w);
+		boost::python::list result;
+		result.append(mat->diffuse.x);
+		result.append(mat->diffuse.y);
+		result.append(mat->diffuse.z);
+		result.append(mat->diffuse.w);
+		return result;
 	}
 
-	static PyObject * get_ambient(PyObject *self, PyObject *args)
+	boost::python::list get_ambient(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->ambient.x, mat->ambient.y, mat->ambient.z);
+		boost::python::list result;
+		result.append(mat->ambient.x);
+		result.append(mat->ambient.y);
+		result.append(mat->ambient.z);
+		return result;
 	}
 
-	static PyObject * get_specular(PyObject *self, PyObject *args)
+	boost::python::list get_specular(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->specular.x, mat->specular.y, mat->specular.z);
+		boost::python::list result;
+		result.append(mat->specular.x);
+		result.append(mat->specular.y);
+		result.append(mat->specular.z);
+		return result;
 	}
 
-	static PyObject * get_emissive(PyObject *self, PyObject *args)
+	boost::python::list get_emissive(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->emissive.x, mat->emissive.y, mat->emissive.z);
+		boost::python::list result;
+		result.append(mat->emissive.x);
+		result.append(mat->emissive.y);
+		result.append(mat->emissive.z);
+		return result;
 	}
 
-	static PyObject * get_power(PyObject *self, PyObject *args)
+	float get_power(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("f", mat->power);
+		float power = mat->power;
+		return power;
 	}
 
-	static PyObject * get_texture(PyObject *self, PyObject *args)
+	std::string get_texture(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("s", mat->texture.c_str());
+		return mat->texture;
 	}
 
-	static PyObject * get_exported_texture(PyObject *self, PyObject *args)
+	std::string get_exported_texture(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("s", mat->memoryTexture.c_str());
+		return mat->memoryTexture;
 	}
 
-	static PyObject * get_face_size(PyObject *self, PyObject *args)
+	int get_face_size(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].materials[mpos]->surface.faces.size());
+		return renderedBuffers[finishBuffers[at]].materials[mpos]->surface.faces.size();
 	}
 
-	static PyObject * get_face(PyObject *self, PyObject *args)
+	boost::python::list get_face(int at, int mpos, int fpos)
 	{
-		int at;
-		int mpos;
-		int fpos;
-		if (!PyArg_ParseTuple(args, "iii", &at, &mpos, &fpos)) { return NULL; }
 		RenderedSurface &surface = renderedBuffers[finishBuffers[at]].materials[mpos]->surface;
 		int v1 = surface.faces[fpos].x;
 		int v2 = surface.faces[fpos].y;
 		int v3 = surface.faces[fpos].z;
-		return Py_BuildValue("[i,i,i]", v1, v2, v3);
+		boost::python::list result;
+		result.append(v1);
+		result.append(v2);
+		result.append(v3);
+		return result;
 	}
 
-	static PyObject * get_texture_buffer_size(PyObject *self, PyObject *args)
+	int get_texture_buffer_size()
 	{
-		return Py_BuildValue("i", finishTextureBuffers.size());
+		return finishTextureBuffers.size();
 	}
 
-	static PyObject * get_texture_size(PyObject *self, PyObject *args)
+	boost::python::list get_texture_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("[i, i]", 
-			renderedTextures[finishTextureBuffers[at].first].size.x,
-			renderedTextures[finishTextureBuffers[at].first].size.y);
+		boost::python::list result;
+		result.append(renderedTextures[finishTextureBuffers[at].first].size.x);
+		result.append(renderedTextures[finishTextureBuffers[at].first].size.y);
+		return result;
 	}
 
-	static PyObject * get_texture_name(PyObject *self, PyObject *args)
+	std::string get_texture_name(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("s", 
-			renderedTextures[finishTextureBuffers[at].first].name.c_str());
+		return renderedTextures[finishTextureBuffers[at].first].name;
 	}
 
-	static PyObject * get_texture_pixel(PyObject *self, PyObject *args)
+	boost::python::list get_texture_pixel(int at, int tpos)
 	{
-		int at;
-		int tpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &tpos)) { return NULL; }
 		UMVec4f &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
-		return Py_BuildValue("[f, f, f, f]", rgba.x, rgba.y, rgba.z, rgba.w);
+		boost::python::list result;
+		result.append(rgba.x);
+		result.append(rgba.y);
+		result.append(rgba.z);
+		result.append(rgba.w);
+		return result;
 	}
 
-	static PyObject * export_texture(PyObject *self, PyObject *args)
+	bool export_texture(int at, int mpos, const std::string& dst)
 	{
-		int at;
-		int mpos;
-		char *dst;
-		if (!PyArg_ParseTuple(args, "iis", &at, &mpos, &dst)) { return NULL; } 
 		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
 		std::string path(dst);
-
 		std::string textureType = path.substr(path.size() - 3, 3);
 
 		D3DXIMAGE_FILEFORMAT fileFormat;
@@ -548,138 +521,144 @@ extern "C" {
 		else if (textureType == "dib" || textureType == "DIB") { fileFormat = D3DXIFF_DIB; }
 		else if (textureType == "hdr" || textureType == "HDR") { fileFormat = D3DXIFF_HDR; }
 		else if (textureType == "pfm" || textureType == "PFM") { fileFormat = D3DXIFF_PFM; }
-		else { return NULL; }
+		else { return false; }
 
-		int res = 0;
 		if (mat->tex)
 		{
-			if (writeTextureToFile(std::string(path), mat->tex, fileFormat)) { res = 1; }
+			return writeTextureToFile(path, mat->tex, fileFormat);
 		}
-
-		return Py_BuildValue("i", res);
+		return false;
 	}
 
-	static PyObject * export_textures(PyObject *self, PyObject *args)
+	bool export_textures(const std::string& p, const std::string& t)
 	{
-		char *s;
-		char *t;
-		if (!PyArg_ParseTuple(args, "ss", &s, &t)) { return NULL; }
-		std::string path(s);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
 		std::string type(t);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = writeTextureToFiles(path, type) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		if (umbase::UMPath::exists(path))
+		{
+			return writeTextureToFiles(p, t);
+		}
+		return false;
 	}
 
-	static PyObject * export_uncopied_textures(PyObject *self, PyObject *args)
+	bool export_uncopied_textures(const std::string& p, const std::string& t)
 	{
-		char *s;
-		char *t;
-		if (!PyArg_ParseTuple(args, "ss", &s, &t)) { return NULL; }
-		std::string path(s);
-		std::string type(t);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = writeTextureToFiles(path, type, true) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
+		if (umbase::UMPath::exists(path))
+		{
+			return writeTextureToFiles(p, t, true);
+		}
+		return false;
 	}
 
-	static PyObject * copy_textures(PyObject *self, PyObject *args)
+	bool copy_textures(const std::string& s)
 	{
-		char *s;
-		if (!PyArg_ParseTuple(args, "s", &s)) { return NULL; }
-		std::string path(s);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = copyTextureToFiles(path) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(s);
+		if (umbase::UMPath::exists(path))
+		{
+			std::wstring wpath = umbase::UMStringUtil::utf16_to_wstring(path);
+			return copyTextureToFiles(path);
+		}
+		return false;
 	}
 
-	static  PyObject * get_base_path(PyObject *self, PyObject *args)
+	std::string get_base_path()
 	{
-		return Py_BuildValue("s", basePath.c_str());
+		return basePath;
 	}
 
-	static PyObject * get_camera_up(PyObject *self, PyObject *args)
+	boost::python::list get_camera_up()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraUp(&v);
 		d3d_vector3_dir_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
-		return Py_BuildValue("[f, f, f]",  dst.x, dst.y, dst.z);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_up_org(PyObject *self, PyObject *args)
+	boost::python::list get_camera_up_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraUp(&v);
-		return Py_BuildValue("[f, f, f]",  v.x, v.y, v.z);
+		boost::python::list result;
+		result.append(v.x);
+		result.append(v.y);
+		result.append(v.z);
+		return result;
 	}
 	
-	static PyObject * get_camera_at(PyObject *self, PyObject *args)
+	boost::python::list get_camera_at()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraAt(&v);
 		d3d_vector3_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
-		return Py_BuildValue("[f, f, f]", dst.x, dst.y, dst.z);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_eye(PyObject *self, PyObject *args)
+	boost::python::list get_camera_eye()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraEye(&v);
 		d3d_vector3_transform(dst, v, renderedBuffers.begin()->second.world_inv);
-
-		return Py_BuildValue("[f, f, f]", dst.x, dst.y, dst.z);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_eye_org(PyObject *self, PyObject *args)
+	boost::python::list get_camera_eye_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraEye(&v);
-		return Py_BuildValue("[f, f, f]", v.x, v.y, v.z);
+		boost::python::list result;
+		result.append(v.x);
+		result.append(v.y);
+		result.append(v.z);
+		return result;
 	}
 
-	static PyObject * get_camera_fovy(PyObject *self, PyObject *args)
+	float get_camera_fovy()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.x);
+		return  v.x;
 	}
 
-	static PyObject * get_camera_aspect(PyObject *self, PyObject *args)
+	float get_camera_aspect()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.y);
+		return v.y;
 	}
 
-	static PyObject * get_camera_near(PyObject *self, PyObject *args)
+	float get_camera_near()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.y);
+		return v.z;
 	}
 
-	static PyObject * get_camera_far(PyObject *self, PyObject *args)
+	float get_camera_far()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.w);
+		return v.w;
 	}
 	
-	static PyObject * get_frame_number(PyObject *self, PyObject *args)
+	int get_frame_number()
 	{
-		static int preFrameNumber = -1;
+		int preFrameNumber = -1;
 		float time = ExpGetFrameTime();
 		int frame = static_cast<int>(time * exportFPS);
 		if (scriptCallSetting == 1 && preFrameNumber == frame)
@@ -687,120 +666,113 @@ extern "C" {
 			++frame;
 		}
 		preFrameNumber = frame;
-
-		return Py_BuildValue("i", frame);
+		return frame;
 	}
 
-	static PyObject * get_start_frame(PyObject *self, PyObject *args)
+	int get_start_frame()
 	{
-		return Py_BuildValue("i", startFrame);
+		return startFrame;
 	}
 	
-	static PyObject * get_end_frame(PyObject *self, PyObject *args)
+	int get_end_frame()
 	{
-		return Py_BuildValue("i", endFrame);
+		return endFrame;
 	}
 
-	static PyObject * get_frame_width(PyObject *self, PyObject *args)
+	int get_frame_width()
 	{
-		return Py_BuildValue("i", frameWidth);
+		return frameWidth;
 	}
 
-	static PyObject * get_frame_height(PyObject *self, PyObject *args)
+	int get_frame_height()
 	{
-		return Py_BuildValue("i", frameHeight);
+		return frameHeight;
 	}
 
-	static PyObject * get_light(PyObject *self, PyObject *args)
+	boost::python::list get_light(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		UMVec3f &light = renderedBuffers[finishBuffers[at]].light;
-		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
+		boost::python::list result;
+		result.append(light.x);
+		result.append(light.y);
+		result.append(light.z);
+		return result;
 	}
 
-	static PyObject * get_light_color(PyObject *self, PyObject *args)
+	boost::python::list get_light_color(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		UMVec3f &light = renderedBuffers[finishBuffers[at]].light_color;
-		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
+		boost::python::list result;
+		result.append(light.x);
+		result.append(light.y);
+		result.append(light.z);
+		return result;
 	}
 
-	static PyObject * messagebox(PyObject *self, PyObject *args)
+	boost::python::list get_world(int at)
 	{
-		const char *str = "";
-		const char *title = "info";
-		if(!PyArg_ParseTuple(args, "s", &str, &title)) return NULL;
-		::MessageBoxA(NULL, str, title, MB_OK);
-		return Py_BuildValue("");
-	}
-
-	static PyObject * get_world(PyObject *self, PyObject* args)
-	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		D3DXMATRIX& world = renderedBuffers[finishBuffers[at]].world;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			world.m[0][0], world.m[0][1], world.m[0][2], world.m[0][3],
-			world.m[1][0], world.m[1][1], world.m[1][2], world.m[1][3],
-			world.m[2][0], world.m[2][1], world.m[2][2], world.m[2][3],
-			world.m[3][0], world.m[3][1], world.m[3][2], world.m[3][3]);
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(world.m[i][k]);
+			}
+		}
+		return result;
 	}
 
-	static PyObject * get_world_inv(PyObject *self, PyObject* args)
+	boost::python::list get_world_inv(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		D3DXMATRIX& world_inv = renderedBuffers[finishBuffers[at]].world_inv;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			world_inv.m[0][0], world_inv.m[0][1], world_inv.m[0][2], world_inv.m[0][3],
-			world_inv.m[1][0], world_inv.m[1][1], world_inv.m[1][2], world_inv.m[1][3],
-			world_inv.m[2][0], world_inv.m[2][1], world_inv.m[2][2], world_inv.m[2][3],
-			world_inv.m[3][0], world_inv.m[3][1], world_inv.m[3][2], world_inv.m[3][3]);
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(world_inv.m[i][k]);
+			}
+		}
+		return result;
 	}
 
-	static PyObject * get_view(PyObject *self, PyObject* args)
+	boost::python::list get_view(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		D3DXMATRIX& view = renderedBuffers[finishBuffers[at]].view;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			view.m[0][0], view.m[0][1], view.m[0][2], view.m[0][3],
-			view.m[1][0], view.m[1][1], view.m[1][2], view.m[1][3],
-			view.m[2][0], view.m[2][1], view.m[2][2], view.m[2][3],
-			view.m[3][0], view.m[3][1], view.m[3][2], view.m[3][3]);
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(view.m[i][k]);
+			}
+		}
+		return result;
 	}
 
-	static PyObject * get_projection(PyObject *self, PyObject* args)
+	boost::python::list get_projection(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
 		D3DXMATRIX& projection = renderedBuffers[finishBuffers[at]].projection;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			projection.m[0][0], projection.m[0][1], projection.m[0][2], projection.m[0][3],
-			projection.m[1][0], projection.m[1][1], projection.m[1][2], projection.m[1][3],
-			projection.m[2][0], projection.m[2][1], projection.m[2][2], projection.m[2][3],
-			projection.m[3][0], projection.m[3][1], projection.m[3][2], projection.m[3][3]);
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(projection.m[i][k]);
+			}
+		}
+		return result;
 	}
 
-	static PyObject * set_texture_buffer_enabled(PyObject *self, PyObject* args)
+	bool set_texture_buffer_enabled(bool enabled)
 	{
-		int enabled;
-		if (!PyArg_ParseTuple(args, "i", &enabled)) { return NULL; }
-
-		is_texture_buffer_enabled = (enabled == 1);
-		
-		return Py_BuildValue("i", 1); //success
+		is_texture_buffer_enabled = enabled;
+		return true;
 	}
 
-	static PyObject * set_current_material(PyObject *self, PyObject* args)
+	bool set_current_material(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-
-		WaitForSingleObject(hMutex,INFINITE);
 		const int bufferSize = static_cast<int>(renderedBuffers[finishBuffersCopy[at]].materials.size());
 		const int totalSize = static_cast<int>(finishBuffersCopy.size());
 		if (totalSize > at && bufferSize > mpos)
@@ -810,102 +782,85 @@ extern "C" {
 				currentRenderedMaterial = renderedBuffers[finishBuffersCopy[at]].materials[mpos];
 			}
 		}
-		ReleaseMutex(hMutex);
-
-		return Py_BuildValue("i", 1); //success
+		return true;
 	}
 
-	static PyObject * set_int_value(PyObject *self, PyObject* args)
+	bool set_int_value(int pos, int value)
 	{
-		int pos;
-		int value;
-		if (!PyArg_ParseTuple(args, "ii", &pos, &value)) { return Py_BuildValue(""); } 
 		py_int_map[pos] = value;
-		return Py_BuildValue("i", 1); //success
+		return true;
 	}
 
-	static PyObject * set_float_value(PyObject *self, PyObject* args)
+	bool set_float_value(int pos, float value)
 	{
-		int pos;
-		float value;
-		if (!PyArg_ParseTuple(args, "if", &pos, &value)) { return Py_BuildValue(""); } 
 		py_float_map[pos] = value;
-		return Py_BuildValue("i", 1); //success
+		return true;
 	}
 
-	static PyObject * get_int_value(PyObject *self, PyObject* args)
+	int get_int_value(int pos)
 	{
-		int pos;
-		if (!PyArg_ParseTuple(args, "i", &pos)) { return NULL; } 
 		if (py_int_map.find(pos) != py_int_map.end())
 		{
-			return Py_BuildValue("i", py_int_map[pos]);
+			return py_int_map[pos];
 		}
-		return  Py_BuildValue(""); //None
+		return 0;
 	}
 
-	static PyObject * get_float_value(PyObject *self, PyObject* args)
+	float get_float_value(int pos)
 	{
-		int pos;
-		if (!PyArg_ParseTuple(args, "i", &pos)) { return NULL; } 
 		if (py_float_map.find(pos) != py_float_map.end())
 		{
-			return Py_BuildValue("i", py_float_map[pos]);
+			return py_float_map[pos];
 		}
-		return Py_BuildValue(""); //None
+		return 0;
 	}
 
-	static PyObject * d3dx_invert_matrix(PyObject *self, PyObject* args)
+	//boost::python::list d3dx_invert_matrix(PyObject *self, PyObject* args)
+	//{
+	//	D3DXMATRIX src;		
+	//	if (!PyArg_ParseTuple(args, "(ffffffffffffffff)", 			
+	//		&src.m[0][0], &src.m[0][1], &src.m[0][2], &src.m[0][3],
+	//		&src.m[1][0], &src.m[1][1], &src.m[1][2], &src.m[1][3],
+	//		&src.m[2][0], &src.m[2][1], &src.m[2][2], &src.m[2][3],
+	//		&src.m[3][0], &src.m[3][1], &src.m[3][2], &src.m[3][3])) { return NULL; }
+
+	//	D3DXMATRIX dst;
+	//	::D3DXMatrixInverse(&dst, NULL, &src);
+
+	//	return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
+	//		dst.m[0][0], dst.m[0][1], dst.m[0][2], dst.m[0][3],
+	//		dst.m[1][0], dst.m[1][1], dst.m[1][2], dst.m[1][3],
+	//		dst.m[2][0], dst.m[2][1], dst.m[2][2], dst.m[2][3],
+	//		dst.m[3][0], dst.m[3][1], dst.m[3][2], dst.m[3][3]);
+	//}
+
+	boost::python::list d3dx_vec3_normalize(float x, float y, float z)
 	{
-		D3DXMATRIX src;		
-		if (!PyArg_ParseTuple(args, "(ffffffffffffffff)", 			
-			&src.m[0][0], &src.m[0][1], &src.m[0][2], &src.m[0][3],
-			&src.m[1][0], &src.m[1][1], &src.m[1][2], &src.m[1][3],
-			&src.m[2][0], &src.m[2][1], &src.m[2][2], &src.m[2][3],
-			&src.m[3][0], &src.m[3][1], &src.m[3][2], &src.m[3][3])) { return NULL; }
-
-		D3DXMATRIX dst;
-		::D3DXMatrixInverse(&dst, NULL, &src);
-
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			dst.m[0][0], dst.m[0][1], dst.m[0][2], dst.m[0][3],
-			dst.m[1][0], dst.m[1][1], dst.m[1][2], dst.m[1][3],
-			dst.m[2][0], dst.m[2][1], dst.m[2][2], dst.m[2][3],
-			dst.m[3][0], dst.m[3][1], dst.m[3][2], dst.m[3][3]);
-
-	}
-
-	static PyObject * d3dx_vec3_normalize(PyObject *self, PyObject* args)
-	{
-		D3DXVECTOR3 vec;
-		if (!PyArg_ParseTuple(args, "fff", &vec.x, &vec.y, &vec.z)) { return NULL; }
+		D3DXVECTOR3 vec(x, y, z);
 		::D3DXVec3Normalize(&vec, &vec);
-		return Py_BuildValue("[f, f, f]", vec.x, vec.y, vec.z);
+		boost::python::list result;
+		result.append(vec.x);
+		result.append(vec.y);
+		result.append(vec.z);
+		return result;
 	}
 
 #ifdef WITH_ALEMBIC
 	
-	static PyObject * start_alembic_export(PyObject *self, PyObject* args)
+	bool start_alembic_export(
+		const std::string& filepath, 
+		int exportMode, 
+		bool isExportNomals,
+		bool isExportUvs,
+		bool isUseEulerRotationForCamera)
 	{
 		if (exportFPS <= 0)
 		{
-			return Py_BuildValue(""); //None 
+			return false;
 		}
 
 		if (!AlembicArchive::instance().archive)
 		{
-			int isExportNomals = 0;
-			int isExportUvs = 0;
-			int isUseEulerRotationForCamera = 0;
-			int exportMode = 0;
-			const char *filepath = "";
-			if (!PyArg_ParseTuple(args, "siiii", 
-					&filepath, 
-					&exportMode, 
-					&isExportNomals, 
-					&isExportUvs,
-					&isUseEulerRotationForCamera)) { return NULL; }
-
 			std::string output_path(filepath);
 			if (output_path.empty()) 
 			{
@@ -926,23 +881,23 @@ extern "C" {
 			archive.isUseEulerRotationForCamera = (isUseEulerRotationForCamera != 0);
 			archive.exportMode = exportMode;
 
-			return Py_BuildValue("i", 1); //success
+			return true;
 		}
-		return Py_BuildValue(""); //None 
+		return false;
 	}
 
-	static PyObject * end_alembic_export(PyObject *self, PyObject* args)
+	bool end_alembic_export()
 	{
 		if (AlembicArchive::instance().archive)
 		{
 			AlembicArchive::instance().end();
-			return Py_BuildValue("i", 1); //success
+			return true;
 		}
 		
-		return Py_BuildValue("");// None
+		return false;
 	}
 
-	static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 	{
 		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -1149,7 +1104,7 @@ extern "C" {
 		}
 	}
 	
-	static void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 	{
 		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -1314,7 +1269,7 @@ extern "C" {
 		}
 	}
 
-	static void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 	{
 		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -1444,12 +1399,12 @@ extern "C" {
 
 	}
 
-	static double to_degree(double radian)
+	double to_degree(double radian)
 	{
 		return (radian * 180) / M_PI;
 	}
 
-	static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
+	void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 		double xy = quat.v.x * quat.v.y;
 		double zw = quat.v.z * quat.r;
 
@@ -1484,7 +1439,7 @@ extern "C" {
 		dst = Imath::V3d(yaw, pitch, roll);
 	}
 	
-	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer, bool isUseEuler)
+	void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer, bool isUseEuler)
 	{
 		static const int cameraKey = 0xFFFFFF;
 		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
@@ -1601,11 +1556,8 @@ extern "C" {
 		cameraSchema.set(sample);
 	}
 
-	static PyObject * execute_alembic_export(PyObject *self, PyObject* args)
+	bool execute_alembic_export(int currentframe)
 	{
-		int currentframe;
-		if (!PyArg_ParseTuple(args, "i", &currentframe)) { return Py_BuildValue(""); } 
-
 		AlembicArchive &archive = AlembicArchive::instance();
 		if (!archive.archive) { return Py_BuildValue(""); }
 
@@ -1638,130 +1590,194 @@ extern "C" {
 				export_alembic_xform_by_material_direct(archive, renderedBuffer, i);
 			}
 		}
-
-		return Py_BuildValue("i", 1); //success
+		return true;
 	}
-
 #endif //WITH_ALEMBIC
-
-	static PyMethodDef PythonMethods[] = {
-		{ "get_vertex_buffer_size", (PyCFunction)get_vertex_buffer_size, METH_VARARGS },
-		{ "get_vertex_size", (PyCFunction)get_vertex_size, METH_VARARGS },
-		{ "get_vertex", (PyCFunction)get_vertex, METH_VARARGS },
-		{ "get_normal_size", (PyCFunction)get_normal_size, METH_VARARGS },
-		{ "get_normal", (PyCFunction)get_normal, METH_VARARGS },
-		{ "get_uv_size", (PyCFunction)get_uv_size, METH_VARARGS },
-		{ "get_uv", (PyCFunction)get_uv, METH_VARARGS },
-		{ "get_material_size", (PyCFunction)get_material_size, METH_VARARGS },
-		{ "is_accessory", (PyCFunction)is_accessory, METH_VARARGS },
-		{ "get_ambient", (PyCFunction)get_ambient, METH_VARARGS },
-		{ "get_diffuse", (PyCFunction)get_diffuse, METH_VARARGS },
-		{ "get_specular", (PyCFunction)get_specular, METH_VARARGS },
-		{ "get_emissive", (PyCFunction)get_emissive, METH_VARARGS },
-		{ "get_power", (PyCFunction)get_power, METH_VARARGS },
-		{ "get_texture", (PyCFunction)get_texture, METH_VARARGS },
-		{ "get_exported_texture", (PyCFunction)get_exported_texture, METH_VARARGS },
-		{ "get_face_size", (PyCFunction)get_face_size, METH_VARARGS },
-		{ "get_face", (PyCFunction)get_face, METH_VARARGS },
-		{ "get_texture_buffer_size", (PyCFunction)get_texture_buffer_size, METH_VARARGS },
-		{ "get_texture_size", (PyCFunction)get_texture_size, METH_VARARGS },
-		{ "get_texture_name", (PyCFunction)get_texture_name, METH_VARARGS },
-		{ "get_texture_pixel", (PyCFunction)get_texture_pixel, METH_VARARGS },
-		{ "get_camera_up", (PyCFunction)get_camera_up, METH_VARARGS },
-		{ "get_camera_up_org", (PyCFunction)get_camera_up_org, METH_VARARGS },
-		{ "get_camera_at",  (PyCFunction)get_camera_at, METH_VARARGS },
-		{ "get_camera_eye",  (PyCFunction)get_camera_eye, METH_VARARGS },
-		{ "get_camera_eye_org",  (PyCFunction)get_camera_eye_org, METH_VARARGS },
-		{ "get_camera_fovy", (PyCFunction)get_camera_fovy, METH_VARARGS },
-		{ "get_camera_aspect", (PyCFunction)get_camera_aspect, METH_VARARGS },
-		{ "get_camera_near", (PyCFunction)get_camera_near, METH_VARARGS },
-		{ "get_camera_far", (PyCFunction)get_camera_far, METH_VARARGS },
-		{ "messagebox", (PyCFunction)messagebox, METH_VARARGS },
-		{ "export_texture", (PyCFunction)export_texture, METH_VARARGS },
-		{ "export_textures", (PyCFunction)export_textures, METH_VARARGS },
-		{ "export_uncopied_textures", (PyCFunction)export_textures, METH_VARARGS },
-		{ "copy_textures", (PyCFunction)copy_textures, METH_VARARGS },
-		{ "get_frame_number", (PyCFunction)get_frame_number, METH_VARARGS },
-		{ "get_start_frame", (PyCFunction)get_start_frame, METH_VARARGS },
-		{ "get_end_frame", (PyCFunction)get_end_frame, METH_VARARGS },
-		{ "get_frame_width", (PyCFunction)get_frame_width, METH_VARARGS },
-		{ "get_frame_height", (PyCFunction)get_frame_height, METH_VARARGS },
-		{ "get_base_path", (PyCFunction)get_base_path, METH_VARARGS },
-		{ "get_light", (PyCFunction)get_light, METH_VARARGS },
-		{ "get_light_color", (PyCFunction)get_light_color, METH_VARARGS },
-		{ "get_world", (PyCFunction)get_world, METH_VARARGS },
-		{ "get_world_inv", (PyCFunction)get_world_inv, METH_VARARGS },
-		{ "get_view", (PyCFunction)get_view, METH_VARARGS },
-		{ "get_projection", (PyCFunction)get_projection, METH_VARARGS },
-		{ "set_texture_buffer_enabled", (PyCFunction)set_texture_buffer_enabled, METH_VARARGS },
-		{ "set_current_material", (PyCFunction)set_current_material, METH_VARARGS },
-		{ "set_int_value", (PyCFunction)set_int_value, METH_VARARGS },
-		{ "set_float_value", (PyCFunction)set_float_value, METH_VARARGS },
-		{ "get_int_value", (PyCFunction)get_int_value, METH_VARARGS },
-		{ "get_float_value", (PyCFunction)get_float_value, METH_VARARGS },
-		{ "d3dx_invert_matrix", (PyCFunction)d3dx_invert_matrix, METH_VARARGS },
-		{ "d3dx_vec3_normalize", (PyCFunction)d3dx_vec3_normalize, METH_VARARGS },
-#ifdef WITH_ALEMBIC
-		{ "start_alembic_export", (PyCFunction)start_alembic_export, METH_VARARGS },
-		{ "end_alembic_export", (PyCFunction)end_alembic_export, METH_VARARGS },
-		{ "execute_alembic_export", (PyCFunction)execute_alembic_export, METH_VARARGS },
-#endif //WITH_ALEMBIC
-		{NULL, NULL, 0, NULL}
-	};
-
-	static PyObject* output_error(PyObject *self, PyObject *args)
+	
+	object init_python()
 	{
-		const char *str;
-		if(!PyArg_ParseTuple(args, "s", &str)) return NULL;
-		python_error_string += std::string(str);
-		return Py_BuildValue("");
+		object main_module = import("__main__");
+		object main_namespace = main_module.attr("__dict__");
+		return main_namespace;
 	}
-
-	static PyMethodDef OutputErrorMethods[] = {
-		{"write", output_error, METH_VARARGS, ""},
-		{NULL, NULL, 0, NULL}
-	};
-
-	static struct PyModuleDef PythonMethodsModule = {
-		PyModuleDef_HEAD_INIT,
-		"mmdbridge",
-		NULL,
-        -1,
-		PythonMethods
-	};
-
-	static struct PyModuleDef PythonOutputErrorModule = {
-		PyModuleDef_HEAD_INIT,
-		"output",
-		NULL,
-        -1,
-		OutputErrorMethods
-	};
-
-	static PyObject *BridgeError;
-
-	PyMODINIT_FUNC initfuncs()
+	
+	std::string parse_python_exception()
 	{
-		PyObject *module = PyModule_Create(&PythonMethodsModule);
-		PyImport_AddModule("mmdbridge");
-		if (!module) {
-			::MessageBox(NULL, _T("mmdbridge create failed"), _T("HOGE"), MB_OK);
+		PyObject *type_ptr = NULL;
+		PyObject *value_ptr = NULL;
+		PyObject *traceback_ptr = NULL;
+		PyErr_Fetch(&type_ptr, &value_ptr, &traceback_ptr);
+
+		// Fallback error
+		std::string ret("Fallback error");
+		if(type_ptr != NULL)
+		{
+			boost::python::handle<> h_type(type_ptr);
+			boost::python::str type_pstr(h_type);
+			boost::python::extract<std::string> e_type_pstr(type_pstr);
+			//  otherwise use fallback
+			if(e_type_pstr.check())
+			{
+				ret = e_type_pstr();
+			}
+			else
+			{
+				ret = "Unknown exception";
+			}
 		}
-
-		PyObject *error_obj = PyModule_Create(&PythonOutputErrorModule);
-		PyImport_AddModule("output");
-		PySys_SetObject("stderr", error_obj);
-		
-		//// モジュール
-		//PyObject *pModule = PyImport_ImportModule("mmdbridge");
-
-		Py_InspectFlag = 1;
-
-
-		return module;
+		// Do the same for the exception value (the stringification of the exception)
+		if(value_ptr != NULL){
+			boost::python::handle<> h_val(value_ptr);
+			boost::python::str a(h_val);
+			boost::python::extract<std::string> returned(a);
+			if(returned.check()) 
+			{
+				ret +=  ": " + returned();
+			}
+			else
+			{
+				ret += std::string(": Unparseable Python error: ");
+			}
+		}
+		// Parse lines from the traceback using the Python traceback module
+		if(traceback_ptr != NULL)
+		{
+			boost::python::handle<> h_tb(traceback_ptr);
+			// Load the traceback module and the format_tb function
+			boost::python::object tb(boost::python::import("traceback"));
+			boost::python::object fmt_tb(tb.attr("format_tb"));
+			// Call format_tb to get a list of traceback strings
+			boost::python::object tb_list(fmt_tb(h_tb));
+			// Join the traceback strings into a single string
+			boost::python::object tb_str(boost::python::str("\n").join(tb_list));
+			// Extract the string, check the extraction, and fallback in necessary
+			boost::python::extract<std::string> returned(tb_str);
+			if(returned.check()) 
+			{
+				ret += ": " + returned();
+			}
+			else 
+			{
+				ret += std::string(": Unparseable Python traceback");
+			}
+		}
+		return ret;
 	}
 }
 
+
+BOOST_PYTHON_MODULE( mmdbridge )
+{
+	using namespace boost::python;
+	def("get_vertex_buffer_size", get_vertex_buffer_size);
+	def("get_vertex_size", get_vertex_size);
+	def("get_vertex", get_vertex);
+	def("get_normal_size", get_normal_size);
+	def("get_normal", get_normal);
+	def("get_uv_size", get_uv_size);
+	def("get_uv", get_uv);
+	def("get_material_size", get_material_size);
+	def("is_accessory", is_accessory);
+	def("get_ambient", get_ambient);
+	def("get_diffuse", get_diffuse);
+	def("get_specular", get_specular);
+	def("get_emissive", get_emissive);
+	def("get_power", get_power);
+	def("get_texture", get_texture);
+	def("get_exported_texture", get_exported_texture);
+	def("get_face_size", get_face_size);
+	def("get_face", get_face);
+	def("get_texture_buffer_size", get_texture_buffer_size);
+	def("get_texture_size", get_texture_size);
+	def("get_texture_name", get_texture_name);
+	def("get_texture_pixel", get_texture_pixel);
+	def("get_camera_up", get_camera_up);
+	def("get_camera_up_org", get_camera_up_org);
+	def("get_camera_at",  get_camera_at);
+	def("get_camera_eye",  get_camera_eye);
+	def("get_camera_eye_org",  get_camera_eye_org);
+	def("get_camera_fovy", get_camera_fovy);
+	def("get_camera_aspect", get_camera_aspect);
+	def("get_camera_near", get_camera_near);
+	def("get_camera_far", get_camera_far);
+	def("messagebox", message);
+	def("export_texture", export_texture);
+	def("export_textures", export_textures);
+	def("export_uncopied_textures", export_textures);
+	def("copy_textures", copy_textures);
+	def("get_frame_number", get_frame_number);
+	def("get_start_frame", get_start_frame);
+	def("get_end_frame", get_end_frame);
+	def("get_frame_width", get_frame_width);
+	def("get_frame_height", get_frame_height);
+	def("get_base_path", get_base_path);
+	def("get_light", get_light);
+	def("get_light_color", get_light_color);
+	def("get_world", get_world);
+	def("get_world_inv", get_world_inv);
+	def("get_view", get_view);
+	def("get_projection", get_projection);
+	def("set_texture_buffer_enabled", set_texture_buffer_enabled);
+	def("set_current_material", set_current_material);
+	def("set_int_value", set_int_value);
+	def("set_float_value", set_float_value);
+	def("get_int_value", get_int_value);
+	def("get_float_value", get_float_value);
+	//def("d3dx_invert_matrix", d3dx_invert_matrix);
+	def("d3dx_vec3_normalize", d3dx_vec3_normalize);
+#ifdef WITH_ALEMBIC
+	def("start_alembic_export", start_alembic_export);
+	def("end_alembic_export", end_alembic_export);
+	def("execute_alembic_export", execute_alembic_export);
+#endif //WITH_ALEMBIC}
+}
+
+void run_python_script()
+{
+	relaod_python_script();
+	if (mmdbridge_python_script.empty()) { return; }
+
+	if (Py_IsInitialized())
+	{
+		//
+		PyEval_InitThreads();
+		Py_InspectFlag = 0;
+		
+		if (scriptCallSetting > 1)
+		{
+			scriptCallSetting = 0;
+		}
+	}
+	else
+	{
+		PyImport_AppendInittab("mmdbridge", PyInit_mmdbridge);
+		Py_Initialize();
+			
+		// 入力引数の設定
+		{
+			int argc = 1;
+			const std::u16string cpath = umbase::UMStringUtil::utf8_to_utf16(basePath);
+			const std::wstring wpath = umbase::UMStringUtil::utf16_to_wstring(cpath);
+			wchar_t *path[] = {
+				const_cast<wchar_t*>(wpath.c_str())
+			};
+			PySys_SetArgv(argc, path);
+		}
+	}
+
+	try
+	{
+		// モジュール初期化.
+		boost::python::object main_namespace = init_python();
+		// スクリプトの実行.
+		boost::python::object res = boost::python::exec(mmdbridge_python_script.c_str(), main_namespace);
+	}
+	catch(error_already_set const& )
+	{
+		std::string python_error_string = parse_python_exception();
+		::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
+	}
+}
 //-----------------------------------------------------------Hook関数ポインタ-----------------------------------------------------------
 
 // Direct3DCreate9
@@ -1808,7 +1824,7 @@ HRESULT (WINAPI *original_set_texture)(IDirect3DDevice9*, DWORD, IDirect3DBaseTe
 HRESULT (WINAPI *original_create_texture)(IDirect3DDevice9*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9**, HANDLE*)(NULL);
 //-----------------------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat)
+static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat)
 {
 	TextureBuffers::iterator tit = renderData.textureBuffers.find(texture);
 	if(tit != renderData.textureBuffers.end())
@@ -1821,7 +1837,7 @@ static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * tex
 	return false;
 }
 
-static bool writeTextureToFiles(std::string &texturePath, std::string &textureType, bool uncopied)
+static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied)
 {
 	bool res = true;
 
@@ -1865,37 +1881,29 @@ static bool writeTextureToFiles(std::string &texturePath, std::string &textureTy
 	return res;
 }
 
-static bool copyTextureToFiles(std::string &texturePath)
+static bool copyTextureToFiles(const std::u16string &texturePath)
 {
-	bool res = true;
+	if (texturePath.empty()) return false;
 
-	char dir[MAX_PATH];
-	std::strcpy(dir, texturePath.c_str());
-	PathRemoveFileSpecA(dir);
-	PathAddBackslashA(dir);
-
-	std::wstring wstr;
-	to_wstring(wstr, std::string(dir));
-
-	if (!PathIsDirectory(wstr.c_str())) { return false; }
-
+	std::wstring path = umbase::UMStringUtil::utf16_to_wstring(texturePath);
+	PathRemoveFileSpec(&path[0]);
+	PathAddBackslash(&path[0]);
+	if (!PathIsDirectory(path.c_str())) { return false; }
 	
-
+	bool res = true;
 	for (size_t i = 0; i <  finishTextureBuffers.size(); ++i)
 	{
 		IDirect3DTexture9* texture = finishTextureBuffers[i].first;
 		if (texture) {
-			
-			if (!UMCopyTexture(wstr.c_str(), texture)) { res = false; }
+			if (!UMCopyTexture(path.c_str(), texture)) { res = false; }
 		}
 	}
-
 	return res;
 }
 
-static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * texture, bool copied)
+static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied)
 {
-	//　すでにfinishTexutureBufferにあるかどうか
+	// すでにfinishTexutureBufferにあるかどうか
 	bool found = false;
 	for (size_t i = 0; i < finishTextureBuffers.size(); ++i)
 	{
@@ -1928,7 +1936,8 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 			tex.name = textureName;
 
 			D3DFORMAT format = tit->second.format;
-			for(int y = 0; y < height; y++) {
+			for(int y = 0; y < height; y++)
+			{
 				unsigned char *lineHead = (unsigned char*)lockRect.pBits + lockRect.Pitch * y;
 
 				for (int x = 0; x < width; x++)
@@ -1941,7 +1950,7 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 						rgba.w = lineHead[4 * x + 3];
 						tex.texture.push_back(rgba);
 					} else {
-						::MessageBox(NULL, (_T("not supported texture format:") + to_wstring(format)).c_str(), _T("info"), MB_OK);
+						::MessageBoxA(NULL, std::string("not supported texture format:" + format).c_str(), "info", MB_OK);
 					}
 				}
 			}
@@ -2011,7 +2020,8 @@ static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 		return FALSE;
 	}
 	HANDLE hModule=(HANDLE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
-	if(GetModuleHandle(NULL)==hModule){
+	if(GetModuleHandle(NULL)==hModule)
+	{
 		//自分のプロセスが作ったウィンドウを見つけた
 		char szClassName[256];
 		GetClassNameA(hWnd,szClassName,sizeof(szClassName)/sizeof(szClassName[0]));
@@ -2242,119 +2252,6 @@ static void overrideGLWindow()
 	}
 }
 
-//////////////////// Python Thread
-static unsigned int WINAPI runScript(void* data)
-{
-	const char* scriptStr = (const char*)data;
-
-	relaod_python_script();
-
-	if (mmdbridge_python_script.empty()) { return 0; }
-
-	// Python初期化
-	PyImport_AppendInittab("mmdbridge", initfuncs);
-
-	if (!Py_IsInitialized())
-	{
-		Py_Initialize();
-
-		// 入力引数の設定
-		{
-			to_wstring(wBasePath, basePath);
-			int argc = 1;
-			const wchar_t *cpath = wBasePath.c_str();
-			wchar_t *path[] = {
-				const_cast<wchar_t*>(cpath)
-			};
-			PySys_SetArgv(argc, path);
-		}
-	}
-
-	//// Python Thread初期化
-	if (!PyEval_ThreadsInitialized())
-	{
-		PyEval_InitThreads();
-	}
-
-	PyGILState_STATE gstate = PyGILState_Ensure();
-
-	// 実行
-	int res = PyRun_SimpleStringFlags(mmdbridge_python_script.c_str(), NULL);
-
-	if (res < 0) {
-		if (! python_error_string.find("SystemExit"))
-		{
-			::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
-		}
-		python_error_string = "";
-	}
-
-	Py_Finalize();
-	PyGILState_Release(gstate);
-	
-	Py_InspectFlag = 0;
-
-	_endthreadex(0);
-
-	if (scriptCallSetting > 1)
-	{
-		scriptCallSetting = 0;
-	}
-
-	return 0;
-}
-
-static void runScriptMain()
-{
-	relaod_python_script();
-
-	if (mmdbridge_python_script.empty()) { return; }
-
-	if (Py_IsInitialized())
-	{
-		//
-		PyEval_InitThreads();
-		Py_InspectFlag = 0;
-		
-		if (scriptCallSetting > 1)
-		{
-			scriptCallSetting = 0;
-		}
-	}
-	else
-	{
-		Py_Initialize();
-		PyImport_AppendInittab("mmdbridge", initfuncs);		
-		PyImport_ImportModule("mmdbridge");
-		
-		// 入力引数の設定
-		{
-			to_wstring(wBasePath, basePath);
-			int argc = 1;
-			const wchar_t *cpath = wBasePath.c_str();
-			wchar_t *path[] = {
-				const_cast<wchar_t*>(cpath)
-			};
-			PySys_SetArgv(argc, path);
-		}
-	}
-
-	relaod_python_script();
-	
-	PyGILState_STATE gstate = PyGILState_Ensure();
-
-	if (!mmdbridge_python_script.empty()) 
-	{
-		int res = PyRun_SimpleString(mmdbridge_python_script.c_str());
-		if (res < 0) {
-			::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
-			python_error_string = "";
-		}
-	}
-
-	PyGILState_Release(gstate);
-}
-
 
 static bool IsValidCallSetting() { 
 	return (scriptCallSetting == 0) || (scriptCallSetting == 1);
@@ -2396,7 +2293,7 @@ static HRESULT WINAPI present(
 		{
 			if (preFrame != currentFrame)
 			{
-				runScriptMain();
+				run_python_script();
 				preFrame = currentFrame;
 				//::MessageBox(NULL, (to_wstring(preFrame) + _T("preFrame")).c_str(), _T("HOGE"), MB_OK);
 				//::MessageBox(NULL, (to_wstring(currentFrame) + _T("currentFrame")).c_str(), _T("HOGE"), MB_OK);
@@ -2416,7 +2313,7 @@ static HRESULT WINAPI present(
 				{
 					if (exportedFrames.find(currentFrame) == exportedFrames.end())
 					{
-						runScriptMain();
+						run_python_script();
 						exportedFrames[currentFrame] = 1;
 						preFrame = currentFrame;
 					}
@@ -2430,7 +2327,7 @@ static HRESULT WINAPI present(
 				{
 					if (exportedFrames.find(frame) == exportedFrames.end())
 					{
-						runScriptMain();
+						run_python_script();
 						exportedFrames[frame] = 1;
 						preFrame = frame;
 					}
@@ -2440,42 +2337,6 @@ static HRESULT WINAPI present(
 						isExportedFrame = false;
 					}
 				}
-			}
-		}
-		else if (scriptCallSetting == 3)
-		{
-			if (preFrame != currentFrame)
-			{
-				//::MessageBox(NULL, (to_wstring(time) + _T("秒です")).c_str(), _T("HOGE"), MB_OK);
-				HWND hCombo2 = GetDlgItem(pluginDialog, IDC_COMBO2);
-				{
-					if (pythonThreadHandle)
-					{
-						CloseHandle(pythonThreadHandle);
-						pythonThreadHandle = NULL;
-					}
-				}
-				if (!pythonThreadHandle)
-				{
-					//renderedBuffersCopy.clear();
-					//std::copy(renderedBuffers.begin(), renderedBuffers.end(), renderedBuffersCopy.begin());
-					finishBuffersCopy.clear();
-					finishBuffersCopy.resize(finishBuffers.size());
-					std::copy(finishBuffers.begin(), finishBuffers.end(), finishBuffersCopy.begin());
-					pythonThreadHandle = (HANDLE)_beginthreadex(NULL, 0, runScript, (void*)mmdbridge_python_script.c_str(), 0, NULL);
-				}
-				 if (pythonThreadHandle)
-				 {
-					 // メッセージボックスを出して強制的にスレッド変更
-					 ::MessageBox(NULL, _T("設定画面起動"), _T("HOGE"), MB_OK);
-				 }
-				//// スクリプト呼び出し設定
-				//UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
-				//if (num2 < 3)
-				//{
-				//	scriptCallSetting = 2;
-				//};
-				preFrame = currentFrame;
 			}
 		}
 
@@ -3281,7 +3142,6 @@ static void originalDevice()
 	}
 }
 
-
 static HRESULT WINAPI createDevice(
 	IDirect3D9 *direct3d,
 	UINT adapter,
@@ -3330,9 +3190,6 @@ extern "C" {
 		// 書き込み属性元に戻す
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
 
-		//InitializeCriticalSection(&criticalSection);
-		hMutex = CreateMutex(NULL,FALSE,NULL);	//ミューテックス生成
-
 		if (mme_direct3d_create)
 		{
 			return ((*mme_direct3d_create)(SDKVersion));
@@ -3344,7 +3201,7 @@ extern "C" {
 	}
 } // extern "C"
 
-static void setBasePath()
+void setBasePath()
 {
 	char app_full_path[1024];	// アプリフルパス
 	
@@ -3354,8 +3211,9 @@ static void setBasePath()
 	basePath = path.substr(0, path.rfind("MikuMikuDance.exe"));
 }
 
-static BOOL init() {
-	setlocale(LC_CTYPE, "");
+bool d3d9_initialize()
+{
+	//setlocale(LC_CTYPE, "");
 	setBasePath();
 	reload_python_file_paths();
 	relaod_python_script();
@@ -3401,28 +3259,27 @@ static BOOL init() {
 
 	return TRUE;
 }
-
-static void dispose() 
+	
+void d3d9_dispose() 
 {
-	//DeleteCriticalSection(&criticalSection);
 	renderData.dispose();
-	//Py_Finalize();
-	CloseHandle(hMutex);
 #ifdef WITH_ALEMBIC
 	AlembicArchive::instance().end();
 #endif
 }
 
 // DLLエントリポイント
-BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
-	switch (reason) {
+BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
+{
+	switch (reason) 
+	{
 		case DLL_PROCESS_ATTACH:
 			hInstance=hinst;
-			init();
+			d3d9_initialize();
 			break;
 		case DLL_PROCESS_DETACH:
-			dispose();
+			d3d9_dispose();
 			break;
 	}
 	return TRUE;
-}
+}
