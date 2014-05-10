@@ -145,7 +145,7 @@ typedef struct RenderedBuffer {
 
 
 typedef struct RenderedTexture {
-	UMVec2f size;
+	UMVec2i size;
 	std::string name;
 	std::vector<UMVec4f> texture;
 } RenderedTexture;
