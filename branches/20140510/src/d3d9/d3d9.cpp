@@ -2004,7 +2004,7 @@ static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 		GetFrame(g_hFrame);
 		return FALSE;
 	}
-	HANDLE hModule=(HANDLE)GetWindowLongA(hWnd,GWL_HINSTANCE);
+	HANDLE hModule=(HANDLE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
 	if(GetModuleHandle(NULL)==hModule){
 		//自分のプロセスが作ったウィンドウを見つけた
 		char szClassName[256];
@@ -2068,7 +2068,7 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 				if(hInstance)
 				{
 					pluginDialog = hWnd;
-					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL, DialogProc);
+					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL,  (DLGPROC)DialogProc);
 				}
 				break;
 			}
@@ -2233,8 +2233,8 @@ static bool overrideGLWindow()
 
 	// サブクラス化
 	if(g_hWnd && !originalWndProc){
-		originalWndProc=(WNDPROC)GetWindowLong(g_hWnd,GWL_WNDPROC);
-		SetWindowLong(g_hWnd,GWL_WNDPROC,(LONG)overrideWndProc);
+		originalWndProc=(WNDPROC)GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
+		SetWindowLong(g_hWnd,GWLP_WNDPROC,(LONG)overrideWndProc);
 		return true;
 	}
 	return false;
