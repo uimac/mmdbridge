@@ -204,10 +204,14 @@
     <ResourceCompile Include="..\..\src\d3d9\d3d9.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\d3d9\alembic.h" />
+    <ClInclude Include="..\..\src\d3d9\bridge_parameter.h" />
     <ClInclude Include="..\..\src\d3d9\d3d9.h" />
     <ClInclude Include="..\..\src\d3d9\resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\d3d9\alembic.cpp" />
+    <ClCompile Include="..\..\src\d3d9\bridge_parameter.cpp" />
     <ClCompile Include="..\..\src\d3d9\d3d9.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
