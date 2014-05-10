@@ -1,12 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual C++ Express 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d9", "d3d9\d3d9.vcproj", "{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}"
-	ProjectSection(ProjectDependencies) = postProject
-		{48ECC702-208D-4077-8788-E233814EF6C0} = {48ECC702-208D-4077-8788-E233814EF6C0}
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d9", "d3d9\d3d9.vcxproj", "{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3dx9_32", "d3dx9\d3dx9.vcproj", "{48ECC702-208D-4077-8788-E233814EF6C0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3dx9_32", "d3dx9\d3dx9.vcxproj", "{48ECC702-208D-4077-8788-E233814EF6C0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

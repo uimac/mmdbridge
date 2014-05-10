@@ -24,6 +24,14 @@
 #define M_PI 3.1415926535897932384626433832795
 
 #ifdef WITH_ALEMBIC
+
+#pragma comment(lib, "libhdf5_hl.lib")
+#pragma comment(lib, "libhdf5.lib")
+#pragma comment(lib, "zlib.lib")
+#pragma comment(lib, "Imath.lib")
+#pragma comment(lib, "IlmThread.lib")
+#pragma comment(lib, "Iex.lib")
+#pragma comment(lib, "Half.lib")
 #pragma comment(lib, "AlembicAbc.lib")
 #pragma comment(lib, "AlembicAbcCoreAbstract.lib")
 #pragma comment(lib, "AlembicAbcCoreHDF5.lib")
