@@ -11,18 +11,26 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\d3dx9_32\d3dx9.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\src\d3dx9_32\hook.def">
+    <None Include="..\..\src\d3d9\hook.def">
       <Filter>resource</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\d3dx9_32\d3dx9.h">
+    <ResourceCompile Include="..\..\src\d3d9\d3d9.rc">
+      <Filter>resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\d3d9\resource.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\d3d9\d3d9.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\d3d9\d3d9.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

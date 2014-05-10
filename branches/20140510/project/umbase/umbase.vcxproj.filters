@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="src\math">
+      <UniqueIdentifier>{a192e1ae-e1bd-4670-9681-ff677897aaac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\event">
+      <UniqueIdentifier>{04210f83-d020-4343-84d5-69086bec7cdd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\umbase\UMAny.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMTime.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMStringUtil.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMPath.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMMacro.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMMath.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMMatrix.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMVector.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMBox.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMMathTypes.h">
+      <Filter>src\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMEvent.h">
+      <Filter>src\event</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMListener.h">
+      <Filter>src\event</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMListenerConnector.h">
+      <Filter>src\event</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\umbase\UMEventType.h">
+      <Filter>src\event</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\umbase\UMTime.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\umbase\UMPath.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\umbase\UMBox.cpp">
+      <Filter>src\math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\umbase\UMEvent.cpp">
+      <Filter>src\event</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

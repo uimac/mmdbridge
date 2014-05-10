@@ -21,7 +21,6 @@
 
 #include "resource.h"
 #include "MMDExport.h"
-#define M_PI 3.1415926535897932384626433832795
 
 #ifdef WITH_ALEMBIC
 
@@ -485,9 +484,9 @@ extern "C" {
 		int fpos;
 		if (!PyArg_ParseTuple(args, "iii", &at, &mpos, &fpos)) { return NULL; }
 		RenderedSurface &surface = renderedBuffers[finishBuffers[at]].materials[mpos]->surface;
-		int v1 = surface.faces[fpos].ix;
-		int v2 = surface.faces[fpos].iy;
-		int v3 = surface.faces[fpos].iz;
+		int v1 = surface.faces[fpos].x;
+		int v2 = surface.faces[fpos].y;
+		int v3 = surface.faces[fpos].z;
 		return Py_BuildValue("[i,i,i]", v1, v2, v3);
 	}
 
@@ -518,7 +517,7 @@ extern "C" {
 		int at;
 		int tpos;
 		if (!PyArg_ParseTuple(args, "ii", &at, &tpos)) { return NULL; }
-		um_vector4 &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
+		UMVec4f &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
 		return Py_BuildValue("[f, f, f, f]", rgba.x, rgba.y, rgba.z, rgba.w);
 	}
 
@@ -710,7 +709,7 @@ extern "C" {
 	{
 		int at;
 		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		um_vector3 &light = renderedBuffers[finishBuffers[at]].light;
+		UMVec3f &light = renderedBuffers[finishBuffers[at]].light;
 		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
 	}
 
@@ -718,7 +717,7 @@ extern "C" {
 	{
 		int at;
 		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		um_vector3 &light = renderedBuffers[finishBuffers[at]].light_color;
+		UMVec3f &light = renderedBuffers[finishBuffers[at]].light_color;
 		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
 	}
 
@@ -1027,11 +1026,11 @@ extern "C" {
 
 			for (int n = 0; n < materialSurfaceSize; ++n)
 			{
-				um_vector3 face = material->surface.faces[n];
+				UMVec3i face = material->surface.faces[n];
 
-				const int f1 = face.ix - 1;
-				const int f2 = face.iy - 1;
-				const int f3 = face.iz - 1;
+				const int f1 = face.x - 1;
+				const int f2 = face.y - 1;
+				const int f3 = face.z - 1;
 				int vi1 = 0;
 				int vi2 = 0;
 				int vi3 = 0;
@@ -1227,11 +1226,11 @@ extern "C" {
 
 			for (int n = 0; n < materialSurfaceSize; ++n)
 			{
-				um_vector3 face = material->surface.faces[n];
+				UMVec3i face = material->surface.faces[n];
 
-				const int f1 = face.ix - 1;
-				const int f2 = face.iy - 1;
-				const int f3 = face.iz - 1;
+				const int f1 = face.x - 1;
+				const int f2 = face.y - 1;
+				const int f3 = face.z - 1;
 				int vi1 = n * 3 + 0;
 				int vi2 = n * 3 + 1;
 				int vi3 = n * 3 + 2;
@@ -1381,10 +1380,10 @@ extern "C" {
 			const int faceSize = material->surface.faces.size();
 			for (int n = 0; n < faceSize; ++n)
 			{
-				um_vector3 face = material->surface.faces[n];
-				faceList[faceCounter * 3 + 0] = (face.ix - 1);
-				faceList[faceCounter * 3 + 1] = (face.iy - 1);
-				faceList[faceCounter * 3 + 2] = (face.iz - 1);
+				UMVec3i face = material->surface.faces[n];
+				faceList[faceCounter * 3 + 0] = (face.x - 1);
+				faceList[faceCounter * 3 + 1] = (face.y - 1);
+				faceList[faceCounter * 3 + 2] = (face.z - 1);
 				faceCountList[faceCounter] = 3;
 				++faceCounter;
 			}
@@ -1914,12 +1913,12 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 			HRESULT isLocked = texture->lpVtbl->LockRect(texture, 0, &lockRect, NULL, D3DLOCK_READONLY);
 			if (isLocked != D3D_OK) { return false; }
 			
-			int width = tit->second.wh.ix;
-			int height = tit->second.wh.iy;
+			int width = tit->second.wh.x;
+			int height = tit->second.wh.y;
 
 			RenderedTexture tex;
-			tex.size.ix = width;
-			tex.size.iy = height;
+			tex.size.x = width;
+			tex.size.y = height;
 			tex.name = textureName;
 
 			D3DFORMAT format = tit->second.format;
@@ -1929,7 +1928,7 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 				for (int x = 0; x < width; x++)
 				{
 					if (format == D3DFMT_A8R8G8B8) {
-						um_vector4 rgba;
+						UMVec4f rgba;
 						rgba.x = lineHead[4 * x + 0];
 						rgba.y = lineHead[4 * x + 1];
 						rgba.z = lineHead[4 * x + 2];
@@ -2709,8 +2708,8 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				{
 					for (size_t i = bytePos; i < vit->second; i += renderData.stride) 
 					{
-						um_vector2 uv;
-						memcpy(&uv, &pVertexBuf[i], sizeof( um_vector2 ));
+						UMVec2f uv;
+						memcpy(&uv, &pVertexBuf[i], sizeof( UMVec2f ));
 						renderedBuffer.uvs.push_back(uv);
 					}
 					bytePos += (sizeof(DWORD) * 2);
@@ -2912,7 +2911,7 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 	 {
 		D3DLIGHT9  light;
 		p_device->lpVtbl->GetLight(p_device, lightNumber, &light);
-		um_vector3& umlight = renderedBuffer.light;
+		UMVec3f& umlight = renderedBuffer.light;
 		D3DXVECTOR3 v(light.Direction.x, light.Direction.y, light.Direction.z);
 		D3DXVECTOR4 dst;
 		//D3DXVec3Transform(&dst, &v, &renderedBuffer.world);
@@ -3014,20 +3013,20 @@ static HRESULT WINAPI drawIndexedPrimitive(
 					// ñ@ê¸ÇèCê≥
 					for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 					{
-						um_vector3 face;
+						UMVec3i face;
 						if (indexDesc.Format == D3DFMT_INDEX16)
 						{
 							WORD* p = (WORD*)pIndexBuf;
-							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
-							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
-							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+							face.x = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.y = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.z = static_cast<int>((p[startIndex + i + 2]) + 1);
 						}
 						else
 						{
 							DWORD* p = (DWORD*)pIndexBuf;
-							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
-							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
-							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+							face.x = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.y = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.z = static_cast<int>((p[startIndex + i + 2]) + 1);
 						}
 						renderedSurface.faces.push_back(face);
 						if (!renderData.normal)
@@ -3037,19 +3036,19 @@ static HRESULT WINAPI drawIndexedPrimitive(
 							{
 								renderedBuffer.normals.resize(vsize);
 							}
-							if (face.ix >= vsize || face.iy >= vsize || face.iz >= vsize) continue;
-							if (face.ix < 0 || face.iy < 0 || face.iz < 0) continue;
+							if (face.x >= vsize || face.y >= vsize || face.z >= vsize) continue;
+							if (face.x < 0 || face.y < 0 || face.z < 0) continue;
 
 							D3DXVECTOR3 n;
-							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.ix];
-							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.iy];
-							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.iz];
+							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.x];
+							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.y];
+							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.z];
 							D3DXVECTOR3 v10 = v1-v0;
 							D3DXVECTOR3 v20 = v2-v0;
 							::D3DXVec3Cross(&n, &v10, &v20);
-							renderedBuffer.normals[face.ix] += n;
-							renderedBuffer.normals[face.iy] += n;
-							renderedBuffer.normals[face.iz] += n;
+							renderedBuffer.normals[face.x] += n;
+							renderedBuffer.normals[face.y] += n;
+							renderedBuffer.normals[face.z] += n;
 						}
 						if (!renderData.normal)
 						{
@@ -3106,8 +3105,8 @@ static HRESULT WINAPI createTexture(
 	HRESULT res = (*original_create_texture)(device, width, height, levels, usage, format, pool, ppTexture, pSharedHandle);
 
 	TextureInfo info;
-	info.wh.ix = width;
-	info.wh.iy = height;
+	info.wh.x = width;
+	info.wh.y = height;
 	info.format = format;
 
 	renderData.textureBuffers[*ppTexture] = info;
