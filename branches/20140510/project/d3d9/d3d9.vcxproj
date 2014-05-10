@@ -76,12 +76,12 @@
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)out/$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)Release\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)out/$(Platform)\$(Configuration)\</OutDir>
+    <OutDir>$(SolutionDir)Release\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
@@ -145,7 +145,7 @@
     <Link>
       <AdditionalDependencies>MMDExport.lib;python32.lib;shlwapi.lib;d3dx9_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName)_.dll</OutputFile>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x86;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)/libs/mmd/Win32/;$(SolutionDir)/Release;$(SolutionDir)/src/d3dx9_32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x86;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)/libs/mmd/Win32/;$(SolutionDir)/out/$(Platform)/$(Configuration)/;$(SolutionDir)/src/d3dx9_32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(SolutionDir)/src/$(ProjectName)/hook.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -177,7 +177,7 @@
     <Link>
       <AdditionalDependencies>MMDExport.lib;python32.lib;shlwapi.lib;d3dx9_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName)_.dll</OutputFile>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x64;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)/libs/mmd/$(Platform)/;$(SolutionDir)/Release;$(SolutionDir)/src/d3dx9_32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x64;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)/libs/mmd/$(Platform)/;$(SolutionDir)/out/$(Platform)/$(Configuration)/;$(SolutionDir)/src/d3dx9_32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(SolutionDir)/src/$(ProjectName)/hook.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
