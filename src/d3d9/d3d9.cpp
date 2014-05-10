@@ -22,6 +22,12 @@
 #include "resource.h"
 #include "MMDExport.h"
 
+#ifdef _WIN64
+#define _LONG_PTR LONG_PTR
+#else
+#define _LONG_PTR LONG
+#endif
+
 #ifdef WITH_ALEMBIC
 
 #pragma comment(lib, "libhdf5_hl.lib")
@@ -2050,9 +2056,9 @@ static void setMyMenu()
 	}
 }
 
-WNDPROC originalWndProc  =NULL;
+LONG_PTR originalWndProc  =NULL;
 // このコード モジュールに含まれる関数の宣言を転送します:
-BOOL CALLBACK DialogProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK DialogProc(HWND, UINT, WPARAM, LPARAM);
 HINSTANCE hInstance= NULL;
 HWND pluginDialog = NULL;
 
@@ -2068,7 +2074,7 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 				if(hInstance)
 				{
 					pluginDialog = hWnd;
-					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL,  (DLGPROC)DialogProc);
+					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL,  DialogProc);
 				}
 				break;
 			}
@@ -2081,10 +2087,10 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 	}
 
 	// サブクラスで処理しなかったメッセージは、本来のウィンドウプロシージャに処理してもらう
-	return CallWindowProc( originalWndProc, hWnd, msg, wp, lp );
+	return CallWindowProc( (WNDPROC)originalWndProc, hWnd, msg, wp, lp );
 }
 
-static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	HWND hCombo1 = GetDlgItem(hWnd, IDC_COMBO1);
 	HWND hCombo2 = GetDlgItem(hWnd, IDC_COMBO2);
@@ -2225,19 +2231,15 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 }
 
 //ウィンドウの乗っ取り
-static bool overrideGLWindow()
+static void overrideGLWindow()
 {
 	EnumWindows(enumWindowsProc,0);
-
 	setMyMenu();
-
 	// サブクラス化
 	if(g_hWnd && !originalWndProc){
-		originalWndProc=(WNDPROC)GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
-		SetWindowLong(g_hWnd,GWLP_WNDPROC,(LONG)overrideWndProc);
-		return true;
+		originalWndProc = GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
+		SetWindowLongPtr(g_hWnd,GWLP_WNDPROC,(_LONG_PTR)overrideWndProc);
 	}
-	return false;
 }
 
 //////////////////// Python Thread
