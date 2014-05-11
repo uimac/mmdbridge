@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "d3d9.h"
 
 class BridgeParameter
 {
@@ -50,9 +51,10 @@ public:
 	/// スクリプトからの一時保存値(float)
 	std::map<int, float> py_float_map;
 	
-	// TODO
-	//VertexBufferList& finishBuffers;
-	//std::map<IDirect3DVertexBuffer9*, RenderedBuffer> & renderedBuffers;
+	VertexBufferList finish_buffer_list;
+	RenderBufferMap render_buffer_map;
+
+	const RenderedBuffer& render_buffer(int finish_buffer_index) const;
 
 private:
 	BridgeParameter() :

@@ -170,6 +170,7 @@ struct TextureParameter
 };
 
 typedef std::vector<IDirect3DVertexBuffer9* > VertexBufferList;
+typedef std::map<IDirect3DVertexBuffer9*, RenderedBuffer> RenderBufferMap;
 
 
 #endif
