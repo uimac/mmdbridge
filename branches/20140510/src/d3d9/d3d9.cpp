@@ -93,10 +93,8 @@ RenderData renderData;
 
 int primitiveCounter = 0;
 
-VertexBufferList finishBuffers;
 std::vector<std::pair<IDirect3DTexture9*, bool> > finishTextureBuffers;
 
-std::map<IDirect3DVertexBuffer9*, RenderedBuffer> renderedBuffers;
 std::map<IDirect3DTexture9*, RenderedTexture> renderedTextures;
 std::map<int, std::map<int , RenderedMaterial*> > renderedMaterials;
 //-----------------------------------------------------------------------------------------------------------------
@@ -113,7 +111,7 @@ static bool writeTextureToMemory(const std::string &textureName, IDirect3DTextur
 static float preFrameTime = 0.0f;
 static int preFrame = 0;
 static int presentCount = 0;
-static int currentFrame = 0;
+static int current_frame = 0;
 
 // 行列で3Dベクトルをトランスフォームする
 // D3DXVec3Transformとほぼ同じ
@@ -214,19 +212,20 @@ namespace
 
 	int get_vertex_buffer_size()
 	{
-		return finishBuffers.size();
+		return BridgeParameter::instance().finish_buffer_list.size();
 	}
 
 	int get_vertex_size(int at)
 	{
-		return renderedBuffers[finishBuffers[at]].vertecies.size();
+		return BridgeParameter::instance().render_buffer(at).vertecies.size();
 	}
 
 	boost::python::list get_vertex(int at, int vpos)
 	{
-		float x = renderedBuffers[finishBuffers[at]].vertecies[vpos].x;
-		float y = renderedBuffers[finishBuffers[at]].vertecies[vpos].y;
-		float z = renderedBuffers[finishBuffers[at]].vertecies[vpos].z;
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float x = buffer.vertecies[vpos].x;
+		float y = buffer.vertecies[vpos].y;
+		float z = buffer.vertecies[vpos].z;
 		boost::python::list result;
 		result.append(x);
 		result.append(y);
@@ -236,14 +235,15 @@ namespace
 
 	int get_normal_size(int at)
 	{
-		return renderedBuffers[finishBuffers[at]].normals.size();
+		return BridgeParameter::instance().render_buffer(at).normals.size();
 	}
 
 	boost::python::list get_normal(int at, int vpos)
 	{
-		float x = renderedBuffers[finishBuffers[at]].normals[vpos].x;
-		float y = renderedBuffers[finishBuffers[at]].normals[vpos].y;
-		float z = renderedBuffers[finishBuffers[at]].normals[vpos].z;
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float x = buffer.normals[vpos].x;
+		float y = buffer.normals[vpos].y;
+		float z = buffer.normals[vpos].z;
 		boost::python::list result;
 		result.append(x);
 		result.append(y);
@@ -253,13 +253,14 @@ namespace
 
 	int get_uv_size(int at)
 	{
-		return renderedBuffers[finishBuffers[at]].uvs.size();
+		return BridgeParameter::instance().render_buffer(at).uvs.size();
 	}
 
 	boost::python::list get_uv(int at, int vpos)
 	{
-		float u = renderedBuffers[finishBuffers[at]].uvs[vpos].x;
-		float v = renderedBuffers[finishBuffers[at]].uvs[vpos].y;
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float u = buffer.uvs[vpos].x;
+		float v = buffer.uvs[vpos].y;
 		boost::python::list result;
 		result.append(u);
 		result.append(v);
@@ -268,13 +269,13 @@ namespace
 
 	int get_material_size(int at)
 	{
-		return renderedBuffers[finishBuffers[at]].materials.size();
+		return BridgeParameter::instance().render_buffer(at).materials.size();
 	}
 
 	bool is_accessory(int at)
 	{
 		int result = 0;
-		if (renderedBuffers[finishBuffers[at]].isAccessory)
+		if (BridgeParameter::instance().render_buffer(at).isAccessory)
 		{
 			return true;
 		}
@@ -283,7 +284,7 @@ namespace
 
 	boost::python::list get_diffuse(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		boost::python::list result;
 		result.append(mat->diffuse.x);
 		result.append(mat->diffuse.y);
@@ -294,7 +295,7 @@ namespace
 
 	boost::python::list get_ambient(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		boost::python::list result;
 		result.append(mat->ambient.x);
 		result.append(mat->ambient.y);
@@ -304,7 +305,7 @@ namespace
 
 	boost::python::list get_specular(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		boost::python::list result;
 		result.append(mat->specular.x);
 		result.append(mat->specular.y);
@@ -314,7 +315,7 @@ namespace
 
 	boost::python::list get_emissive(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		boost::python::list result;
 		result.append(mat->emissive.x);
 		result.append(mat->emissive.y);
@@ -324,31 +325,31 @@ namespace
 
 	float get_power(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		float power = mat->power;
 		return power;
 	}
 
 	std::string get_texture(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		return mat->texture;
 	}
 
 	std::string get_exported_texture(int at, int mpos)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		return mat->memoryTexture;
 	}
 
 	int get_face_size(int at, int mpos)
 	{
-		return renderedBuffers[finishBuffers[at]].materials[mpos]->surface.faces.size();
+		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
 	}
 
 	boost::python::list get_face(int at, int mpos, int fpos)
 	{
-		RenderedSurface &surface = renderedBuffers[finishBuffers[at]].materials[mpos]->surface;
+		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
 		int v1 = surface.faces[fpos].x;
 		int v2 = surface.faces[fpos].y;
 		int v3 = surface.faces[fpos].z;
@@ -390,7 +391,7 @@ namespace
 
 	bool export_texture(int at, int mpos, const std::string& dst)
 	{
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		std::string path(dst);
 		std::string textureType = path.substr(path.size() - 3, 3);
 
@@ -456,7 +457,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraUp(&v);
-		d3d_vector3_dir_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
+		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -480,7 +481,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraAt(&v);
-		d3d_vector3_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -493,7 +494,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraEye(&v);
-		d3d_vector3_transform(dst, v, renderedBuffers.begin()->second.world_inv);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -575,7 +576,7 @@ namespace
 
 	boost::python::list get_light(int at)
 	{
-		UMVec3f &light = renderedBuffers[finishBuffers[at]].light;
+		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
 		boost::python::list result;
 		result.append(light.x);
 		result.append(light.y);
@@ -585,7 +586,7 @@ namespace
 
 	boost::python::list get_light_color(int at)
 	{
-		UMVec3f &light = renderedBuffers[finishBuffers[at]].light_color;
+		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light_color;
 		boost::python::list result;
 		result.append(light.x);
 		result.append(light.y);
@@ -595,7 +596,7 @@ namespace
 
 	boost::python::list get_world(int at)
 	{
-		D3DXMATRIX& world = renderedBuffers[finishBuffers[at]].world;
+		const D3DXMATRIX& world = BridgeParameter::instance().render_buffer(at).world;
 		boost::python::list result;
 		for (int i = 0; i < 4; ++i)
 		{
@@ -609,7 +610,7 @@ namespace
 
 	boost::python::list get_world_inv(int at)
 	{
-		D3DXMATRIX& world_inv = renderedBuffers[finishBuffers[at]].world_inv;
+		const D3DXMATRIX& world_inv = BridgeParameter::instance().render_buffer(at).world_inv;
 		boost::python::list result;
 		for (int i = 0; i < 4; ++i)
 		{
@@ -623,7 +624,7 @@ namespace
 
 	boost::python::list get_view(int at)
 	{
-		D3DXMATRIX& view = renderedBuffers[finishBuffers[at]].view;
+		const D3DXMATRIX& view = BridgeParameter::instance().render_buffer(at).view;
 		boost::python::list result;
 		for (int i = 0; i < 4; ++i)
 		{
@@ -637,7 +638,7 @@ namespace
 
 	boost::python::list get_projection(int at)
 	{
-		D3DXMATRIX& projection = renderedBuffers[finishBuffers[at]].projection;
+		const D3DXMATRIX& projection = BridgeParameter::instance().render_buffer(at).projection;
 		boost::python::list result;
 		for (int i = 0; i < 4; ++i)
 		{
@@ -1099,7 +1100,7 @@ static void GetFrame(HWND hWnd)
 	char text[256];
 	::GetWindowTextA(hWnd, text, sizeof(text)/sizeof(text[0]));
 		
-	currentFrame= atoi(text);
+	current_frame= atoi(text);
 }
 
 static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
@@ -1371,7 +1372,7 @@ static bool IsValidCallSetting() {
 
 static bool IsValidFrame() {
 	float time = ExpGetFrameTime();
-	return ((script_call_setting == 0) && (preFrame != currentFrame)) ||
+	return ((script_call_setting == 0) && (preFrame != current_frame)) ||
 			((script_call_setting == 1) && (time > 0));
 }
 
@@ -1404,12 +1405,12 @@ static HRESULT WINAPI present(
 		
 		if (script_call_setting == 0)
 		{
-			if (preFrame != currentFrame)
+			if (preFrame != current_frame)
 			{
 				run_python_script();
-				preFrame = currentFrame;
+				preFrame = current_frame;
 				//::MessageBox(NULL, (to_wstring(preFrame) + _T("preFrame")).c_str(), _T("HOGE"), MB_OK);
-				//::MessageBox(NULL, (to_wstring(currentFrame) + _T("currentFrame")).c_str(), _T("HOGE"), MB_OK);
+				//::MessageBox(NULL, (to_wstring(current_frame) + _T("current_frame")).c_str(), _T("HOGE"), MB_OK);
 			}
 		}
 		else if (script_call_setting == 1)
@@ -1417,21 +1418,21 @@ static HRESULT WINAPI present(
 			const BridgeParameter& parameter = BridgeParameter::instance();
 			float time = ExpGetFrameTime();
 			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
-			if (currentFrame == parameter.start_frame || frame == parameter.start_frame)
+			if (current_frame == parameter.start_frame || frame == parameter.start_frame)
 			{
 				isExportedFrame = true;
 			}
 			if (isExportedFrame)
 			{
-				if (currentFrame >= parameter.start_frame && currentFrame <= parameter.end_frame)
+				if (current_frame >= parameter.start_frame && current_frame <= parameter.end_frame)
 				{
-					if (exportedFrames.find(currentFrame) == exportedFrames.end())
+					if (exportedFrames.find(current_frame) == exportedFrames.end())
 					{
 						run_python_script();
-						exportedFrames[currentFrame] = 1;
-						preFrame = currentFrame;
+						exportedFrames[current_frame] = 1;
+						preFrame = current_frame;
 					}
-					if (currentFrame == parameter.end_frame)
+					if (current_frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
 						isExportedFrame = false;
@@ -1454,7 +1455,7 @@ static HRESULT WINAPI present(
 			}
 		}
 
-		finishBuffers.clear();
+		BridgeParameter::mutable_instance().finish_buffer_list.clear();
 
 		presentCount++;
 	}
@@ -1580,11 +1581,13 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 	BYTE *pVertexBuf;
 	IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
 
+	VertexBufferList& finishBuffers = BridgeParameter::mutable_instance().finish_buffer_list;
 	if (std::find(finishBuffers.begin(), finishBuffers.end(), pStreamData) == finishBuffers.end())
 	{
 		VertexBuffers::iterator vit = renderData.vertexBuffers.find(pStreamData);
 		if(vit != renderData.vertexBuffers.end())
 		{
+			RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 			pStreamData->lpVtbl->Lock(pStreamData, 0, 0, (void**)&pVertexBuf, D3DLOCK_READONLY);
 
 			// FVF取得
@@ -1711,6 +1714,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	const int currentObject = ExpGetCurrentObject();
 
 	IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
+	RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 	if (renderedBuffers.find(pStreamData) == renderedBuffers.end())
 	{
 		return false;
@@ -1976,6 +1980,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				void *pIndexBuf;
 				if (pIndexData->lpVtbl->Lock(pIndexData, 0, 0, (void**)&pIndexBuf, D3DLOCK_READONLY) == D3D_OK)
 				{
+					RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 					RenderedBuffer &renderedBuffer = renderedBuffers[pStreamData];
 					RenderedSurface &renderedSurface = renderedBuffer.material_map[currentMaterial]->surface;
 					renderedSurface.faces.clear();

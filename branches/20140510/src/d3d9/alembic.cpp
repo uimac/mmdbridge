@@ -121,6 +121,10 @@ public:
 	int export_mode;
 
 	bool is_use_euler_rotation_camera;
+	
+	RenderedBuffer::UVList temporary_uv_list;
+	RenderedBuffer::NormalList temporary_normal_list;
+	RenderedBuffer::VertexList temporary_vertex_list;
 
 	void end() { 
 		xform_map.clear();
@@ -131,6 +135,9 @@ public:
 		camera_schema_map.clear();
 		face_to_vertex_index_map.clear();
 		surface_size_map.clear();
+		temporary_uv_list.clear();
+		temporary_normal_list.clear();
+		temporary_vertex_list.clear();
 		{
 			delete archive; archive = NULL;
 		}
@@ -187,7 +194,7 @@ bool end_alembic_export()
 	return false;
 }
 
-void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -241,9 +248,9 @@ void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, Render
 		std::vector<Alembic::Util::int32_t> faceList;
 		std::vector<Alembic::Util::int32_t> faceCountList;
 
-		RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-		RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-		RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+		const RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+		const RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+		const RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
 
 		RenderedBuffer::VertexList vertexListByMaterial;
 		RenderedBuffer::UVList uvListByMaterial;
@@ -394,7 +401,7 @@ void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, Render
 	}
 }
 	
-void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+void export_alembic_xform_by_material_direct(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -442,9 +449,9 @@ void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBu
 		std::vector<Alembic::Util::int32_t> faceList;
 		std::vector<Alembic::Util::int32_t> faceCountList;
 
-		RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-		RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-		RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+		const RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+		const RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+		const RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
 
 		RenderedBuffer::VertexList vertexListByMaterial;
 		RenderedBuffer::UVList uvListByMaterial;
@@ -559,7 +566,7 @@ void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBu
 	}
 }
 
-void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+void export_alembic_xform_by_buffer(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -596,9 +603,15 @@ void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & re
 	std::vector<Alembic::Util::int32_t> faceList;
 	std::vector<Alembic::Util::int32_t> faceCountList;
 		
-	RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-	RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-	RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+	const RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+	const RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
+	const RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
+	RenderedBuffer::UVList& temporary_uv = archive.temporary_uv_list;
+	temporary_uv.resize(uvList.size());
+	RenderedBuffer::NormalList& temporary_normal = archive.temporary_normal_list;
+	temporary_normal.resize(normalList.size());
+	RenderedBuffer::VertexList& temporary_vertex = archive.temporary_vertex_list;
+	temporary_vertex.resize(vertexList.size());
 
 	const int materialSize = static_cast<int>(renderedBuffer.materials.size());
 
@@ -645,9 +658,9 @@ void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & re
 	// vertex
 	for (int n = 0, nsize = vertexList.size(); n < nsize; ++n)
 	{
-		vertexList[n].z = -vertexList[n].z;
+		temporary_vertex[n].z = -vertexList[n].z;
 	}
-	Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexList.front(), vertexList.size());
+	Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &temporary_vertex.front(), temporary_vertex.size());
 	sample.setPositions(positions);
 				
 	// face index
@@ -664,11 +677,11 @@ void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & re
 	{
 		for (int n = 0, nsize = uvList.size(); n < nsize; ++n)
 		{
-			uvList[n].y = 1.0f - uvList[n].y;
+			temporary_uv[n].y = 1.0f - uvList[n].y;
 		}
 		Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
 		uvSample.setScope(Alembic::AbcGeom::kVertexScope );
-		uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
+		uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &temporary_uv.front(), temporary_uv.size()));
 		sample.setUVs(uvSample);
 	}
 
@@ -677,11 +690,11 @@ void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & re
 	{
 		for (int n = 0, nsize = normalList.size(); n < nsize; ++n)
 		{
-			normalList[n].z = -normalList[n].z;
+			temporary_normal[n].z = -normalList[n].z;
 		}
 		Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
 		normalSample.setScope(Alembic::AbcGeom::kVertexScope );
-		normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalList.front(), normalList.size()));
+		normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &temporary_normal.front(), temporary_normal.size()));
 		sample.setNormals(normalSample);
 	}
 
@@ -729,7 +742,7 @@ void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	dst = Imath::V3d(yaw, pitch, roll);
 }
 	
-void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer, bool isUseEuler)
+void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, bool isUseEuler)
 {
 	static const int cameraKey = 0xFFFFFF;
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
@@ -846,19 +859,19 @@ void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuf
 	cameraSchema.set(sample);
 }
 
-bool execute_alembic_export(
-	VertexBufferList& finishBuffers, //‰¼
-	std::map<IDirect3DVertexBuffer9*, RenderedBuffer> & renderedBuffers, //‰¼
-	int currentframe)
+bool execute_alembic_export(int currentframe)
 {
-
 	AlembicArchive &archive = AlembicArchive::instance();
 	if (!archive.archive) { return Py_BuildValue(""); }
+	
+	const BridgeParameter& parameter = BridgeParameter::instance();
+	const VertexBufferList& finishBuffers = BridgeParameter::instance().finish_buffer_list;
+	const RenderBufferMap& renderBuffers = BridgeParameter::instance().render_buffer_map;
 
 	bool exportedCamera = false;
 	for (int i = static_cast<int>(finishBuffers.size()) - 1; i >= 0; --i)
 	{
-		RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
+		const RenderedBuffer &renderedBuffer = parameter.render_buffer(i);
 
 		if (!exportedCamera && !renderedBuffer.isAccessory)
 		{
@@ -869,7 +882,7 @@ bool execute_alembic_export(
 
 	for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
 	{
-		RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
+		const RenderedBuffer &renderedBuffer = parameter.render_buffer(i);
 
 		if (archive.export_mode == 0)
 		{
