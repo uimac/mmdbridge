@@ -1,3 +1,4 @@
 LIBRARY d3d9_
 EXPORTS
    Direct3DCreate9 @13
+   Direct3DCreate9Ex @14

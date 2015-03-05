@@ -16,6 +16,7 @@
 #include <codecvt>
 #include <locale>
 #include "UMMacro.h"
+#include <wchar.h>
 
 namespace umbase
 {
@@ -62,15 +63,16 @@ public:
 	/**
 	 * convert wstring to utf16
 	 */
-	static std::u16string wstring_to_utf16(const std::wstring& str)
+	static umstring wstring_to_utf16(const std::wstring& str)
 	{
-#ifdef _WIN32
+#if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
 		const char16_t* p = reinterpret_cast<const char16_t*>(str.c_str());
-		std::u16string u16str(p);
+		umstring u16str(p);
 #else
-		// not implemented
-		std::u16string u16str;
-		assert(0);
+		umstring u16str;
+		u16str.resize(str.size());
+		const wchar_t* orig = str.c_str();
+		wcsnrtombs(&u16str[0], &orig, str.size(), str.size(), NULL);
 #endif
 		return u16str;
 	}
@@ -78,15 +80,14 @@ public:
 	/**
 	 * convert utf16 to wstring
 	 */
-	static std::wstring utf16_to_wstring(const std::u16string& utf16str)
+	static std::wstring utf16_to_wstring(const umstring& utf16str)
 	{
-#ifdef _WIN32
+#if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
 		const wchar_t* p = reinterpret_cast<const wchar_t*>(utf16str.c_str());
 		std::wstring wstr(p);
 #else
 		// not implemented
 		std::wstring wstr;
-		assert(0);
 #endif
 		return wstr;
 	}
@@ -96,13 +97,12 @@ public:
 	 */
 	static std::string wstring_to_utf8(const std::wstring& str)
 	{
-#ifdef _WIN32
+#if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
 		const char16_t* p = reinterpret_cast<const char16_t*>(str.c_str());
-		std::string utf8str = UMStringUtil::utf16_to_utf8(std::u16string(p));
+		std::string utf8str = UMStringUtil::utf16_to_utf8(umstring(p));
 #else
 		// not implemented
-		std::u16string u16str;
-		assert(0);
+		umstring utf8str;
 #endif
 		return utf8str;
 	}
@@ -110,29 +110,50 @@ public:
 	/**
 	 * convert utf8 string to utf16
 	 */
-	static std::u16string utf8_to_utf16(const std::string& utf8str)
+	static umstring utf8_to_utf16(const std::string& utf8str)
 	{
+#if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
 		std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,char16_t> convert;
-		return convert.from_bytes(utf8str);
+		umstring utf16str = convert.from_bytes(utf8str);
+#else
+		// not implemented
+		umstring utf16str = utf8str;
+#endif
+		return utf16str;
 	}
 
 	/**
 	 * convert utf16 to utf8 string
 	 */
-	static std::string utf16_to_utf8(const std::u16string& str)
+	static std::string utf16_to_utf8(const umstring& str)
 	{
+#if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
 		std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,char16_t> convert;
-		return convert.to_bytes(str);
+		std::string stdstr = convert.to_bytes(str);
+#else
+		// not implemented
+		std::string stdstr = str;
+#endif
+		return stdstr;
 	}
 
-	/**
-	 * convert utf8 to utf32 string
-	 */
-	static std::u32string utf8_to_utf32(const std::string& str)
-	{
-		std::wstring_convert<std::codecvt_utf8<char32_t>,char32_t> convert;
-		return convert.from_bytes(str);
-	}
+#if !defined (WITH_EMSCRIPTEN)
+		/**
+		 * convert utf8 to utf32 string
+		 */
+		static std::u32string utf8_to_utf32(const std::string& str)
+		{
+	#if defined _WIN32
+			std::wstring_convert<std::codecvt_utf8<char32_t>,char32_t> convert;
+			std::u32string u32str = convert.from_bytes(str);
+	#else
+			// not implemented
+			umstring u32str;
+	#endif
+			return u32str;
+		}
+#endif //  !defined (WITH_EMSCRIPTEN)
+
 };
 
 } // umbase

@@ -15,6 +15,7 @@
 #include <cfloat>
 #include <limits>
 #include <assert.h>
+#include <algorithm>
 
 
 namespace umbase

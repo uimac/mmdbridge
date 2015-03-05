@@ -87,7 +87,7 @@ static void messagebox_matrix(D3DXMATRIX& mat, const char *title)
 void hookDevice(void);
 void originalDevice(void);
 // フックしたデバイス
-IDirect3DDevice9 *p_device;
+IDirect3DDevice9 *p_device = NULL;
 
 RenderData renderData;
 
@@ -901,10 +901,12 @@ void run_python_script()
 
 // Direct3DCreate9
 IDirect3D9 *(WINAPI *original_direct3d_create)(UINT)(NULL);
-// MME
-IDirect3D9 *(WINAPI *mme_direct3d_create)(UINT)(NULL);
+
+HRESULT (WINAPI *original_direct3d9ex_create)(UINT, IDirect3D9Ex**)(NULL);
 // IDirect3D9::CreateDevice
 HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, IDirect3DDevice9**)(NULL);
+
+HRESULT(WINAPI *original_create_deviceex)(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**)(NULL);
 // IDirect3DDevice9::BeginScene
 HRESULT (WINAPI *original_begin_scene)(IDirect3DDevice9*)(NULL);
 // IDirect3DDevice9::SetFVF
@@ -2277,6 +2279,40 @@ static HRESULT WINAPI createDevice(
 	return res;
 }
 
+static HRESULT WINAPI createDeviceEx(
+	IDirect3D9Ex *direct3dex,
+	UINT adapter,
+	D3DDEVTYPE type,
+	HWND window,
+	DWORD flag,
+	D3DPRESENT_PARAMETERS *param,
+	D3DDISPLAYMODEEX* displayMode,
+	IDirect3DDevice9Ex **device)
+{
+	HRESULT res = (*original_create_deviceex)(direct3dex, adapter, type, window, flag, param, displayMode, device);
+	p_device = reinterpret_cast<IDirect3DDevice9*>(*device);
+
+	if (p_device) {
+		original_begin_scene = p_device->lpVtbl->BeginScene;
+		//original_clear = p_device->lpVtbl->Clear;
+		original_present = p_device->lpVtbl->Present;
+		//original_reset = p_device->lpVtbl->Reset;
+		original_begin_state_block = p_device->lpVtbl->BeginStateBlock;
+		original_end_state_block = p_device->lpVtbl->EndStateBlock;
+		original_set_fvf = p_device->lpVtbl->SetFVF;
+		original_draw_indexed_primitive = p_device->lpVtbl->DrawIndexedPrimitive;
+		original_set_stream_source = p_device->lpVtbl->SetStreamSource;
+		original_set_indices = p_device->lpVtbl->SetIndices;
+		original_create_vertex_buffer = p_device->lpVtbl->CreateVertexBuffer;
+		original_set_texture = p_device->lpVtbl->SetTexture;
+		original_create_texture = p_device->lpVtbl->CreateTexture;
+		//original_set_texture_stage_state = p_device->lpVtbl->SetTextureStageState;
+
+		hookDevice();
+	}
+	return res;
+}
+
 extern "C" {
 	// 偽Direct3DCreate9
 	IDirect3D9 * WINAPI Direct3DCreate9(UINT SDKVersion) {
@@ -2292,15 +2328,34 @@ extern "C" {
 		// 書き込み属性元に戻す
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
 
-		if (mme_direct3d_create)
-		{
-			return ((*mme_direct3d_create)(SDKVersion));
-		}
-		else
-		{
-			return direct3d;
-		}
+		return direct3d;
 	}
+
+	HRESULT WINAPI Direct3DCreate9Ex(UINT SDKVersion, IDirect3D9Ex **ppD3D) {
+		IDirect3D9Ex *direct3d9ex = NULL;
+		(*original_direct3d9ex_create)(SDKVersion, &direct3d9ex);
+
+		if (direct3d9ex) 
+		{
+			original_create_deviceex = direct3d9ex->lpVtbl->CreateDeviceEx;
+			if (original_create_deviceex)
+			{
+				// 書き込み属性付与
+				DWORD old_protect;
+				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
+
+				direct3d9ex->lpVtbl->CreateDeviceEx = createDeviceEx;
+
+				// 書き込み属性元に戻す
+				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), old_protect, &old_protect);
+
+				*ppD3D = direct3d9ex;
+				return S_OK;
+			}
+		}
+		return E_ABORT;
+	}
+
 } // extern "C"
 
 bool d3d9_initialize()
@@ -2331,6 +2386,10 @@ bool d3d9_initialize()
 	// オリジナルDirect3DCreate9の関数ポインタを取得
 	original_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(d3d9_module, "Direct3DCreate9"));
 	if (!original_direct3d_create) {
+		return FALSE;
+	}
+	original_direct3d9ex_create = reinterpret_cast<HRESULT(WINAPI*)(UINT, IDirect3D9Ex**)>(GetProcAddress(d3d9_module, "Direct3DCreate9Ex"));
+	if (!original_direct3d9ex_create) {
 		return FALSE;
 	}
 
