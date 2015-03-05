@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <vector>
 #include "UMMacro.h"
 #include "UMListener.h"
@@ -43,6 +44,8 @@ public:
 
 	void add_listener(UMListenerWeakPtr listener);
 	void delete_listener(UMListenerWeakPtr listener);
+	int listener_count() const { return static_cast<int>(listeners_.size()); }
+	void clear_listeners();
 	void notify();
 
 	void set_parameter(Parameter& parameter) {

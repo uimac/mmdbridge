@@ -52,4 +52,12 @@ void UMEvent::delete_listener(UMListenerWeakPtr listener)
 	}
 }
 
+/**
+ * clear all listeners
+ */
+void UMEvent::clear_listeners()
+{
+	listeners_.clear();
+}
+
 } // umbase

@@ -10,6 +10,8 @@
  */
 #pragma once
 
+#include <string>
+
 namespace umbase
 {
 
@@ -17,9 +19,13 @@ namespace umbase
  * Restrict copy constructor
  */
 #ifndef DISALLOW_COPY_AND_ASSIGN
-	#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-		private: TypeName(const TypeName&); \
-		void operator=(const TypeName&)
+	#ifdef WITH_EMSCRIPTEN
+		#define DISALLOW_COPY_AND_ASSIGN(TypeName) 
+	#else
+		#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+			private: TypeName(const TypeName&); \
+			void operator=(const TypeName&)
+	#endif // WITH_EMSCRIPTEN
 #endif
 
 /**
@@ -39,3 +45,15 @@ namespace umbase
 #endif
 
 } // umbase
+
+
+/**
+ * string
+ */
+#ifdef WITH_EMSCRIPTEN
+	typedef std::string umstring;
+	typedef std::wstring umtextstring;
+#else
+	typedef std::u16string umstring;
+	typedef std::wstring umtextstring;
+#endif

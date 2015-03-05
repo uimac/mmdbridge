@@ -6,7 +6,7 @@ import math
 from math import *
 import time
 
-octanepath = 'F:/work/OctaneRender_TEST_1025_beta255_win_x64/octane.exe'
+octanepath = 'C:/Program Files/OTOY/OctaneRender 1.55/octane.exe'
 
 def export_mtl(mtlpath):
 	if os.path.isfile(mtlpath):
