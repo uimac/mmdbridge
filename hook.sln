@@ -1,22 +1,42 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual C++ Express 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d9", "d3d9\d3d9.vcproj", "{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}"
-	ProjectSection(ProjectDependencies) = postProject
-		{48ECC702-208D-4077-8788-E233814EF6C0} = {48ECC702-208D-4077-8788-E233814EF6C0}
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d9", "project\d3d9\d3d9.vcxproj", "{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3dx9_32", "d3dx9\d3dx9.vcproj", "{48ECC702-208D-4077-8788-E233814EF6C0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3dx9_32", "project\d3dx9\d3dx9.vcxproj", "{48ECC702-208D-4077-8788-E233814EF6C0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "umbase", "project\umbase\umbase.vcxproj", "{8B753BF7-2CCF-4324-9AC4-28863A3E1422}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
 		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Debug|Win32.Build.0 = Debug|Win32
+		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Debug|x64.ActiveCfg = Debug|Win32
 		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Release|Win32.ActiveCfg = Release|Win32
 		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Release|Win32.Build.0 = Release|Win32
+		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Release|x64.ActiveCfg = Release|x64
+		{B751DC4C-8DDE-4219-ADC8-D3BEC797732A}.Release|x64.Build.0 = Release|x64
+		{48ECC702-208D-4077-8788-E233814EF6C0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{48ECC702-208D-4077-8788-E233814EF6C0}.Debug|Win32.Build.0 = Debug|Win32
+		{48ECC702-208D-4077-8788-E233814EF6C0}.Debug|x64.ActiveCfg = Debug|Win32
 		{48ECC702-208D-4077-8788-E233814EF6C0}.Release|Win32.ActiveCfg = Release|Win32
 		{48ECC702-208D-4077-8788-E233814EF6C0}.Release|Win32.Build.0 = Release|Win32
+		{48ECC702-208D-4077-8788-E233814EF6C0}.Release|x64.ActiveCfg = Release|x64
+		{48ECC702-208D-4077-8788-E233814EF6C0}.Release|x64.Build.0 = Release|x64
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Debug|Win32.Build.0 = Debug|Win32
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Debug|x64.ActiveCfg = Debug|x64
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Debug|x64.Build.0 = Debug|x64
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Release|Win32.ActiveCfg = Release|Win32
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Release|Win32.Build.0 = Release|Win32
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Release|x64.ActiveCfg = Release|x64
+		{8B753BF7-2CCF-4324-9AC4-28863A3E1422}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

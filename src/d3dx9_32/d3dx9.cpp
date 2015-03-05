@@ -16,15 +16,6 @@
 
 #include <Python.h>
 
-template <class T> std::wstring to_wstring(T value)
-{
-	std::wstringstream converter;
-	std::wstring  wstr;
-	converter << value;
-	converter >> wstr;
-	return wstr;
-}
-
 template <class T> std::string to_string(T value)
 {
 	std::stringstream converter;

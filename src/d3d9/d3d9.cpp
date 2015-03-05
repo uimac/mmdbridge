@@ -12,134 +12,56 @@
 #include <algorithm>
 #include <shlwapi.h>
 
-
-#include <Python.h>
+#include <boost/python/detail/wrap_python.hpp>
+#include <boost/python.hpp>
+#include <boost/python/make_constructor.hpp>
+#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
+#include <boost/python/suite/indexing/map_indexing_suite.hpp>
+#include <boost/python/copy_non_const_reference.hpp>
+#include <boost/python/module.hpp>
+#include <boost/python/def.hpp>
+#include <boost/python/args.hpp>
+#include <boost/python/tuple.hpp>
+#include <boost/python/class.hpp>
+#include <boost/python/overloads.hpp>
+#include <boost/format.hpp>
 #include <commctrl.h>
 #include <richedit.h>
 
 #include <process.h>
 
+#include "bridge_parameter.h"
+#include "alembic.h"
 #include "resource.h"
 #include "MMDExport.h"
-#define M_PI 3.1415926535897932384626433832795
+#include "UMStringUtil.h"
+#include "UMPath.h"
 
-#ifdef WITH_ALEMBIC
-#pragma comment(lib, "AlembicAbc.lib")
-#pragma comment(lib, "AlembicAbcCoreAbstract.lib")
-#pragma comment(lib, "AlembicAbcCoreHDF5.lib")
-#pragma comment(lib, "AlembicAbcGeom.lib")
-#pragma comment(lib, "AlembicUtil.lib")
-
-#include <Alembic/Abc/All.h>
-#include <Alembic/AbcGeom/All.h>
-#include <Alembic/AbcCoreHDF5/All.h>
-
-namespace AbcA = Alembic::AbcCoreAbstract;
-//using namespace Alembic::AbcGeom;
-
-class AlembicArchive {
-public:
-	
-	static AlembicArchive& instance() { 
-		static AlembicArchive instance;
-		return instance; 
-	}
-
-	Alembic::Abc::OArchive * archive;
-	AbcA::uint32_t timeindex;
-
-	AbcA::TimeSamplingPtr timesampling;
-	
-
-	typedef std::map<int, Alembic::AbcGeom::OXform > XformMap;
-	XformMap xformMap;
-
-	typedef std::map<int, Alembic::AbcGeom::OXformSchema > XformSchemaMap;
-	XformSchemaMap xformSchemaMap;
-
-	typedef std::map<int, Alembic::AbcGeom::OPolyMesh > MeshMap;
-	MeshMap meshMap;
-
-	typedef std::map<int, Alembic::AbcGeom::OPolyMeshSchema > SchemaMap;
-	SchemaMap schemaMap;
-	
-	typedef std::map<int, int > SurfaceSizeMap;
-	SurfaceSizeMap surfaceSizeMap;
-	
-	typedef std::map<int, Alembic::AbcGeom::OCamera > CameraMap;
-	CameraMap cameraMap;
-	
-	typedef std::map<int, Alembic::AbcGeom::OCameraSchema  > CameraSchemaMap;
-	CameraSchemaMap cameraSchemaMap;
-
-	typedef std::map<int, int> FiToVi;
-	typedef std::map<int, FiToVi> FiToViMap;
-	FiToViMap fiToViMap;
-
-	bool isExportNormals;
-	bool isExportUvs;
-	int exportMode;
-
-	bool isUseEulerRotationForCamera;
-
-	void end() { 
-		xformMap.clear();
-		xformSchemaMap.clear();
-		meshMap.clear();
-		schemaMap.clear();
-		cameraMap.clear();
-		cameraSchemaMap.clear();
-		fiToViMap.clear();
-		surfaceSizeMap.clear();
-		{
-			delete archive; archive = NULL;
-		}
-	}
-private:
-	AlembicArchive() : archive(NULL), timeindex(0), exportMode(0), isUseEulerRotationForCamera(false) {}
-};
-
-#endif //WITH_ALEMBIC
-
-template <class T> std::wstring to_wstring(T value)
-{
-    std::wstringstream converter;
-    std::wstring  wstr;
-    converter << value;
-    converter >> wstr;
-    return wstr;
-}
+#ifdef _WIN64
+#define _LONG_PTR LONG_PTR
+#else
+#define _LONG_PTR LONG
+#endif
 
 template <class T> std::string to_string(T value)
 {
-    std::stringstream converter;
-    std::string  str;
-    converter << value;
-    converter >> str;
-    return str;
+	return umbase::UMStringUtil::number_to_string(value);
 }
 
-//ワイド文字列からマルチバイト文字列
-//ロケール依存
-static void to_string(std::string &dest, const std::wstring &src) {
-	char *mbs = new char[src.length() * MB_CUR_MAX + 1];
-	wcstombs(mbs, src.c_str(), src.length() * MB_CUR_MAX + 1);
-	dest = mbs;
-	delete [] mbs;
-}
-
-//マルチバイト文字列からワイド文字列
-//ロケール依存
-static void to_wstring(std::wstring &dest, const std::string &src) {
-	wchar_t *wcs = new wchar_t[src.length() + 1];
-	mbstowcs(wcs, src.c_str(), src.length() + 1);
-	dest = wcs;
-	delete [] wcs;
+//ワイド文字列からutf8文字列に変換
+static void to_string(std::string &dest, const std::wstring &src) 
+{
+	dest = umbase::UMStringUtil::wstring_to_utf8(src);
 }
 
 static void messagebox(std::string title, std::string message)
 {
 	::MessageBoxA(NULL, message.c_str(), title.c_str(), MB_OK);
+}
+
+static void message(std::string message)
+{
+	::MessageBoxA(NULL, message.c_str(), "message", MB_OK);
 }
 
 static void messagebox_float4(float v[4], const char *title)
@@ -165,43 +87,31 @@ static void messagebox_matrix(D3DXMATRIX& mat, const char *title)
 void hookDevice(void);
 void originalDevice(void);
 // フックしたデバイス
-IDirect3DDevice9 *p_device;
-
-// pythonマルチスレッド
-unsigned int WINAPI runScript(void* data);
+IDirect3DDevice9 *p_device = NULL;
 
 RenderData renderData;
 
 int primitiveCounter = 0;
 
-typedef std::vector<IDirect3DVertexBuffer9* > VertexBufferList;
-VertexBufferList finishBuffers;
-VertexBufferList finishBuffersCopy;
 std::vector<std::pair<IDirect3DTexture9*, bool> > finishTextureBuffers;
 
-std::map<IDirect3DVertexBuffer9*, RenderedBuffer> renderedBuffers;
 std::map<IDirect3DTexture9*, RenderedTexture> renderedTextures;
 std::map<int, std::map<int , RenderedMaterial*> > renderedMaterials;
 //-----------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat);
+static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat);
 
-static bool writeTextureToFiles(std::string &texturePath, std::string &textureType, bool uncopied = false);
+static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied = false);
 
-static bool copyTextureToFiles(std::string &texturePath);
+static bool copyTextureToFiles(const std::u16string &texturePath);
 
-static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * texture, bool copied);
-
-
+static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
 
 //------------------------------------------Python呼び出し--------------------------------------------------------
-CRITICAL_SECTION criticalSection;
-HANDLE	hMutex; //ミューテックスのハンドル
-
 static float preFrameTime = 0.0f;
 static int preFrame = 0;
 static int presentCount = 0;
-static int currentFrame = 0;
+static int current_frame = 0;
 
 // 行列で3Dベクトルをトランスフォームする
 // D3DXVec3Transformとほぼ同じ
@@ -236,57 +146,38 @@ static void d3d_vector3_transform(
 }
 
 // python
-extern "C" {
-	static std::string basePath; //ベースディレクトリ
-	static std::wstring wBasePath; //ベースディレクトリ
-	static std::string mmdbridge_python_script; //pythonスクリプト
-	static std::wstring pythonScript; // スクリプトパス
-	static std::wstring pythonName; // スクリプト名
-	static std::vector<std::wstring> pythonNames; //スクリプト名
-	static std::vector<std::wstring> pythonScripts; //スクリプトパス
-	static std::string python_error_string; //pythonから出たエラー
-	static int scriptCallSetting = 2; // スクリプト呼び出し設定
-	static int startFrame = 5;
-	static int endFrame = 100;
+namespace
+{
+	using namespace boost::python;
+	std::wstring pythonName; // スクリプト名
+	int script_call_setting = 2; // スクリプト呼び出し設定
 	std::map<int, int> exportedFrames;
-	bool isExportedFrame = false;
-	static int frameWidth = 800;
-	static int frameHeight = 450;
-	static double exportFPS = 30.0;
-	static bool is_texture_buffer_enabled = false;
-	static RenderedMaterial* currentRenderedMaterial = NULL;
-	static std::map<int, int> py_int_map;
-	static std::map<int, float> py_float_map;
 
-	static HANDLE pythonThreadHandle = NULL;
-
-	// 非エクスポート	
-	static bool relaod_python_script()
+	/// スクリプトのリロード.
+	bool relaod_python_script()
 	{
-		mmdbridge_python_script = "";
-		std::ifstream ifs(pythonScript.c_str());
+		BridgeParameter::mutable_instance().mmdbridge_python_script.clear();
+		std::ifstream ifs(BridgeParameter::instance().python_script_path.c_str());
 		if (!ifs) return false;
 		char buf[2048];
 		while (ifs.getline( buf, sizeof(buf))) {
-			mmdbridge_python_script.append(buf);
-			mmdbridge_python_script.append("\r\n");
+			BridgeParameter::mutable_instance().mmdbridge_python_script.append(buf);
+			BridgeParameter::mutable_instance().mmdbridge_python_script.append("\r\n");
 		}
 		ifs.close();
 		return true;
 	}
 
-	
-	// 非エクスポート
-	static void reload_python_file_paths()
+	/// スクリプトパスのリロード.
+	void reload_python_file_paths()
 	{
 		TCHAR app_full_path[1024];	// アプリフルパス
 		
 		GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(TCHAR));
 
-		std::wstring searchPath = std::wstring(app_full_path);
-		searchPath = searchPath.substr(0, searchPath.rfind(_T("MikuMikuDance.exe")));
-
-		std::wstring searchStr(searchPath + _T("\\*.py"));
+		BridgeParameter& mutable_parameter = BridgeParameter::mutable_instance();
+		std::wstring searchPath = mutable_parameter.base_path;
+		std::wstring searchStr(searchPath + _T("*.py"));
 
 		// pythonファイル検索
 		WIN32_FIND_DATA find;
@@ -300,12 +191,12 @@ extern "C" {
 					std::wstring name( find.cFileName);
 					std::wstring path(searchPath + find.cFileName);
 					// ファイルだった
-					if (pythonName.empty()) { 
-						pythonName = name;
-						pythonScript = path;
+					if (mutable_parameter.python_script_name.empty()) { 
+						mutable_parameter.python_script_name = name;
+						mutable_parameter.python_script_path = path;
 					}
-					pythonNames.push_back(name);
-					pythonScripts.push_back(path);
+					mutable_parameter.python_script_name_list.push_back(name);
+					mutable_parameter.python_script_path_list.push_back(path);
 				}
 			} while(FindNextFile(hFind, &find));
 			FindClose(hFind);
@@ -313,216 +204,195 @@ extern "C" {
 	}
 
 	// Get a reference to the main module.
-	static PyObject* main_module = NULL; 
+	PyObject* main_module = NULL; 
 
 	// Get the main module's dictionary
 	// and make a copy of it.
-	static PyObject* main_dict = NULL;
+	PyObject* main_dict = NULL;
 
-	static PyObject * get_vertex_buffer_size(PyObject *self, PyObject *args)
+	int get_vertex_buffer_size()
 	{
-		return Py_BuildValue("i", finishBuffers.size());
+		return BridgeParameter::instance().finish_buffer_list.size();
 	}
 
-	static PyObject * get_vertex_size(PyObject *self, PyObject *args)
+	int get_vertex_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].vertecies.size());
+		return BridgeParameter::instance().render_buffer(at).vertecies.size();
 	}
 
-	static PyObject * get_vertex(PyObject *self, PyObject *args)
+	boost::python::list get_vertex(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
-		float x = renderedBuffers[finishBuffers[at]].vertecies[vpos].x;
-		float y = renderedBuffers[finishBuffers[at]].vertecies[vpos].y;
-		float z = renderedBuffers[finishBuffers[at]].vertecies[vpos].z;
-
-		return Py_BuildValue("[f,f,f]", x, y, z);
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float x = buffer.vertecies[vpos].x;
+		float y = buffer.vertecies[vpos].y;
+		float z = buffer.vertecies[vpos].z;
+		boost::python::list result;
+		result.append(x);
+		result.append(y);
+		result.append(z);
+		return result;
 	}
 
-	static PyObject * get_normal_size(PyObject *self, PyObject *args)
+	int get_normal_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].normals.size());
+		return BridgeParameter::instance().render_buffer(at).normals.size();
 	}
 
-	static PyObject * get_normal(PyObject *self, PyObject *args)
+	boost::python::list get_normal(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
-		float x = renderedBuffers[finishBuffers[at]].normals[vpos].x;
-		float y = renderedBuffers[finishBuffers[at]].normals[vpos].y;
-		float z = renderedBuffers[finishBuffers[at]].normals[vpos].z;
-
-		return Py_BuildValue("[f,f,f]", x, y, z);
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float x = buffer.normals[vpos].x;
+		float y = buffer.normals[vpos].y;
+		float z = buffer.normals[vpos].z;
+		boost::python::list result;
+		result.append(x);
+		result.append(y);
+		result.append(z);
+		return result;
 	}
 
-	static PyObject * get_uv_size(PyObject *self, PyObject *args)
+	int get_uv_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].uvs.size());
+		return BridgeParameter::instance().render_buffer(at).uvs.size();
 	}
 
-	static PyObject * get_uv(PyObject *self, PyObject *args)
+	boost::python::list get_uv(int at, int vpos)
 	{
-		int at;
-		int vpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &vpos)) { return NULL; } 
-		float u = renderedBuffers[finishBuffers[at]].uvs[vpos].x;
-		float v = renderedBuffers[finishBuffers[at]].uvs[vpos].y;
-
-		return Py_BuildValue("[f, f]", u, v);
+		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
+		float u = buffer.uvs[vpos].x;
+		float v = buffer.uvs[vpos].y;
+		boost::python::list result;
+		result.append(u);
+		result.append(v);
+		return result;
 	}
 
-	static PyObject * get_material_size(PyObject *self, PyObject *args)
+	int get_material_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; } 
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].materials.size());
+		return BridgeParameter::instance().render_buffer(at).materials.size();
 	}
 
-	static PyObject * is_accessory(PyObject *self, PyObject *args)
+	bool is_accessory(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; } 
 		int result = 0;
-		if (renderedBuffers[finishBuffers[at]].isAccessory)
+		if (BridgeParameter::instance().render_buffer(at).isAccessory)
 		{
-			result = 1;
+			return true;
 		}
-		return Py_BuildValue("i", result);
+		return false;
 	}
 
-	static PyObject * get_diffuse(PyObject *self, PyObject *args)
+	boost::python::list get_diffuse(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f,f]", mat->diffuse.x, mat->diffuse.y, mat->diffuse.z, mat->diffuse.w);
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		boost::python::list result;
+		result.append(mat->diffuse.x);
+		result.append(mat->diffuse.y);
+		result.append(mat->diffuse.z);
+		result.append(mat->diffuse.w);
+		return result;
 	}
 
-	static PyObject * get_ambient(PyObject *self, PyObject *args)
+	boost::python::list get_ambient(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->ambient.x, mat->ambient.y, mat->ambient.z);
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		boost::python::list result;
+		result.append(mat->ambient.x);
+		result.append(mat->ambient.y);
+		result.append(mat->ambient.z);
+		return result;
 	}
 
-	static PyObject * get_specular(PyObject *self, PyObject *args)
+	boost::python::list get_specular(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->specular.x, mat->specular.y, mat->specular.z);
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		boost::python::list result;
+		result.append(mat->specular.x);
+		result.append(mat->specular.y);
+		result.append(mat->specular.z);
+		return result;
 	}
 
-	static PyObject * get_emissive(PyObject *self, PyObject *args)
+	boost::python::list get_emissive(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("[f,f,f]", mat->emissive.x, mat->emissive.y, mat->emissive.z);
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		boost::python::list result;
+		result.append(mat->emissive.x);
+		result.append(mat->emissive.y);
+		result.append(mat->emissive.z);
+		return result;
 	}
 
-	static PyObject * get_power(PyObject *self, PyObject *args)
+	float get_power(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("f", mat->power);
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		float power = mat->power;
+		return power;
 	}
 
-	static PyObject * get_texture(PyObject *self, PyObject *args)
+	std::string get_texture(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("s", mat->texture.c_str());
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		return mat->texture;
 	}
 
-	static PyObject * get_exported_texture(PyObject *self, PyObject *args)
+	std::string get_exported_texture(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
-		return Py_BuildValue("s", mat->memoryTexture.c_str());
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
+		return mat->memoryTexture;
 	}
 
-	static PyObject * get_face_size(PyObject *self, PyObject *args)
+	int get_face_size(int at, int mpos)
 	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-		return Py_BuildValue("i", renderedBuffers[finishBuffers[at]].materials[mpos]->surface.faces.size());
+		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
 	}
 
-	static PyObject * get_face(PyObject *self, PyObject *args)
+	boost::python::list get_face(int at, int mpos, int fpos)
 	{
-		int at;
-		int mpos;
-		int fpos;
-		if (!PyArg_ParseTuple(args, "iii", &at, &mpos, &fpos)) { return NULL; }
-		RenderedSurface &surface = renderedBuffers[finishBuffers[at]].materials[mpos]->surface;
-		int v1 = surface.faces[fpos].ix;
-		int v2 = surface.faces[fpos].iy;
-		int v3 = surface.faces[fpos].iz;
-		return Py_BuildValue("[i,i,i]", v1, v2, v3);
+		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
+		int v1 = surface.faces[fpos].x;
+		int v2 = surface.faces[fpos].y;
+		int v3 = surface.faces[fpos].z;
+		boost::python::list result;
+		result.append(v1);
+		result.append(v2);
+		result.append(v3);
+		return result;
 	}
 
-	static PyObject * get_texture_buffer_size(PyObject *self, PyObject *args)
+	int get_texture_buffer_size()
 	{
-		return Py_BuildValue("i", finishTextureBuffers.size());
+		return finishTextureBuffers.size();
 	}
 
-	static PyObject * get_texture_size(PyObject *self, PyObject *args)
+	boost::python::list get_texture_size(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("[i, i]", 
-			renderedTextures[finishTextureBuffers[at].first].size.x,
-			renderedTextures[finishTextureBuffers[at].first].size.y);
+		boost::python::list result;
+		result.append(renderedTextures[finishTextureBuffers[at].first].size.x);
+		result.append(renderedTextures[finishTextureBuffers[at].first].size.y);
+		return result;
 	}
 
-	static PyObject * get_texture_name(PyObject *self, PyObject *args)
+	std::string get_texture_name(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		return Py_BuildValue("s", 
-			renderedTextures[finishTextureBuffers[at].first].name.c_str());
+		return renderedTextures[finishTextureBuffers[at].first].name;
 	}
 
-	static PyObject * get_texture_pixel(PyObject *self, PyObject *args)
+	boost::python::list get_texture_pixel(int at, int tpos)
 	{
-		int at;
-		int tpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &tpos)) { return NULL; }
-		um_vector4 &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
-		return Py_BuildValue("[f, f, f, f]", rgba.x, rgba.y, rgba.z, rgba.w);
+		UMVec4f &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
+		boost::python::list result;
+		result.append(rgba.x);
+		result.append(rgba.y);
+		result.append(rgba.z);
+		result.append(rgba.w);
+		return result;
 	}
 
-	static PyObject * export_texture(PyObject *self, PyObject *args)
+	bool export_texture(int at, int mpos, const std::string& dst)
 	{
-		int at;
-		int mpos;
-		char *dst;
-		if (!PyArg_ParseTuple(args, "iis", &at, &mpos, &dst)) { return NULL; } 
-		RenderedMaterial* mat = renderedBuffers[finishBuffers[at]].materials[mpos];
+		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
 		std::string path(dst);
-
 		std::string textureType = path.substr(path.size() - 3, 3);
 
 		D3DXIMAGE_FILEFORMAT fileFormat;
@@ -535,1228 +405,508 @@ extern "C" {
 		else if (textureType == "dib" || textureType == "DIB") { fileFormat = D3DXIFF_DIB; }
 		else if (textureType == "hdr" || textureType == "HDR") { fileFormat = D3DXIFF_HDR; }
 		else if (textureType == "pfm" || textureType == "PFM") { fileFormat = D3DXIFF_PFM; }
-		else { return NULL; }
+		else { return false; }
 
-		int res = 0;
 		if (mat->tex)
 		{
-			if (writeTextureToFile(std::string(path), mat->tex, fileFormat)) { res = 1; }
+			return writeTextureToFile(path, mat->tex, fileFormat);
 		}
-
-		return Py_BuildValue("i", res);
+		return false;
 	}
 
-	static PyObject * export_textures(PyObject *self, PyObject *args)
+	bool export_textures(const std::string& p, const std::string& t)
 	{
-		char *s;
-		char *t;
-		if (!PyArg_ParseTuple(args, "ss", &s, &t)) { return NULL; }
-		std::string path(s);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
 		std::string type(t);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = writeTextureToFiles(path, type) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		if (umbase::UMPath::exists(path))
+		{
+			return writeTextureToFiles(p, t);
+		}
+		return false;
 	}
 
-	static PyObject * export_uncopied_textures(PyObject *self, PyObject *args)
+	bool export_uncopied_textures(const std::string& p, const std::string& t)
 	{
-		char *s;
-		char *t;
-		if (!PyArg_ParseTuple(args, "ss", &s, &t)) { return NULL; }
-		std::string path(s);
-		std::string type(t);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = writeTextureToFiles(path, type, true) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
+		if (umbase::UMPath::exists(path))
+		{
+			return writeTextureToFiles(p, t, true);
+		}
+		return false;
 	}
 
-	static PyObject * copy_textures(PyObject *self, PyObject *args)
+	bool copy_textures(const std::string& s)
 	{
-		char *s;
-		if (!PyArg_ParseTuple(args, "s", &s)) { return NULL; }
-		std::string path(s);
-
-		int res = 0;
-		if (PathFileExistsA(path.c_str()) && PathFileExistsA(path.c_str())) {
-			res = copyTextureToFiles(path) ? 1 : 0;
-		}		 
-		return Py_BuildValue("i", res);
+		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(s);
+		if (umbase::UMPath::exists(path))
+		{
+			std::wstring wpath = umbase::UMStringUtil::utf16_to_wstring(path);
+			return copyTextureToFiles(path);
+		}
+		return false;
 	}
 
-	static  PyObject * get_base_path(PyObject *self, PyObject *args)
+	std::string get_base_path()
 	{
-		return Py_BuildValue("s", basePath.c_str());
+		std::string path = umbase::UMStringUtil::wstring_to_utf8(BridgeParameter::instance().base_path);
+		return path;
 	}
 
-	static PyObject * get_camera_up(PyObject *self, PyObject *args)
+	boost::python::list get_camera_up()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraUp(&v);
-		d3d_vector3_dir_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
-		return Py_BuildValue("[f, f, f]",  dst.x, dst.y, dst.z);
+		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_up_org(PyObject *self, PyObject *args)
+	boost::python::list get_camera_up_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraUp(&v);
-		return Py_BuildValue("[f, f, f]",  v.x, v.y, v.z);
+		boost::python::list result;
+		result.append(v.x);
+		result.append(v.y);
+		result.append(v.z);
+		return result;
 	}
 	
-	static PyObject * get_camera_at(PyObject *self, PyObject *args)
+	boost::python::list get_camera_at()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraAt(&v);
-		d3d_vector3_transform(dst, v,  renderedBuffers.begin()->second.world_inv);
-		return Py_BuildValue("[f, f, f]", dst.x, dst.y, dst.z);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_eye(PyObject *self, PyObject *args)
+	boost::python::list get_camera_eye()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraEye(&v);
-		d3d_vector3_transform(dst, v, renderedBuffers.begin()->second.world_inv);
-
-		return Py_BuildValue("[f, f, f]", dst.x, dst.y, dst.z);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		boost::python::list result;
+		result.append(dst.x);
+		result.append(dst.y);
+		result.append(dst.z);
+		return result;
 	}
 
-	static PyObject * get_camera_eye_org(PyObject *self, PyObject *args)
+	boost::python::list get_camera_eye_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraEye(&v);
-		return Py_BuildValue("[f, f, f]", v.x, v.y, v.z);
+		boost::python::list result;
+		result.append(v.x);
+		result.append(v.y);
+		result.append(v.z);
+		return result;
 	}
 
-	static PyObject * get_camera_fovy(PyObject *self, PyObject *args)
+	float get_camera_fovy()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.x);
+		return  v.x;
 	}
 
-	static PyObject * get_camera_aspect(PyObject *self, PyObject *args)
+	float get_camera_aspect()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.y);
+		return v.y;
 	}
 
-	static PyObject * get_camera_near(PyObject *self, PyObject *args)
+	float get_camera_near()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.y);
+		return v.z;
 	}
 
-	static PyObject * get_camera_far(PyObject *self, PyObject *args)
+	float get_camera_far()
 	{
 		D3DXVECTOR4 v;
 		UMGetCameraFovLH(&v);
-		return Py_BuildValue("f", v.w);
+		return v.w;
 	}
 	
-	static PyObject * get_frame_number(PyObject *self, PyObject *args)
+	int get_frame_number()
 	{
-		static int preFrameNumber = -1;
+		int preFrameNumber = -1;
 		float time = ExpGetFrameTime();
-		int frame = static_cast<int>(time * exportFPS);
-		if (scriptCallSetting == 1 && preFrameNumber == frame)
+		int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
+		if (script_call_setting == 1 && preFrameNumber == frame)
 		{
 			++frame;
 		}
 		preFrameNumber = frame;
-
-		return Py_BuildValue("i", frame);
+		return frame;
 	}
 
-	static PyObject * get_start_frame(PyObject *self, PyObject *args)
+	int get_start_frame()
 	{
-		return Py_BuildValue("i", startFrame);
+		return BridgeParameter::instance().start_frame;
 	}
 	
-	static PyObject * get_end_frame(PyObject *self, PyObject *args)
+	int get_end_frame()
 	{
-		return Py_BuildValue("i", endFrame);
+		return BridgeParameter::instance().end_frame;
 	}
 
-	static PyObject * get_frame_width(PyObject *self, PyObject *args)
+	int get_frame_width()
 	{
-		return Py_BuildValue("i", frameWidth);
+		return BridgeParameter::instance().frame_width;
 	}
 
-	static PyObject * get_frame_height(PyObject *self, PyObject *args)
+	int get_frame_height()
 	{
-		return Py_BuildValue("i", frameHeight);
+		return BridgeParameter::instance().frame_height;
 	}
 
-	static PyObject * get_light(PyObject *self, PyObject *args)
+	boost::python::list get_light(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		um_vector3 &light = renderedBuffers[finishBuffers[at]].light;
-		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
+		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
+		boost::python::list result;
+		result.append(light.x);
+		result.append(light.y);
+		result.append(light.z);
+		return result;
 	}
 
-	static PyObject * get_light_color(PyObject *self, PyObject *args)
+	boost::python::list get_light_color(int at)
 	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		um_vector3 &light = renderedBuffers[finishBuffers[at]].light_color;
-		return Py_BuildValue("[f, f, f]", light.x, light.y, light.z);
+		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light_color;
+		boost::python::list result;
+		result.append(light.x);
+		result.append(light.y);
+		result.append(light.z);
+		return result;
 	}
 
-	static PyObject * messagebox(PyObject *self, PyObject *args)
+	boost::python::list get_world(int at)
 	{
-		const char *str = "";
-		const char *title = "info";
-		if(!PyArg_ParseTuple(args, "s", &str, &title)) return NULL;
-		::MessageBoxA(NULL, str, title, MB_OK);
-		return Py_BuildValue("");
-	}
-
-	static PyObject * get_world(PyObject *self, PyObject* args)
-	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		D3DXMATRIX& world = renderedBuffers[finishBuffers[at]].world;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			world.m[0][0], world.m[0][1], world.m[0][2], world.m[0][3],
-			world.m[1][0], world.m[1][1], world.m[1][2], world.m[1][3],
-			world.m[2][0], world.m[2][1], world.m[2][2], world.m[2][3],
-			world.m[3][0], world.m[3][1], world.m[3][2], world.m[3][3]);
-	}
-
-	static PyObject * get_world_inv(PyObject *self, PyObject* args)
-	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		D3DXMATRIX& world_inv = renderedBuffers[finishBuffers[at]].world_inv;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			world_inv.m[0][0], world_inv.m[0][1], world_inv.m[0][2], world_inv.m[0][3],
-			world_inv.m[1][0], world_inv.m[1][1], world_inv.m[1][2], world_inv.m[1][3],
-			world_inv.m[2][0], world_inv.m[2][1], world_inv.m[2][2], world_inv.m[2][3],
-			world_inv.m[3][0], world_inv.m[3][1], world_inv.m[3][2], world_inv.m[3][3]);
-	}
-
-	static PyObject * get_view(PyObject *self, PyObject* args)
-	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		D3DXMATRIX& view = renderedBuffers[finishBuffers[at]].view;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			view.m[0][0], view.m[0][1], view.m[0][2], view.m[0][3],
-			view.m[1][0], view.m[1][1], view.m[1][2], view.m[1][3],
-			view.m[2][0], view.m[2][1], view.m[2][2], view.m[2][3],
-			view.m[3][0], view.m[3][1], view.m[3][2], view.m[3][3]);
-	}
-
-	static PyObject * get_projection(PyObject *self, PyObject* args)
-	{
-		int at;
-		if (!PyArg_ParseTuple(args, "i", &at)) { return NULL; }
-		D3DXMATRIX& projection = renderedBuffers[finishBuffers[at]].projection;
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			projection.m[0][0], projection.m[0][1], projection.m[0][2], projection.m[0][3],
-			projection.m[1][0], projection.m[1][1], projection.m[1][2], projection.m[1][3],
-			projection.m[2][0], projection.m[2][1], projection.m[2][2], projection.m[2][3],
-			projection.m[3][0], projection.m[3][1], projection.m[3][2], projection.m[3][3]);
-	}
-
-	static PyObject * set_texture_buffer_enabled(PyObject *self, PyObject* args)
-	{
-		int enabled;
-		if (!PyArg_ParseTuple(args, "i", &enabled)) { return NULL; }
-
-		is_texture_buffer_enabled = (enabled == 1);
-		
-		return Py_BuildValue("i", 1); //success
-	}
-
-	static PyObject * set_current_material(PyObject *self, PyObject* args)
-	{
-		int at;
-		int mpos;
-		if (!PyArg_ParseTuple(args, "ii", &at, &mpos)) { return NULL; } 
-
-		WaitForSingleObject(hMutex,INFINITE);
-		const int bufferSize = static_cast<int>(renderedBuffers[finishBuffersCopy[at]].materials.size());
-		const int totalSize = static_cast<int>(finishBuffersCopy.size());
-		if (totalSize > at && bufferSize > mpos)
+		const D3DXMATRIX& world = BridgeParameter::instance().render_buffer(at).world;
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
 		{
-			if (renderedBuffers.find(finishBuffersCopy[at]) != renderedBuffers.end())
+			for (int k = 0; k < 4; ++k)
 			{
-				currentRenderedMaterial = renderedBuffers[finishBuffersCopy[at]].materials[mpos];
+				result.append(world.m[i][k]);
 			}
 		}
-		ReleaseMutex(hMutex);
-
-		return Py_BuildValue("i", 1); //success
+		return result;
 	}
 
-	static PyObject * set_int_value(PyObject *self, PyObject* args)
+	boost::python::list get_world_inv(int at)
 	{
-		int pos;
-		int value;
-		if (!PyArg_ParseTuple(args, "ii", &pos, &value)) { return Py_BuildValue(""); } 
-		py_int_map[pos] = value;
-		return Py_BuildValue("i", 1); //success
-	}
-
-	static PyObject * set_float_value(PyObject *self, PyObject* args)
-	{
-		int pos;
-		float value;
-		if (!PyArg_ParseTuple(args, "if", &pos, &value)) { return Py_BuildValue(""); } 
-		py_float_map[pos] = value;
-		return Py_BuildValue("i", 1); //success
-	}
-
-	static PyObject * get_int_value(PyObject *self, PyObject* args)
-	{
-		int pos;
-		if (!PyArg_ParseTuple(args, "i", &pos)) { return NULL; } 
-		if (py_int_map.find(pos) != py_int_map.end())
+		const D3DXMATRIX& world_inv = BridgeParameter::instance().render_buffer(at).world_inv;
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
 		{
-			return Py_BuildValue("i", py_int_map[pos]);
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(world_inv.m[i][k]);
+			}
 		}
-		return  Py_BuildValue(""); //None
+		return result;
 	}
 
-	static PyObject * get_float_value(PyObject *self, PyObject* args)
+	boost::python::list get_view(int at)
 	{
-		int pos;
-		if (!PyArg_ParseTuple(args, "i", &pos)) { return NULL; } 
-		if (py_float_map.find(pos) != py_float_map.end())
+		const D3DXMATRIX& view = BridgeParameter::instance().render_buffer(at).view;
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
 		{
-			return Py_BuildValue("i", py_float_map[pos]);
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(view.m[i][k]);
+			}
 		}
-		return Py_BuildValue(""); //None
+		return result;
 	}
 
-	static PyObject * d3dx_invert_matrix(PyObject *self, PyObject* args)
+	boost::python::list get_projection(int at)
 	{
-		D3DXMATRIX src;		
-		if (!PyArg_ParseTuple(args, "(ffffffffffffffff)", 			
-			&src.m[0][0], &src.m[0][1], &src.m[0][2], &src.m[0][3],
-			&src.m[1][0], &src.m[1][1], &src.m[1][2], &src.m[1][3],
-			&src.m[2][0], &src.m[2][1], &src.m[2][2], &src.m[2][3],
-			&src.m[3][0], &src.m[3][1], &src.m[3][2], &src.m[3][3])) { return NULL; }
-
-		D3DXMATRIX dst;
-		::D3DXMatrixInverse(&dst, NULL, &src);
-
-		return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-			dst.m[0][0], dst.m[0][1], dst.m[0][2], dst.m[0][3],
-			dst.m[1][0], dst.m[1][1], dst.m[1][2], dst.m[1][3],
-			dst.m[2][0], dst.m[2][1], dst.m[2][2], dst.m[2][3],
-			dst.m[3][0], dst.m[3][1], dst.m[3][2], dst.m[3][3]);
-
+		const D3DXMATRIX& projection = BridgeParameter::instance().render_buffer(at).projection;
+		boost::python::list result;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(projection.m[i][k]);
+			}
+		}
+		return result;
 	}
 
-	static PyObject * d3dx_vec3_normalize(PyObject *self, PyObject* args)
+	bool set_texture_buffer_enabled(bool enabled)
 	{
-		D3DXVECTOR3 vec;
-		if (!PyArg_ParseTuple(args, "fff", &vec.x, &vec.y, &vec.z)) { return NULL; }
+		BridgeParameter::mutable_instance().is_texture_buffer_enabled = enabled;
+		return true;
+	}
+
+	bool set_int_value(int pos, int value)
+	{
+		BridgeParameter::mutable_instance().py_int_map[pos] = value;
+		return true;
+	}
+
+	bool set_float_value(int pos, float value)
+	{
+		BridgeParameter::mutable_instance().py_float_map[pos] = value;
+		return true;
+	}
+
+	int get_int_value(int pos)
+	{
+		if (BridgeParameter::instance().py_int_map.find(pos) != BridgeParameter::instance().py_int_map.end())
+		{
+			return BridgeParameter::mutable_instance().py_int_map[pos];
+		}
+		return 0;
+	}
+
+	float get_float_value(int pos)
+	{
+		if (BridgeParameter::instance().py_float_map.find(pos) != BridgeParameter::instance().py_float_map.end())
+		{
+			return BridgeParameter::mutable_instance().py_float_map[pos];
+		}
+		return 0;
+	}
+
+	//boost::python::list d3dx_invert_matrix(PyObject *self, PyObject* args)
+	//{
+	//	D3DXMATRIX src;		
+	//	if (!PyArg_ParseTuple(args, "(ffffffffffffffff)", 			
+	//		&src.m[0][0], &src.m[0][1], &src.m[0][2], &src.m[0][3],
+	//		&src.m[1][0], &src.m[1][1], &src.m[1][2], &src.m[1][3],
+	//		&src.m[2][0], &src.m[2][1], &src.m[2][2], &src.m[2][3],
+	//		&src.m[3][0], &src.m[3][1], &src.m[3][2], &src.m[3][3])) { return NULL; }
+
+	//	D3DXMATRIX dst;
+	//	::D3DXMatrixInverse(&dst, NULL, &src);
+
+	//	return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
+	//		dst.m[0][0], dst.m[0][1], dst.m[0][2], dst.m[0][3],
+	//		dst.m[1][0], dst.m[1][1], dst.m[1][2], dst.m[1][3],
+	//		dst.m[2][0], dst.m[2][1], dst.m[2][2], dst.m[2][3],
+	//		dst.m[3][0], dst.m[3][1], dst.m[3][2], dst.m[3][3]);
+	//}
+
+	boost::python::list d3dx_vec3_normalize(float x, float y, float z)
+	{
+		D3DXVECTOR3 vec(x, y, z);
 		::D3DXVec3Normalize(&vec, &vec);
-		return Py_BuildValue("[f, f, f]", vec.x, vec.y, vec.z);
-	}
-
-#ifdef WITH_ALEMBIC
-	
-	static PyObject * start_alembic_export(PyObject *self, PyObject* args)
-	{
-		if (exportFPS <= 0)
-		{
-			return Py_BuildValue(""); //None 
-		}
-
-		if (!AlembicArchive::instance().archive)
-		{
-			int isExportNomals = 0;
-			int isExportUvs = 0;
-			int isUseEulerRotationForCamera = 0;
-			int exportMode = 0;
-			const char *filepath = "";
-			if (!PyArg_ParseTuple(args, "siiii", 
-					&filepath, 
-					&exportMode, 
-					&isExportNomals, 
-					&isExportUvs,
-					&isUseEulerRotationForCamera)) { return NULL; }
-
-			std::string output_path(filepath);
-			if (output_path.empty()) 
-			{
-				output_path = std::string(basePath + "out\\alembic_file.abc");
-			}
-
-			AlembicArchive::instance().archive =
-				new Alembic::Abc::OArchive(Alembic::AbcCoreHDF5::WriteArchive(),
-				output_path.c_str());
-
-			AlembicArchive &archive = AlembicArchive::instance();
-
-			const double dt = 1.0 / exportFPS;
-			archive.timesampling = AbcA::TimeSamplingPtr(new AbcA::TimeSampling(dt, 0.0));
-			archive.archive->addTimeSampling(*archive.timesampling);
-			archive.isExportNormals = (isExportNomals != 0);
-			archive.isExportUvs = (isExportUvs != 0);
-			archive.isUseEulerRotationForCamera = (isUseEulerRotationForCamera != 0);
-			archive.exportMode = exportMode;
-
-			return Py_BuildValue("i", 1); //success
-		}
-		return Py_BuildValue(""); //None 
-	}
-
-	static PyObject * end_alembic_export(PyObject *self, PyObject* args)
-	{
-		if (AlembicArchive::instance().archive)
-		{
-			AlembicArchive::instance().end();
-			return Py_BuildValue("i", 1); //success
-		}
-		
-		return Py_BuildValue("");// None
-	}
-
-	static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
-	{
-		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
-
-		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
-		{
-			Alembic::AbcGeom::OPolyMesh polyMesh;
-			const int key = renderedBufferIndex * 10000 + k;
-				
-			Alembic::AbcGeom::OXform xform;
-			if (archive.xformMap.find(key) != archive.xformMap.end())
-			{
-				xform = archive.xformMap[key];
-			}
-			else
-			{
-				xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex) + "_material_" + to_string(k) , archive.timesampling);
-				archive.xformMap[key] = xform;
-			}
-
-			bool isFirstMesh = false;
-			if (archive.meshMap.find(key) != archive.meshMap.end())
-			{
-				polyMesh = archive.meshMap[key];
-			}
-			else
-			{
-				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k), archive.timesampling);
-				archive.meshMap[key] = polyMesh;
-				isFirstMesh = true;
-
-				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-				archive.schemaMap[key] = meshSchema;
-			}
-
-			if (archive.surfaceSizeMap.find(key) == archive.surfaceSizeMap.end())
-			{
-				archive.surfaceSizeMap[key] = 0;
-			}
-
-			if (archive.fiToViMap.find(key) == archive.fiToViMap.end())
-			{
-				AlembicArchive::FiToVi fiToVi;
-				archive.fiToViMap[key] = fiToVi;
-			}
-			
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
-			meshSchema.setTimeSampling(archive.timesampling);
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample empty;
-			
-			std::vector<Alembic::Util::int32_t> faceList;
-			std::vector<Alembic::Util::int32_t> faceCountList;
-
-			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
-
-			RenderedBuffer::VertexList vertexListByMaterial;
-			RenderedBuffer::UVList uvListByMaterial;
-			RenderedBuffer::NormalList normalListByMaterial;
-
-			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
-			vertexListByMaterial.resize(materialSurfaceSize * 3);
-			faceList.resize(materialSurfaceSize * 3);
-			faceCountList.resize(materialSurfaceSize);
-
-			if (!uvList.empty())
-			{
-				uvListByMaterial.resize(materialSurfaceSize * 3);
-			}
-			if (!normalList.empty())
-			{
-				normalListByMaterial.resize(materialSurfaceSize * 3);
-			}
-			
-			AlembicArchive::FiToVi& fiToVi = archive.fiToViMap[key];
-			int& preSurfaceSize = archive.surfaceSizeMap[key];
-			bool isFirstSurface = material->surface.faces.size() != preSurfaceSize;
-			if (!isFirstMesh && isFirstSurface)
-			{
-				continue;
-			}
-
-			// re assign par material
-			int lastIndex = 0;
-
-			for (int n = 0; n < materialSurfaceSize; ++n)
-			{
-				um_vector3 face = material->surface.faces[n];
-
-				const int f1 = face.ix - 1;
-				const int f2 = face.iy - 1;
-				const int f3 = face.iz - 1;
-				int vi1 = 0;
-				int vi2 = 0;
-				int vi3 = 0;
-
-				if (isFirstMesh)
-				{
-					if (fiToVi.find(f1) == fiToVi.end()) {
-						vi1 = lastIndex;
-						fiToVi[f1] = vi1;
-						++lastIndex;
-					} else {
-						vi1 = fiToVi[f1];
-					}
-				
-					if (fiToVi.find(f2) == fiToVi.end()) {
-						vi2 = lastIndex;
-						fiToVi[f2] = vi2;
-						++lastIndex;
-					} else {
-						vi2 = fiToVi[f2];
-					}
-
-					if (fiToVi.find(f3) == fiToVi.end()) {
-						vi3 = lastIndex;
-						fiToVi[f3] = vi3;
-						++lastIndex;
-					} else {
-						vi3 = fiToVi[f3];
-					}
-				}
-				else
-				{
-					vi1 = fiToVi[f1];
-					vi2 = fiToVi[f2];
-					vi3 = fiToVi[f3];
-				}
-
-				vertexListByMaterial[vi1] = vertexList.at(f1);
-				vertexListByMaterial[vi2] = vertexList.at(f2);
-				vertexListByMaterial[vi3] = vertexList.at(f3);
-				if (!uvList.empty() && archive.isExportUvs)
-				{
-					uvListByMaterial[n * 3 + 0] = uvList.at(f1);
-					uvListByMaterial[n * 3 + 1] = uvList.at(f2);
-					uvListByMaterial[n * 3 + 2] = uvList.at(f3);
-				}
-				if (!normalList.empty() && archive.isExportNormals)
-				{
-					normalListByMaterial[vi1] = normalList.at(f1);
-					normalListByMaterial[vi2] = normalList.at(f2);
-					normalListByMaterial[vi3] = normalList.at(f3);
-				}
-				faceList[n * 3 + 0] = vi1;
-				faceList[n * 3 + 1] = vi2;
-				faceList[n * 3 + 2] = vi3;
-				faceCountList[n] = 3;
-			}
-
-			preSurfaceSize = material->surface.faces.size();
-			vertexListByMaterial.resize(fiToVi.size());
-			normalListByMaterial.resize(fiToVi.size());
-				
-			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
-			{
-				vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
-			}
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
-				
-			// vertex
-			Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
-			sample.setPositions(positions);
-				
-			// face index
-			if (isFirstMesh)
-			{
-				Alembic::Abc::Int32ArraySample faceIndices(faceList);
-				Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
-				sample.setFaceIndices(faceIndices);
-				sample.setFaceCounts(faceCounts);
-			}
-
-			// UVs
-			if (!uvListByMaterial.empty() && archive.isExportUvs)
-			{
-				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
-				{
-					uvListByMaterial[n].y = 1.0f - uvListByMaterial[n].y;
-				}
-				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
-				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvListByMaterial.front(), uvListByMaterial.size()));
-				sample.setUVs(uvSample);
-			}
-
-			// Normals
-			if (!normalListByMaterial.empty() && archive.isExportNormals)
-			{
-				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
-				{
-					normalListByMaterial[n].z = -normalListByMaterial[n].z;
-				}
-				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
-				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
-				sample.setNormals(normalSample);
-			}
-			
-			meshSchema.set(sample);
-		}
+		boost::python::list result;
+		result.append(vec.x);
+		result.append(vec.y);
+		result.append(vec.z);
+		return result;
 	}
 	
-	static void export_alembic_xform_by_material_direct(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+	object init_python()
 	{
-		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
-
-		for (int k = 0, ksize = static_cast<int>(renderedBuffer.materials.size()); k < ksize; ++k)
-		{
-			Alembic::AbcGeom::OPolyMesh polyMesh;
-			const int key = renderedBufferIndex * 10000 + k;
-				
-			Alembic::AbcGeom::OXform xform;
-			if (archive.xformMap.find(key) != archive.xformMap.end())
-			{
-				xform = archive.xformMap[key];
-			}
-			else
-			{
-				xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex) + "_material_" + to_string(k) , archive.timesampling);
-				archive.xformMap[key] = xform;
-			}
-
-			bool isFirstMesh = false;
-			if (archive.meshMap.find(key) != archive.meshMap.end())
-			{
-				polyMesh = archive.meshMap[key];
-			}
-			else
-			{
-				polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k), archive.timesampling);
-				archive.meshMap[key] = polyMesh;
-				isFirstMesh = true;
-
-				Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-				archive.schemaMap[key] = meshSchema;
-			}
-
-			if (archive.surfaceSizeMap.find(key) == archive.surfaceSizeMap.end())
-			{
-				archive.surfaceSizeMap[key] = 0;
-			}
-			
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[key];
-			meshSchema.setTimeSampling(archive.timesampling);
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample empty;
-			
-			std::vector<Alembic::Util::int32_t> faceList;
-			std::vector<Alembic::Util::int32_t> faceCountList;
-
-			RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-			RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-			RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
-
-			RenderedBuffer::VertexList vertexListByMaterial;
-			RenderedBuffer::UVList uvListByMaterial;
-			RenderedBuffer::NormalList normalListByMaterial;
-
-			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
-			vertexListByMaterial.resize(materialSurfaceSize * 3);
-			faceList.resize(materialSurfaceSize * 3);
-			faceCountList.resize(materialSurfaceSize);
-
-			if (!uvList.empty())
-			{
-				uvListByMaterial.resize(materialSurfaceSize * 3);
-			}
-			if (!normalList.empty())
-			{
-				normalListByMaterial.resize(materialSurfaceSize * 3);
-			}
-			
-			int& preSurfaceSize = archive.surfaceSizeMap[key];
-			bool isFirstSurface = material->surface.faces.size() != preSurfaceSize;
-			if (!isFirstMesh && isFirstSurface)
-			{
-				continue;
-			}
-
-			// re assign par material
-			int lastIndex = 0;
-
-			for (int n = 0; n < materialSurfaceSize; ++n)
-			{
-				um_vector3 face = material->surface.faces[n];
-
-				const int f1 = face.ix - 1;
-				const int f2 = face.iy - 1;
-				const int f3 = face.iz - 1;
-				int vi1 = n * 3 + 0;
-				int vi2 = n * 3 + 1;
-				int vi3 = n * 3 + 2;
-
-				vertexListByMaterial[vi1] = vertexList.at(f1);
-				vertexListByMaterial[vi2] = vertexList.at(f2);
-				vertexListByMaterial[vi3] = vertexList.at(f3);
-				if (!uvList.empty() && archive.isExportUvs)
-				{
-					uvListByMaterial[vi1] = uvList.at(f1);
-					uvListByMaterial[vi2] = uvList.at(f2);
-					uvListByMaterial[vi3] = uvList.at(f3);
-				}
-				if (!normalList.empty() && archive.isExportNormals)
-				{
-					normalListByMaterial[vi1] = normalList.at(f1);
-					normalListByMaterial[vi2] = normalList.at(f2);
-					normalListByMaterial[vi3] = normalList.at(f3);
-				}
-				faceList[vi1] = vi1;
-				faceList[vi2] = vi2;
-				faceList[vi3] = vi3;
-				faceCountList[n] = 3;
-			}
-
-			preSurfaceSize = material->surface.faces.size();
-				
-			for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
-			{
-				vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
-			}
-
-			Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
-				
-			// vertex
-			Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
-			sample.setPositions(positions);
-				
-			// face index
-			if (isFirstMesh)
-			{
-				Alembic::Abc::Int32ArraySample faceIndices(faceList);
-				Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
-				sample.setFaceIndices(faceIndices);
-				sample.setFaceCounts(faceCounts);
-			}
-
-			// UVs
-			if (!uvListByMaterial.empty() && archive.isExportUvs)
-			{
-				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
-				{
-					uvListByMaterial[n].y = 1.0f - uvListByMaterial[n].y;
-				}
-				Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-				uvSample.setScope(Alembic::AbcGeom::kVertexScope );
-				uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvListByMaterial.front(), uvListByMaterial.size()));
-				sample.setUVs(uvSample);
-			}
-
-			// Normals
-			if (!normalListByMaterial.empty() && archive.isExportNormals)
-			{
-				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
-				{
-					normalListByMaterial[n].z = -normalListByMaterial[n].z;
-				}
-				Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-				normalSample.setScope(Alembic::AbcGeom::kVertexScope );
-				normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
-				sample.setNormals(normalSample);
-			}
-			
-			meshSchema.set(sample);
-		}
-	}
-
-	static void export_alembic_xform_by_buffer(AlembicArchive &archive, RenderedBuffer & renderedBuffer, int renderedBufferIndex)
-	{
-		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
-
-		Alembic::AbcGeom::OXform xform;
-		if (archive.xformMap.find(renderedBufferIndex) != archive.xformMap.end())
-		{
-			xform = archive.xformMap[renderedBufferIndex];
-		}
-		else
-		{
-			xform = Alembic::AbcGeom::OXform(topObj, "xform_" + to_string(renderedBufferIndex), archive.timesampling);
-			archive.xformMap[renderedBufferIndex] = xform;
-		}
-		
-		bool isFirstMesh = false;
-		Alembic::AbcGeom::OPolyMesh polyMesh;
-		if (archive.meshMap.find(renderedBufferIndex) != archive.meshMap.end())
-		{
-			polyMesh = archive.meshMap[renderedBufferIndex];
-		}
-		else
-		{
-			polyMesh = Alembic::AbcGeom::OPolyMesh(xform, "mesh_" + to_string(renderedBufferIndex), archive.timesampling);
-			archive.meshMap[renderedBufferIndex] = polyMesh;
-			isFirstMesh = true;
-
-			Alembic::AbcGeom::OPolyMeshSchema &meshSchema = polyMesh.getSchema();
-			archive.schemaMap[renderedBufferIndex] = meshSchema;
-		}
-
-		Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schemaMap[renderedBufferIndex];
-		meshSchema.setTimeSampling(archive.timesampling);
-		
-		std::vector<Alembic::Util::int32_t> faceList;
-		std::vector<Alembic::Util::int32_t> faceCountList;
-		
-		RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
-		RenderedBuffer::VertexList &vertexList = renderedBuffer.vertecies;
-		RenderedBuffer::NormalList &normalList =  renderedBuffer.normals;
-
-		const int materialSize = static_cast<int>(renderedBuffer.materials.size());
-
-		int totalFaceCount = 0;
-		for (int k = 0; k < materialSize; ++k)
-		{
-			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			totalFaceCount += material->surface.faces.size();
-		}
-		
-		if (archive.surfaceSizeMap.find(renderedBufferIndex) == archive.surfaceSizeMap.end())
-		{
-			archive.surfaceSizeMap[renderedBufferIndex] = 0;
-		}
-		int& preSurfaceSize = archive.surfaceSizeMap[renderedBufferIndex];
-		bool isFirstSurface = totalFaceCount != preSurfaceSize;
-		if (!isFirstMesh && isFirstSurface)
-		{
-			return;
-		}
-		preSurfaceSize = totalFaceCount;
-
-		faceCountList.resize(totalFaceCount);
-		faceList.resize(totalFaceCount * 3);
-
-		int faceCounter = 0;
-		for (int k = 0; k < materialSize; ++k)
-		{
-			RenderedMaterial* material = renderedBuffer.materials.at(k);
-			const int faceSize = material->surface.faces.size();
-			for (int n = 0; n < faceSize; ++n)
-			{
-				um_vector3 face = material->surface.faces[n];
-				faceList[faceCounter * 3 + 0] = (face.ix - 1);
-				faceList[faceCounter * 3 + 1] = (face.iy - 1);
-				faceList[faceCounter * 3 + 2] = (face.iz - 1);
-				faceCountList[faceCounter] = 3;
-				++faceCounter;
-			}
-		}
-
-		Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
-				
-		// vertex
-		for (int n = 0, nsize = vertexList.size(); n < nsize; ++n)
-		{
-			vertexList[n].z = -vertexList[n].z;
-		}
-		Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexList.front(), vertexList.size());
-		sample.setPositions(positions);
-				
-		// face index
-		if (isFirstMesh)
-		{
-			Alembic::Abc::Int32ArraySample faceIndices(faceList);
-			Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
-			sample.setFaceIndices(faceIndices);
-			sample.setFaceCounts(faceCounts);
-		}
-
-		// UVs
-		if (!uvList.empty() && archive.isExportUvs)
-		{
-			for (int n = 0, nsize = uvList.size(); n < nsize; ++n)
-			{
-				uvList[n].y = 1.0f - uvList[n].y;
-			}
-			Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
-			uvSample.setScope(Alembic::AbcGeom::kVertexScope );
-			uvSample.setVals(Alembic::AbcGeom::V2fArraySample( ( const Imath::V2f *) &uvList.front(), uvList.size()));
-			sample.setUVs(uvSample);
-		}
-
-		// Normals
-		if (!normalList.empty() && archive.isExportNormals)
-		{
-			for (int n = 0, nsize = normalList.size(); n < nsize; ++n)
-			{
-				normalList[n].z = -normalList[n].z;
-			}
-			Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
-			normalSample.setScope(Alembic::AbcGeom::kVertexScope );
-			normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalList.front(), normalList.size()));
-			sample.setNormals(normalSample);
-		}
-
-		meshSchema.set(sample);
-
-	}
-
-	static double to_degree(double radian)
-	{
-		return (radian * 180) / M_PI;
-	}
-
-	static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
-		double xy = quat.v.x * quat.v.y;
-		double zw = quat.v.z * quat.r;
-
-		double test = xy + zw;
-		if (test > 0.499) { // singularity at north pole
-			double yaw = 2 * atan2(quat.v.x, quat.r);
-			double pitch = M_PI/2;
-			double roll = 0;
-			dst = Imath::V3d(yaw, pitch, roll);
-			return;
-		}
-		if (test < -0.499) { // singularity at south pole
-			double yaw = -2 * atan2(quat.v.x, quat.r);
-			double pitch = - M_PI/2;
-			double roll = 0;
-			dst = Imath::V3d(yaw, pitch, roll);
-			return;
-		}
-		double xx = quat.v.x * quat.v.x;
-		double yy = quat.v.y * quat.v.y;
-		double zz = quat.v.z * quat.v.z;
-		
-		double yz = quat.v.y * quat.v.z;
-		double xz = quat.v.x * quat.v.z;
-		double wx = quat.r * quat.v.x;
-		double wy = quat.r * quat.v.y;
-		double wz = quat.r * quat.v.z;
-		
-		double yaw = atan2( 2*(wy - xz), 1 - 2*(yy + zz));
-		double pitch = atan2( 2*(wx - yz), 1 - 2*(xx +zz));
-		double roll = asin( 2*(test));
-		dst = Imath::V3d(yaw, pitch, roll);
+		object main_module = import("__main__");
+		object main_namespace = main_module.attr("__dict__");
+		return main_namespace;
 	}
 	
-	static void export_alembic_camera(AlembicArchive &archive, RenderedBuffer & renderedBuffer, bool isUseEuler)
+	std::string parse_python_exception()
 	{
-		static const int cameraKey = 0xFFFFFF;
-		Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
+		PyObject *type_ptr = NULL;
+		PyObject *value_ptr = NULL;
+		PyObject *traceback_ptr = NULL;
+		PyErr_Fetch(&type_ptr, &value_ptr, &traceback_ptr);
 
-		Alembic::AbcGeom::OXform xform;
-		if (archive.xformMap.find(cameraKey) != archive.xformMap.end())
+		// Fallback error
+		std::string ret("Fallback error");
+		if(type_ptr != NULL)
 		{
-			xform = archive.xformMap[cameraKey];
-		}
-		else
-		{
-			xform = Alembic::AbcGeom::OXform(topObj, "camera_xform", archive.timesampling);
-			archive.xformMap[cameraKey] = xform;
-
-			Alembic::AbcGeom::OXformSchema &xformSchema = xform.getSchema();
-			archive.xformSchemaMap[cameraKey] = xformSchema;
-		}
-		
-		// set camera transform
-		{
-			Alembic::AbcGeom::OXformSchema &xformSchema = archive.xformSchemaMap[cameraKey];
-			xformSchema.setTimeSampling(archive.timesampling);
-
-			Alembic::AbcGeom::XformSample xformSample;
-
-			D3DXMATRIX convertMat(
-				1, 0, 0, 0,
-				0, 1, 0, 0,
-				0, 0, -1, 0,
-				0, 0, 0, 1);
-
-			D3DXMATRIX convertedWordInv;
-			::D3DXMatrixMultiply(&convertedWordInv, &renderedBuffer.world_inv, &convertMat);
-			
-			D3DXVECTOR3 eye;
+			boost::python::handle<> h_type(type_ptr);
+			boost::python::str type_pstr(h_type);
+			boost::python::extract<std::string> e_type_pstr(type_pstr);
+			//  otherwise use fallback
+			if(e_type_pstr.check())
 			{
-				D3DXVECTOR3 v;
-				UMGetCameraEye(&v);
-				d3d_vector3_transform(eye, v,convertedWordInv);
-			}
-			
-			D3DXVECTOR3 at;
-			{
-				D3DXVECTOR3 v;
-				UMGetCameraAt(&v);
-				d3d_vector3_transform(at, v, convertedWordInv);
-			}
-
-			D3DXVECTOR3 up;
-			{
-				D3DXVECTOR3 v;
-				UMGetCameraUp(&v);
-				d3d_vector3_dir_transform(up, v, convertedWordInv);
-				::D3DXVec3Normalize(&up, &up);
-			}
-
-			Imath::V3d trans((double)eye.x, (double)eye.y, (double)(eye.z));
-			xformSample.setTranslation(trans);
-
-			D3DXMATRIX view;
-			::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
-			
-			
-			Imath::M44d rot(
-				-view.m[0][0], view.m[0][1], view.m[0][2], 0,
-				-view.m[1][0], view.m[1][1], view.m[1][2], 0,
-				view.m[2][0], -view.m[2][1], -view.m[2][2], 0,
-				0, 0, 0, 1);
-
-			Imath::Quatd quat = Imath::extractQuat(rot);
-			quat.normalize();
-
-			if (isUseEuler)
-			{
-				Imath::V3d euler;
-				quatToEuler(euler, quat);
-				xformSample.setXRotation(to_degree(euler.y));
-				xformSample.setYRotation(to_degree(euler.x));
-				xformSample.setZRotation(-to_degree(euler.z));
+				ret = e_type_pstr();
 			}
 			else
 			{
-				xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
+				ret = "Unknown exception";
 			}
-
-			xformSchema.set(xformSample);
 		}
-		
-		Alembic::AbcGeom::OCamera camera;
-		if (archive.cameraMap.find(cameraKey) != archive.cameraMap.end())
-		{
-			camera = archive.cameraMap[cameraKey];
-		}
-		else
-		{
-			camera = Alembic::AbcGeom::OCamera(xform, "camera", archive.timesampling);
-			archive.cameraMap[cameraKey] = camera;
-			
-			Alembic::AbcGeom::OCameraSchema &cameraSchema = camera.getSchema();
-			archive.cameraSchemaMap[cameraKey] = cameraSchema;
-		}
-
-		Alembic::AbcGeom::OCameraSchema &cameraSchema = archive.cameraSchemaMap[cameraKey];
-		cameraSchema.setTimeSampling(archive.timesampling);
-		Alembic::AbcGeom::CameraSample sample;
-
-		
-		D3DXVECTOR4 v;
-		UMGetCameraFovLH(&v);
-
-		sample.setNearClippingPlane(v.y);
-		sample.setFarClippingPlane(v.w);
-
-		cameraSchema.set(sample);
-	}
-
-	static PyObject * execute_alembic_export(PyObject *self, PyObject* args)
-	{
-		int currentframe;
-		if (!PyArg_ParseTuple(args, "i", &currentframe)) { return Py_BuildValue(""); } 
-
-		AlembicArchive &archive = AlembicArchive::instance();
-		if (!archive.archive) { return Py_BuildValue(""); }
-
-		bool exportedCamera = false;
-		for (int i = static_cast<int>(finishBuffers.size()) - 1; i >= 0; --i)
-		{
-			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
-
-			if (!exportedCamera && !renderedBuffer.isAccessory)
+		// Do the same for the exception value (the stringification of the exception)
+		if(value_ptr != NULL){
+			boost::python::handle<> h_val(value_ptr);
+			boost::python::str a(h_val);
+			boost::python::extract<std::string> returned(a);
+			if(returned.check()) 
 			{
-				export_alembic_camera(archive, renderedBuffer, archive.isUseEulerRotationForCamera);
-				exportedCamera = true;
+				ret +=  ": " + returned();
+			}
+			else
+			{
+				ret += std::string(": Unparseable Python error: ");
 			}
 		}
-
-		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
+		// Parse lines from the traceback using the Python traceback module
+		if(traceback_ptr != NULL)
 		{
-			RenderedBuffer &renderedBuffer = renderedBuffers[finishBuffers.at(i)];
-
-			if (archive.exportMode == 0)
+			boost::python::handle<> h_tb(traceback_ptr);
+			// Load the traceback module and the format_tb function
+			boost::python::object tb(boost::python::import("traceback"));
+			boost::python::object fmt_tb(tb.attr("format_tb"));
+			// Call format_tb to get a list of traceback strings
+			boost::python::object tb_list(fmt_tb(h_tb));
+			// Join the traceback strings into a single string
+			boost::python::object tb_str(boost::python::str("\n").join(tb_list));
+			// Extract the string, check the extraction, and fallback in necessary
+			boost::python::extract<std::string> returned(tb_str);
+			if(returned.check()) 
 			{
-				export_alembic_xform_by_material_fix_vindex(archive, renderedBuffer, i);
+				ret += ": " + returned();
 			}
-			else if (archive.exportMode == 1)
+			else 
 			{
-				export_alembic_xform_by_buffer(archive, renderedBuffer, i);
-			}
-			else if (archive.exportMode == 2)
-			{
-				export_alembic_xform_by_material_direct(archive, renderedBuffer, i);
+				ret += std::string(": Unparseable Python traceback");
 			}
 		}
-
-		return Py_BuildValue("i", 1); //success
-	}
-
-#endif //WITH_ALEMBIC
-
-	static PyMethodDef PythonMethods[] = {
-		{ "get_vertex_buffer_size", (PyCFunction)get_vertex_buffer_size, METH_VARARGS },
-		{ "get_vertex_size", (PyCFunction)get_vertex_size, METH_VARARGS },
-		{ "get_vertex", (PyCFunction)get_vertex, METH_VARARGS },
-		{ "get_normal_size", (PyCFunction)get_normal_size, METH_VARARGS },
-		{ "get_normal", (PyCFunction)get_normal, METH_VARARGS },
-		{ "get_uv_size", (PyCFunction)get_uv_size, METH_VARARGS },
-		{ "get_uv", (PyCFunction)get_uv, METH_VARARGS },
-		{ "get_material_size", (PyCFunction)get_material_size, METH_VARARGS },
-		{ "is_accessory", (PyCFunction)is_accessory, METH_VARARGS },
-		{ "get_ambient", (PyCFunction)get_ambient, METH_VARARGS },
-		{ "get_diffuse", (PyCFunction)get_diffuse, METH_VARARGS },
-		{ "get_specular", (PyCFunction)get_specular, METH_VARARGS },
-		{ "get_emissive", (PyCFunction)get_emissive, METH_VARARGS },
-		{ "get_power", (PyCFunction)get_power, METH_VARARGS },
-		{ "get_texture", (PyCFunction)get_texture, METH_VARARGS },
-		{ "get_exported_texture", (PyCFunction)get_exported_texture, METH_VARARGS },
-		{ "get_face_size", (PyCFunction)get_face_size, METH_VARARGS },
-		{ "get_face", (PyCFunction)get_face, METH_VARARGS },
-		{ "get_texture_buffer_size", (PyCFunction)get_texture_buffer_size, METH_VARARGS },
-		{ "get_texture_size", (PyCFunction)get_texture_size, METH_VARARGS },
-		{ "get_texture_name", (PyCFunction)get_texture_name, METH_VARARGS },
-		{ "get_texture_pixel", (PyCFunction)get_texture_pixel, METH_VARARGS },
-		{ "get_camera_up", (PyCFunction)get_camera_up, METH_VARARGS },
-		{ "get_camera_up_org", (PyCFunction)get_camera_up_org, METH_VARARGS },
-		{ "get_camera_at",  (PyCFunction)get_camera_at, METH_VARARGS },
-		{ "get_camera_eye",  (PyCFunction)get_camera_eye, METH_VARARGS },
-		{ "get_camera_eye_org",  (PyCFunction)get_camera_eye_org, METH_VARARGS },
-		{ "get_camera_fovy", (PyCFunction)get_camera_fovy, METH_VARARGS },
-		{ "get_camera_aspect", (PyCFunction)get_camera_aspect, METH_VARARGS },
-		{ "get_camera_near", (PyCFunction)get_camera_near, METH_VARARGS },
-		{ "get_camera_far", (PyCFunction)get_camera_far, METH_VARARGS },
-		{ "messagebox", (PyCFunction)messagebox, METH_VARARGS },
-		{ "export_texture", (PyCFunction)export_texture, METH_VARARGS },
-		{ "export_textures", (PyCFunction)export_textures, METH_VARARGS },
-		{ "export_uncopied_textures", (PyCFunction)export_textures, METH_VARARGS },
-		{ "copy_textures", (PyCFunction)copy_textures, METH_VARARGS },
-		{ "get_frame_number", (PyCFunction)get_frame_number, METH_VARARGS },
-		{ "get_start_frame", (PyCFunction)get_start_frame, METH_VARARGS },
-		{ "get_end_frame", (PyCFunction)get_end_frame, METH_VARARGS },
-		{ "get_frame_width", (PyCFunction)get_frame_width, METH_VARARGS },
-		{ "get_frame_height", (PyCFunction)get_frame_height, METH_VARARGS },
-		{ "get_base_path", (PyCFunction)get_base_path, METH_VARARGS },
-		{ "get_light", (PyCFunction)get_light, METH_VARARGS },
-		{ "get_light_color", (PyCFunction)get_light_color, METH_VARARGS },
-		{ "get_world", (PyCFunction)get_world, METH_VARARGS },
-		{ "get_world_inv", (PyCFunction)get_world_inv, METH_VARARGS },
-		{ "get_view", (PyCFunction)get_view, METH_VARARGS },
-		{ "get_projection", (PyCFunction)get_projection, METH_VARARGS },
-		{ "set_texture_buffer_enabled", (PyCFunction)set_texture_buffer_enabled, METH_VARARGS },
-		{ "set_current_material", (PyCFunction)set_current_material, METH_VARARGS },
-		{ "set_int_value", (PyCFunction)set_int_value, METH_VARARGS },
-		{ "set_float_value", (PyCFunction)set_float_value, METH_VARARGS },
-		{ "get_int_value", (PyCFunction)get_int_value, METH_VARARGS },
-		{ "get_float_value", (PyCFunction)get_float_value, METH_VARARGS },
-		{ "d3dx_invert_matrix", (PyCFunction)d3dx_invert_matrix, METH_VARARGS },
-		{ "d3dx_vec3_normalize", (PyCFunction)d3dx_vec3_normalize, METH_VARARGS },
-#ifdef WITH_ALEMBIC
-		{ "start_alembic_export", (PyCFunction)start_alembic_export, METH_VARARGS },
-		{ "end_alembic_export", (PyCFunction)end_alembic_export, METH_VARARGS },
-		{ "execute_alembic_export", (PyCFunction)execute_alembic_export, METH_VARARGS },
-#endif //WITH_ALEMBIC
-		{NULL, NULL, 0, NULL}
-	};
-
-	static PyObject* output_error(PyObject *self, PyObject *args)
-	{
-		const char *str;
-		if(!PyArg_ParseTuple(args, "s", &str)) return NULL;
-		python_error_string += std::string(str);
-		return Py_BuildValue("");
-	}
-
-	static PyMethodDef OutputErrorMethods[] = {
-		{"write", output_error, METH_VARARGS, ""},
-		{NULL, NULL, 0, NULL}
-	};
-
-	static struct PyModuleDef PythonMethodsModule = {
-		PyModuleDef_HEAD_INIT,
-		"mmdbridge",
-		NULL,
-        -1,
-		PythonMethods
-	};
-
-	static struct PyModuleDef PythonOutputErrorModule = {
-		PyModuleDef_HEAD_INIT,
-		"output",
-		NULL,
-        -1,
-		OutputErrorMethods
-	};
-
-	static PyObject *BridgeError;
-
-	PyMODINIT_FUNC initfuncs()
-	{
-		PyObject *module = PyModule_Create(&PythonMethodsModule);
-		PyImport_AddModule("mmdbridge");
-		if (!module) {
-			::MessageBox(NULL, _T("mmdbridge create failed"), _T("HOGE"), MB_OK);
-		}
-
-		PyObject *error_obj = PyModule_Create(&PythonOutputErrorModule);
-		PyImport_AddModule("output");
-		PySys_SetObject("stderr", error_obj);
-		
-		//// モジュール
-		//PyObject *pModule = PyImport_ImportModule("mmdbridge");
-
-		Py_InspectFlag = 1;
-
-
-		return module;
+		return ret;
 	}
 }
 
+
+BOOST_PYTHON_MODULE( mmdbridge )
+{
+	using namespace boost::python;
+	def("get_vertex_buffer_size", get_vertex_buffer_size);
+	def("get_vertex_size", get_vertex_size);
+	def("get_vertex", get_vertex);
+	def("get_normal_size", get_normal_size);
+	def("get_normal", get_normal);
+	def("get_uv_size", get_uv_size);
+	def("get_uv", get_uv);
+	def("get_material_size", get_material_size);
+	def("is_accessory", is_accessory);
+	def("get_ambient", get_ambient);
+	def("get_diffuse", get_diffuse);
+	def("get_specular", get_specular);
+	def("get_emissive", get_emissive);
+	def("get_power", get_power);
+	def("get_texture", get_texture);
+	def("get_exported_texture", get_exported_texture);
+	def("get_face_size", get_face_size);
+	def("get_face", get_face);
+	def("get_texture_buffer_size", get_texture_buffer_size);
+	def("get_texture_size", get_texture_size);
+	def("get_texture_name", get_texture_name);
+	def("get_texture_pixel", get_texture_pixel);
+	def("get_camera_up", get_camera_up);
+	def("get_camera_up_org", get_camera_up_org);
+	def("get_camera_at",  get_camera_at);
+	def("get_camera_eye",  get_camera_eye);
+	def("get_camera_eye_org",  get_camera_eye_org);
+	def("get_camera_fovy", get_camera_fovy);
+	def("get_camera_aspect", get_camera_aspect);
+	def("get_camera_near", get_camera_near);
+	def("get_camera_far", get_camera_far);
+	def("messagebox", message);
+	def("export_texture", export_texture);
+	def("export_textures", export_textures);
+	def("export_uncopied_textures", export_textures);
+	def("copy_textures", copy_textures);
+	def("get_frame_number", get_frame_number);
+	def("get_start_frame", get_start_frame);
+	def("get_end_frame", get_end_frame);
+	def("get_frame_width", get_frame_width);
+	def("get_frame_height", get_frame_height);
+	def("get_base_path", get_base_path);
+	def("get_light", get_light);
+	def("get_light_color", get_light_color);
+	def("get_world", get_world);
+	def("get_world_inv", get_world_inv);
+	def("get_view", get_view);
+	def("get_projection", get_projection);
+	def("set_texture_buffer_enabled", set_texture_buffer_enabled);
+	//def("set_current_material", set_current_material);
+	def("set_int_value", set_int_value);
+	def("set_float_value", set_float_value);
+	def("get_int_value", get_int_value);
+	def("get_float_value", get_float_value);
+	//def("d3dx_invert_matrix", d3dx_invert_matrix);
+	def("d3dx_vec3_normalize", d3dx_vec3_normalize);
+}
+
+void run_python_script()
+{
+	relaod_python_script();
+	if (BridgeParameter::instance().mmdbridge_python_script.empty()) { return; }
+
+	if (Py_IsInitialized())
+	{
+		//
+		PyEval_InitThreads();
+		Py_InspectFlag = 0;
+		
+		if (script_call_setting > 1)
+		{
+			script_call_setting = 0;
+		}
+	}
+	else
+	{
+		InitAlembic();
+		PyImport_AppendInittab("mmdbridge", PyInit_mmdbridge);
+		Py_Initialize();
+			
+		// 入力引数の設定
+		{
+			int argc = 1;
+			const std::wstring wpath = BridgeParameter::instance().base_path;
+			wchar_t *path[] = {
+				const_cast<wchar_t*>(wpath.c_str())
+			};
+			PySys_SetArgv(argc, path);
+		}
+	}
+
+	try
+	{
+		// モジュール初期化.
+		boost::python::object main_namespace = init_python();
+		// スクリプトの実行.
+		boost::python::object res = boost::python::exec(
+			BridgeParameter::instance().mmdbridge_python_script.c_str(),
+			main_namespace);
+	}
+	catch(error_already_set const& )
+	{
+		std::string python_error_string = parse_python_exception();
+		::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
+	}
+}
 //-----------------------------------------------------------Hook関数ポインタ-----------------------------------------------------------
 
 // Direct3DCreate9
 IDirect3D9 *(WINAPI *original_direct3d_create)(UINT)(NULL);
-// MME
-IDirect3D9 *(WINAPI *mme_direct3d_create)(UINT)(NULL);
+
+HRESULT (WINAPI *original_direct3d9ex_create)(UINT, IDirect3D9Ex**)(NULL);
 // IDirect3D9::CreateDevice
 HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, IDirect3DDevice9**)(NULL);
+
+HRESULT(WINAPI *original_create_deviceex)(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**)(NULL);
 // IDirect3DDevice9::BeginScene
 HRESULT (WINAPI *original_begin_scene)(IDirect3DDevice9*)(NULL);
 // IDirect3DDevice9::SetFVF
@@ -1795,7 +945,7 @@ HRESULT (WINAPI *original_set_texture)(IDirect3DDevice9*, DWORD, IDirect3DBaseTe
 HRESULT (WINAPI *original_create_texture)(IDirect3DDevice9*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9**, HANDLE*)(NULL);
 //-----------------------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat)
+static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat)
 {
 	TextureBuffers::iterator tit = renderData.textureBuffers.find(texture);
 	if(tit != renderData.textureBuffers.end())
@@ -1808,7 +958,7 @@ static bool writeTextureToFile(std::string &texturePath, IDirect3DTexture9 * tex
 	return false;
 }
 
-static bool writeTextureToFiles(std::string &texturePath, std::string &textureType, bool uncopied)
+static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied)
 {
 	bool res = true;
 
@@ -1852,37 +1002,29 @@ static bool writeTextureToFiles(std::string &texturePath, std::string &textureTy
 	return res;
 }
 
-static bool copyTextureToFiles(std::string &texturePath)
+static bool copyTextureToFiles(const std::u16string &texturePath)
 {
-	bool res = true;
+	if (texturePath.empty()) return false;
 
-	char dir[MAX_PATH];
-	std::strcpy(dir, texturePath.c_str());
-	PathRemoveFileSpecA(dir);
-	PathAddBackslashA(dir);
-
-	std::wstring wstr;
-	to_wstring(wstr, std::string(dir));
-
-	if (!PathIsDirectory(wstr.c_str())) { return false; }
-
+	std::wstring path = umbase::UMStringUtil::utf16_to_wstring(texturePath);
+	PathRemoveFileSpec(&path[0]);
+	PathAddBackslash(&path[0]);
+	if (!PathIsDirectory(path.c_str())) { return false; }
 	
-
+	bool res = true;
 	for (size_t i = 0; i <  finishTextureBuffers.size(); ++i)
 	{
 		IDirect3DTexture9* texture = finishTextureBuffers[i].first;
 		if (texture) {
-			
-			if (!UMCopyTexture(wstr.c_str(), texture)) { res = false; }
+			if (!UMCopyTexture(path.c_str(), texture)) { res = false; }
 		}
 	}
-
 	return res;
 }
 
-static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * texture, bool copied)
+static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied)
 {
-	//　すでにfinishTexutureBufferにあるかどうか
+	// すでにfinishTexutureBufferにあるかどうか
 	bool found = false;
 	for (size_t i = 0; i < finishTextureBuffers.size(); ++i)
 	{
@@ -1896,7 +1038,7 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 		finishTextureBuffers.push_back(texturebuffer);
 	}
 
-	if (is_texture_buffer_enabled)
+	if (BridgeParameter::instance().is_texture_buffer_enabled)
 	{
 		TextureBuffers::iterator tit = renderData.textureBuffers.find(texture);
 		if(tit != renderData.textureBuffers.end())
@@ -1906,29 +1048,30 @@ static bool writeTextureToMemory(std::string &textureName, IDirect3DTexture9 * t
 			HRESULT isLocked = texture->lpVtbl->LockRect(texture, 0, &lockRect, NULL, D3DLOCK_READONLY);
 			if (isLocked != D3D_OK) { return false; }
 			
-			int width = tit->second.wh.ix;
-			int height = tit->second.wh.iy;
+			int width = tit->second.wh.x;
+			int height = tit->second.wh.y;
 
 			RenderedTexture tex;
-			tex.size.ix = width;
-			tex.size.iy = height;
+			tex.size.x = width;
+			tex.size.y = height;
 			tex.name = textureName;
 
 			D3DFORMAT format = tit->second.format;
-			for(int y = 0; y < height; y++) {
+			for(int y = 0; y < height; y++)
+			{
 				unsigned char *lineHead = (unsigned char*)lockRect.pBits + lockRect.Pitch * y;
 
 				for (int x = 0; x < width; x++)
 				{
 					if (format == D3DFMT_A8R8G8B8) {
-						um_vector4 rgba;
+						UMVec4f rgba;
 						rgba.x = lineHead[4 * x + 0];
 						rgba.y = lineHead[4 * x + 1];
 						rgba.z = lineHead[4 * x + 2];
 						rgba.w = lineHead[4 * x + 3];
 						tex.texture.push_back(rgba);
 					} else {
-						::MessageBox(NULL, (_T("not supported texture format:") + to_wstring(format)).c_str(), _T("info"), MB_OK);
+						::MessageBoxA(NULL, std::string("not supported texture format:" + format).c_str(), "info", MB_OK);
 					}
 				}
 			}
@@ -1959,7 +1102,7 @@ static void GetFrame(HWND hWnd)
 	char text[256];
 	::GetWindowTextA(hWnd, text, sizeof(text)/sizeof(text[0]));
 		
-	currentFrame= atoi(text);
+	current_frame= atoi(text);
 }
 
 static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
@@ -1997,8 +1140,9 @@ static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 		GetFrame(g_hFrame);
 		return FALSE;
 	}
-	HANDLE hModule=(HANDLE)GetWindowLongA(hWnd,GWL_HINSTANCE);
-	if(GetModuleHandle(NULL)==hModule){
+	HANDLE hModule=(HANDLE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
+	if(GetModuleHandle(NULL)==hModule)
+	{
 		//自分のプロセスが作ったウィンドウを見つけた
 		char szClassName[256];
 		GetClassNameA(hWnd,szClassName,sizeof(szClassName)/sizeof(szClassName[0]));
@@ -2043,9 +1187,9 @@ static void setMyMenu()
 	}
 }
 
-WNDPROC originalWndProc  =NULL;
+LONG_PTR originalWndProc  =NULL;
 // このコード モジュールに含まれる関数の宣言を転送します:
-BOOL CALLBACK DialogProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK DialogProc(HWND, UINT, WPARAM, LPARAM);
 HINSTANCE hInstance= NULL;
 HWND pluginDialog = NULL;
 
@@ -2061,7 +1205,7 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 				if(hInstance)
 				{
 					pluginDialog = hWnd;
-					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL, DialogProc);
+					::DialogBoxA(hInstance, "IDD_DIALOG1", NULL,  DialogProc);
 				}
 				break;
 			}
@@ -2074,11 +1218,13 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 	}
 
 	// サブクラスで処理しなかったメッセージは、本来のウィンドウプロシージャに処理してもらう
-	return CallWindowProc( originalWndProc, hWnd, msg, wp, lp );
+	return CallWindowProc( (WNDPROC)originalWndProc, hWnd, msg, wp, lp );
 }
 
-static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	const BridgeParameter& parameter = BridgeParameter::instance();
+	BridgeParameter& mutable_parameter = BridgeParameter::mutable_instance();
 	HWND hCombo1 = GetDlgItem(hWnd, IDC_COMBO1);
 	HWND hCombo2 = GetDlgItem(hWnd, IDC_COMBO2);
 	HWND hEdit1 = GetDlgItem(hWnd, IDC_EDIT1);
@@ -2091,89 +1237,82 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	//if (!hEdit1) { return FALSE; }
 	//if (!hEdit2) { return FALSE; }
 	//if (!hEdit5) { return FALSE; }
-    switch (msg) {
-        case WM_INITDIALOG:
+	switch (msg) {
+		case WM_INITDIALOG:
 			{
 				//::MessageBoxA(NULL, "hoge出力設定", "menu", MB_OK);
 				// コンボボックスにデータを詰めていく
-				for (size_t i = 0 ; i < pythonNames.size() ; i++)
+				for (size_t i = 0 ; i < parameter.python_script_name_list.size() ; i++)
 				{
-					SendMessage(hCombo1 , CB_ADDSTRING , 0 , (LPARAM)pythonNames[i].c_str());
+					SendMessage(hCombo1 , CB_ADDSTRING , 0 , (LPARAM)parameter.python_script_name_list[i].c_str());
 				}
 				//SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("画面操作時に実行"));
 				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行する"));
 				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行しない"));
 				// ウインドウ生成時にはじめに表示するデータを指定
-				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str());
+				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)parameter.python_script_name.c_str());
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
-				SendMessage(hCombo2, CB_SETCURSEL, scriptCallSetting - 1, 0);
+				SendMessage(hCombo2, CB_SETCURSEL, script_call_setting - 1, 0);
 
-				::SetWindowTextA(hEdit1, to_string(startFrame).c_str());
-				::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
+				::SetWindowTextA(hEdit1, to_string(parameter.start_frame).c_str());
+				::SetWindowTextA(hEdit2, to_string(parameter.end_frame).c_str());
 				//::SetWindowTextA(hEdit3, to_string().c_str());
 				//::SetWindowTextA(hEdit4, to_string().c_str());
-				::SetWindowTextA(hEdit5, to_string(exportFPS).c_str());
+				::SetWindowTextA(hEdit5, to_string(parameter.export_fps).c_str());
 			}
 			return TRUE;
-        case WM_CLOSE:
-            EndDialog(hWnd, IDCANCEL);
-            break;
-        case WM_COMMAND:
-            switch (LOWORD(wParam))
-            {
-                case IDOK: // ボタンが押されたとき
+		case WM_CLOSE:
+			EndDialog(hWnd, IDCANCEL);
+			break;
+		case WM_COMMAND:
+			switch (LOWORD(wParam))
+			{
+				case IDOK: // ボタンが押されたとき
 					{
 						UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
-						if (num1 < pythonNames.size())
+						if (num1 < parameter.python_script_name_list.size())
 						{
-							if (pythonName != pythonNames[num1]) {
-								pythonName = pythonNames[num1];
-								pythonScript = pythonScripts[num1];
+							if (pythonName != parameter.python_script_name_list[num1])
+							{
+								pythonName = parameter.python_script_name_list[num1];
+								mutable_parameter.python_script_path = parameter.python_script_path_list[num1];
 								relaod_python_script();
 							}
 						}
 						UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
 						if (num2 <= 2)
 						{
-							scriptCallSetting = num2 + 1;
+							script_call_setting = num2 + 1;
 						}
 
 						char text1[32];
 						char text2[32];
-						//char text3[32];
-						//char text4[32];
 						char text5[32];
 						::GetWindowTextA(hEdit1, text1, sizeof(text1)/sizeof(text1[0]));
 						::GetWindowTextA(hEdit2, text2, sizeof(text2)/sizeof(text2[0]));
 						//::GetWindowTextA(hEdit3, text3, sizeof(text3)/sizeof(text3[0]));
 						//::GetWindowTextA(hEdit4, text4, sizeof(text4)/sizeof(text4[0]));
 						::GetWindowTextA(hEdit5, text5, sizeof(text5)/sizeof(text5[0]));
-						startFrame = atoi(text1);
-						endFrame = atoi(text2);
-						//startFrame = atoi(text3);
-						//endFrame = atoi(text4);
-						exportFPS = atof(text5);
+						mutable_parameter.start_frame = atoi(text1);
+						mutable_parameter.end_frame = atoi(text2);
+						mutable_parameter.export_fps = atof(text5);
 						
-						if (startFrame < 2)
+						if (parameter.start_frame < 2)
 						{
 							messagebox("info", "スタートフレームは2以上にしてください");
-							startFrame = 2;
+							mutable_parameter.start_frame = 2;
 							::SetWindowTextA(hEdit1, to_string(2).c_str());
 						}
-						if (startFrame >= endFrame)
+						if (parameter.start_frame >= parameter.end_frame)
 						{
-							endFrame = startFrame + 1;
-							::SetWindowTextA(hEdit2, to_string(endFrame).c_str());
+							mutable_parameter.end_frame = parameter.start_frame + 1;
+							::SetWindowTextA(hEdit2, to_string(parameter.end_frame).c_str());
 						}
-
 						EndDialog(hWnd, IDOK);
-
 					}
-					currentRenderedMaterial = NULL;
-                    break;
+					break;
 				case IDCANCEL:
 					EndDialog(hWnd, IDCANCEL);
-					currentRenderedMaterial = NULL;
 					break;
 				case IDC_BUTTON1: // 再検索
 					reload_python_file_paths();
@@ -2182,179 +1321,61 @@ static BOOL CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				case IDC_BUTTON2: // 詳細設定
 
 					// ダイアログ表示中は問答無用でスクリプト実行を専用のモードにする
-					int preSetting = scriptCallSetting;
-					scriptCallSetting = 3;
+					int preSetting = script_call_setting;
+					script_call_setting = 3;
 
 					// script再読み込み
 					UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
-					if (num1 < pythonNames.size())
+					if (num1 < parameter.python_script_name_list.size())
 					{
-						if (pythonName != pythonNames[num1]) {
-							pythonName = pythonNames[num1];
-							pythonScript = pythonScripts[num1];
+						if (pythonName != parameter.python_script_name_list[num1]) {
+							pythonName = parameter.python_script_name_list[num1];
+							mutable_parameter.python_script_path = parameter.python_script_path_list[num1];
 							relaod_python_script();
 						}
 					}
-					if (!mmdbridge_python_script.empty())
+					if (!parameter.mmdbridge_python_script.empty())
 					{
-						if (mmdbridge_python_script.find("#thread") != std::string::npos)
+						if (parameter.mmdbridge_python_script.find("#thread") != std::string::npos)
 						{
 							EndDialog(hWnd, IDOK);
 							SendMessage(g_hFrameArrowRight, BM_CLICK, 0, 0);
 							break;
 						}
 					}
-
-					scriptCallSetting = preSetting;
+					script_call_setting = preSetting;
 					::MessageBoxA(NULL, "このスクリプトには詳細設定が無いようです", "info", MB_OK);
 					EndDialog(hWnd, IDOK);
 					break;
 
-            }
-            break;
-        return TRUE;
-    }
-    return FALSE;
+			}
+			break;
+		return TRUE;
+	}
+	return FALSE;
 }
 
 //ウィンドウの乗っ取り
-static bool overrideGLWindow()
+static void overrideGLWindow()
 {
 	EnumWindows(enumWindowsProc,0);
-
 	setMyMenu();
-
 	// サブクラス化
 	if(g_hWnd && !originalWndProc){
-		originalWndProc=(WNDPROC)GetWindowLong(g_hWnd,GWL_WNDPROC);
-		SetWindowLong(g_hWnd,GWL_WNDPROC,(LONG)overrideWndProc);
-		return true;
+		originalWndProc = GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
+		SetWindowLongPtr(g_hWnd,GWLP_WNDPROC,(_LONG_PTR)overrideWndProc);
 	}
-	return false;
-}
-
-//////////////////// Python Thread
-static unsigned int WINAPI runScript(void* data)
-{
-	const char* scriptStr = (const char*)data;
-
-	relaod_python_script();
-
-	if (mmdbridge_python_script.empty()) { return 0; }
-
-	// Python初期化
-	PyImport_AppendInittab("mmdbridge", initfuncs);
-
-	if (!Py_IsInitialized())
-	{
-		Py_Initialize();
-
-		// 入力引数の設定
-		{
-			to_wstring(wBasePath, basePath);
-			int argc = 1;
-			const wchar_t *cpath = wBasePath.c_str();
-			wchar_t *path[] = {
-				const_cast<wchar_t*>(cpath)
-			};
-			PySys_SetArgv(argc, path);
-		}
-	}
-
-	//// Python Thread初期化
-	if (!PyEval_ThreadsInitialized())
-	{
-		PyEval_InitThreads();
-	}
-
-	PyGILState_STATE gstate = PyGILState_Ensure();
-
-	// 実行
-	int res = PyRun_SimpleStringFlags(mmdbridge_python_script.c_str(), NULL);
-
-	if (res < 0) {
-		if (! python_error_string.find("SystemExit"))
-		{
-			::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
-		}
-		python_error_string = "";
-	}
-
-	Py_Finalize();
-	PyGILState_Release(gstate);
-	
-	Py_InspectFlag = 0;
-
-	_endthreadex(0);
-
-	if (scriptCallSetting > 1)
-	{
-		scriptCallSetting = 0;
-	}
-
-	return 0;
-}
-
-static void runScriptMain()
-{
-	relaod_python_script();
-
-	if (mmdbridge_python_script.empty()) { return; }
-
-	if (Py_IsInitialized())
-	{
-		//
-		PyEval_InitThreads();
-		Py_InspectFlag = 0;
-		
-		if (scriptCallSetting > 1)
-		{
-			scriptCallSetting = 0;
-		}
-	}
-	else
-	{
-		Py_Initialize();
-		PyImport_AppendInittab("mmdbridge", initfuncs);		
-		PyImport_ImportModule("mmdbridge");
-		
-		// 入力引数の設定
-		{
-			to_wstring(wBasePath, basePath);
-			int argc = 1;
-			const wchar_t *cpath = wBasePath.c_str();
-			wchar_t *path[] = {
-				const_cast<wchar_t*>(cpath)
-			};
-			PySys_SetArgv(argc, path);
-		}
-	}
-
-	relaod_python_script();
-	
-	PyGILState_STATE gstate = PyGILState_Ensure();
-
-	if (!mmdbridge_python_script.empty()) 
-	{
-		int res = PyRun_SimpleString(mmdbridge_python_script.c_str());
-		if (res < 0) {
-			::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
-			python_error_string = "";
-		}
-	}
-
-	PyGILState_Release(gstate);
 }
 
 
 static bool IsValidCallSetting() { 
-	return (scriptCallSetting == 0) || (scriptCallSetting == 1);
+	return (script_call_setting == 0) || (script_call_setting == 1);
 }
 
 static bool IsValidFrame() {
 	float time = ExpGetFrameTime();
-	return ((scriptCallSetting == 0) && (preFrame != currentFrame)) ||
-			((scriptCallSetting == 1) && (time > 0));
+	return ((script_call_setting == 0) && (preFrame != current_frame)) ||
+			((script_call_setting == 1) && (time > 0));
 }
 
 static bool IsValidTechniq() {
@@ -2369,63 +1390,65 @@ static HRESULT WINAPI present(
 	HWND hDestWindowOverride, 
 	const RGNDATA * pDirtyRegion)
 {
+	static bool isExportedFrame = false;
 
 	float time = ExpGetFrameTime();
 
 	if (pDestRect)
 	{
-		frameWidth = pDestRect->right - pDestRect->left;
-		frameHeight = pDestRect->bottom - pDestRect->top;
+		BridgeParameter::mutable_instance().frame_width = pDestRect->right - pDestRect->left;
+		BridgeParameter::mutable_instance().frame_height = pDestRect->bottom - pDestRect->top;
 	}
 	overrideGLWindow();
 
-	if (time > 0 && primitiveCounter > 0 && scriptCallSetting != 2) {
+	if (time > 0 && primitiveCounter > 0 && script_call_setting != 2) {
 
 		preFrameTime = time;
 		
-		if (scriptCallSetting == 0)
+		if (script_call_setting == 0)
 		{
-			if (preFrame != currentFrame)
+			if (preFrame != current_frame)
 			{
-				runScriptMain();
-				preFrame = currentFrame;
+				run_python_script();
+				preFrame = current_frame;
 				//::MessageBox(NULL, (to_wstring(preFrame) + _T("preFrame")).c_str(), _T("HOGE"), MB_OK);
-				//::MessageBox(NULL, (to_wstring(currentFrame) + _T("currentFrame")).c_str(), _T("HOGE"), MB_OK);
+				//::MessageBox(NULL, (to_wstring(current_frame) + _T("current_frame")).c_str(), _T("HOGE"), MB_OK);
 			}
 		}
-		else if (scriptCallSetting == 1)
+		else if (script_call_setting == 1)
 		{
+			const BridgeParameter& parameter = BridgeParameter::instance();
 			float time = ExpGetFrameTime();
-			int frame = static_cast<int>(time * exportFPS);
-			if (currentFrame == startFrame || frame == startFrame)
+			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
+			if (current_frame == parameter.start_frame || frame == parameter.start_frame)
 			{
 				isExportedFrame = true;
 			}
 			if (isExportedFrame)
 			{
-				if (currentFrame >= startFrame && currentFrame <= endFrame)
+				if (current_frame >= parameter.start_frame && current_frame <= parameter.end_frame)
 				{
-					if (exportedFrames.find(currentFrame) == exportedFrames.end())
+					if (exportedFrames.find(current_frame) == exportedFrames.end())
 					{
-						runScriptMain();
-						exportedFrames[currentFrame] = 1;
-						preFrame = currentFrame;
+						run_python_script();
+						exportedFrames[current_frame] = 1;
+						preFrame = current_frame;
 					}
-					if (currentFrame == endFrame)
+					if (current_frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
 						isExportedFrame = false;
 					}
 				}
-				else if (frame >= startFrame && frame <= endFrame)
+				else if (frame >= parameter.start_frame && frame <= parameter.end_frame)
 				{
 					if (exportedFrames.find(frame) == exportedFrames.end())
 					{
-						runScriptMain();
+						run_python_script();
 						exportedFrames[frame] = 1;
 						preFrame = frame;
 					}
-					if (frame == endFrame)
+					if (frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
 						isExportedFrame = false;
@@ -2433,44 +1456,8 @@ static HRESULT WINAPI present(
 				}
 			}
 		}
-		else if (scriptCallSetting == 3)
-		{
-			if (preFrame != currentFrame)
-			{
-				//::MessageBox(NULL, (to_wstring(time) + _T("秒です")).c_str(), _T("HOGE"), MB_OK);
-				HWND hCombo2 = GetDlgItem(pluginDialog, IDC_COMBO2);
-				{
-					if (pythonThreadHandle)
-					{
-						CloseHandle(pythonThreadHandle);
-						pythonThreadHandle = NULL;
-					}
-				}
-				if (!pythonThreadHandle)
-				{
-					//renderedBuffersCopy.clear();
-					//std::copy(renderedBuffers.begin(), renderedBuffers.end(), renderedBuffersCopy.begin());
-					finishBuffersCopy.clear();
-					finishBuffersCopy.resize(finishBuffers.size());
-					std::copy(finishBuffers.begin(), finishBuffers.end(), finishBuffersCopy.begin());
-					pythonThreadHandle = (HANDLE)_beginthreadex(NULL, 0, runScript, (void*)mmdbridge_python_script.c_str(), 0, NULL);
-				}
-				 if (pythonThreadHandle)
-				 {
-					 // メッセージボックスを出して強制的にスレッド変更
-					 ::MessageBox(NULL, _T("設定画面起動"), _T("HOGE"), MB_OK);
-				 }
-				//// スクリプト呼び出し設定
-				//UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
-				//if (num2 < 3)
-				//{
-				//	scriptCallSetting = 2;
-				//};
-				preFrame = currentFrame;
-			}
-		}
 
-		finishBuffers.clear();
+		BridgeParameter::mutable_instance().finish_buffer_list.clear();
 
 		presentCount++;
 	}
@@ -2502,9 +1489,9 @@ HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 	HRESULT res = (*original_set_fvf)(device, fvf);
 
 	float time = ExpGetFrameTime();
-	if (scriptCallSetting != 2) {
+	if (script_call_setting != 2)
+	{
 		renderData.fvf = fvf;
-
 		DWORD pos = (fvf & D3DFVF_POSITION_MASK);
 		renderData.pos = (pos > 0);
 		renderData.pos_xyz	= ((pos & D3DFVF_XYZ) > 0);
@@ -2596,11 +1583,13 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 	BYTE *pVertexBuf;
 	IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
 
+	VertexBufferList& finishBuffers = BridgeParameter::mutable_instance().finish_buffer_list;
 	if (std::find(finishBuffers.begin(), finishBuffers.end(), pStreamData) == finishBuffers.end())
 	{
 		VertexBuffers::iterator vit = renderData.vertexBuffers.find(pStreamData);
 		if(vit != renderData.vertexBuffers.end())
 		{
+			RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 			pStreamData->lpVtbl->Lock(pStreamData, 0, 0, (void**)&pVertexBuf, D3DLOCK_READONLY);
 
 			// FVF取得
@@ -2701,8 +1690,8 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				{
 					for (size_t i = bytePos; i < vit->second; i += renderData.stride) 
 					{
-						um_vector2 uv;
-						memcpy(&uv, &pVertexBuf[i], sizeof( um_vector2 ));
+						UMVec2f uv;
+						memcpy(&uv, &pVertexBuf[i], sizeof( UMVec2f ));
 						renderedBuffer.uvs.push_back(uv);
 					}
 					bytePos += (sizeof(DWORD) * 2);
@@ -2727,6 +1716,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	const int currentObject = ExpGetCurrentObject();
 
 	IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
+	RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 	if (renderedBuffers.find(pStreamData) == renderedBuffers.end())
 	{
 		return false;
@@ -2904,7 +1894,7 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 	 {
 		D3DLIGHT9  light;
 		p_device->lpVtbl->GetLight(p_device, lightNumber, &light);
-		um_vector3& umlight = renderedBuffer.light;
+		UMVec3f& umlight = renderedBuffer.light;
 		D3DXVECTOR3 v(light.Direction.x, light.Direction.y, light.Direction.z);
 		D3DXVECTOR4 dst;
 		//D3DXVec3Transform(&dst, &v, &renderedBuffer.world);
@@ -2992,6 +1982,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				void *pIndexBuf;
 				if (pIndexData->lpVtbl->Lock(pIndexData, 0, 0, (void**)&pIndexBuf, D3DLOCK_READONLY) == D3D_OK)
 				{
+					RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 					RenderedBuffer &renderedBuffer = renderedBuffers[pStreamData];
 					RenderedSurface &renderedSurface = renderedBuffer.material_map[currentMaterial]->surface;
 					renderedSurface.faces.clear();
@@ -3006,20 +1997,20 @@ static HRESULT WINAPI drawIndexedPrimitive(
 					// 法線を修正
 					for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 					{
-						um_vector3 face;
+						UMVec3i face;
 						if (indexDesc.Format == D3DFMT_INDEX16)
 						{
 							WORD* p = (WORD*)pIndexBuf;
-							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
-							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
-							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+							face.x = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.y = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.z = static_cast<int>((p[startIndex + i + 2]) + 1);
 						}
 						else
 						{
 							DWORD* p = (DWORD*)pIndexBuf;
-							face.ix = static_cast<int>((p[startIndex + i + 0]) + 1);
-							face.iy = static_cast<int>((p[startIndex + i + 1]) + 1);
-							face.iz = static_cast<int>((p[startIndex + i + 2]) + 1);
+							face.x = static_cast<int>((p[startIndex + i + 0]) + 1);
+							face.y = static_cast<int>((p[startIndex + i + 1]) + 1);
+							face.z = static_cast<int>((p[startIndex + i + 2]) + 1);
 						}
 						renderedSurface.faces.push_back(face);
 						if (!renderData.normal)
@@ -3029,19 +2020,19 @@ static HRESULT WINAPI drawIndexedPrimitive(
 							{
 								renderedBuffer.normals.resize(vsize);
 							}
-							if (face.ix >= vsize || face.iy >= vsize || face.iz >= vsize) continue;
-							if (face.ix < 0 || face.iy < 0 || face.iz < 0) continue;
+							if (face.x >= vsize || face.y >= vsize || face.z >= vsize) continue;
+							if (face.x < 0 || face.y < 0 || face.z < 0) continue;
 
 							D3DXVECTOR3 n;
-							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.ix];
-							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.iy];
-							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.iz];
+							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.x];
+							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.y];
+							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.z];
 							D3DXVECTOR3 v10 = v1-v0;
 							D3DXVECTOR3 v20 = v2-v0;
 							::D3DXVec3Cross(&n, &v10, &v20);
-							renderedBuffer.normals[face.ix] += n;
-							renderedBuffer.normals[face.iy] += n;
-							renderedBuffer.normals[face.iz] += n;
+							renderedBuffer.normals[face.x] += n;
+							renderedBuffer.normals[face.y] += n;
+							renderedBuffer.normals[face.z] += n;
 						}
 						if (!renderData.normal)
 						{
@@ -3061,24 +2052,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	}
 
 	
-	HRESULT res;
-
-	if (currentRenderedMaterial)
-	{
-		std::map<int, RenderedMaterial*>& materialMap = renderedMaterials[currentObject];
-		if (materialMap[currentMaterial] == currentRenderedMaterial)
-		{
-			res = (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
-		}
-		else
-		{
-			res = FALSE;
-		}
-	}
-	else
-	{
-		res = (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
-	}
+	HRESULT res = (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
 
 	UMSync();
 	return res;
@@ -3098,8 +2072,8 @@ static HRESULT WINAPI createTexture(
 	HRESULT res = (*original_create_texture)(device, width, height, levels, usage, format, pool, ppTexture, pSharedHandle);
 
 	TextureInfo info;
-	info.wh.ix = width;
-	info.wh.iy = height;
+	info.wh.x = width;
+	info.wh.y = height;
 	info.format = format;
 
 	renderData.textureBuffers[*ppTexture] = info;
@@ -3272,7 +2246,6 @@ static void originalDevice()
 	}
 }
 
-
 static HRESULT WINAPI createDevice(
 	IDirect3D9 *direct3d,
 	UINT adapter,
@@ -3285,6 +2258,40 @@ static HRESULT WINAPI createDevice(
 	HRESULT res = (*original_create_device)(direct3d, adapter, type, window, flag, param, device);
 	p_device = (*device);
 	
+	if (p_device) {
+		original_begin_scene = p_device->lpVtbl->BeginScene;
+		//original_clear = p_device->lpVtbl->Clear;
+		original_present = p_device->lpVtbl->Present;
+		//original_reset = p_device->lpVtbl->Reset;
+		original_begin_state_block = p_device->lpVtbl->BeginStateBlock;
+		original_end_state_block = p_device->lpVtbl->EndStateBlock;
+		original_set_fvf = p_device->lpVtbl->SetFVF;
+		original_draw_indexed_primitive = p_device->lpVtbl->DrawIndexedPrimitive;
+		original_set_stream_source = p_device->lpVtbl->SetStreamSource;
+		original_set_indices = p_device->lpVtbl->SetIndices;
+		original_create_vertex_buffer = p_device->lpVtbl->CreateVertexBuffer;
+		original_set_texture = p_device->lpVtbl->SetTexture;
+		original_create_texture = p_device->lpVtbl->CreateTexture;
+		//original_set_texture_stage_state = p_device->lpVtbl->SetTextureStageState;
+
+		hookDevice();
+	}
+	return res;
+}
+
+static HRESULT WINAPI createDeviceEx(
+	IDirect3D9Ex *direct3dex,
+	UINT adapter,
+	D3DDEVTYPE type,
+	HWND window,
+	DWORD flag,
+	D3DPRESENT_PARAMETERS *param,
+	D3DDISPLAYMODEEX* displayMode,
+	IDirect3DDevice9Ex **device)
+{
+	HRESULT res = (*original_create_deviceex)(direct3dex, adapter, type, window, flag, param, displayMode, device);
+	p_device = reinterpret_cast<IDirect3DDevice9*>(*device);
+
 	if (p_device) {
 		original_begin_scene = p_device->lpVtbl->BeginScene;
 		//original_clear = p_device->lpVtbl->Clear;
@@ -3321,99 +2328,93 @@ extern "C" {
 		// 書き込み属性元に戻す
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
 
-		//InitializeCriticalSection(&criticalSection);
-		hMutex = CreateMutex(NULL,FALSE,NULL);	//ミューテックス生成
-
-		if (mme_direct3d_create)
-		{
-			return ((*mme_direct3d_create)(SDKVersion));
-		}
-		else
-		{
-			return direct3d;
-		}
+		return direct3d;
 	}
+
+	HRESULT WINAPI Direct3DCreate9Ex(UINT SDKVersion, IDirect3D9Ex **ppD3D) {
+		IDirect3D9Ex *direct3d9ex = NULL;
+		(*original_direct3d9ex_create)(SDKVersion, &direct3d9ex);
+
+		if (direct3d9ex) 
+		{
+			original_create_deviceex = direct3d9ex->lpVtbl->CreateDeviceEx;
+			if (original_create_deviceex)
+			{
+				// 書き込み属性付与
+				DWORD old_protect;
+				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
+
+				direct3d9ex->lpVtbl->CreateDeviceEx = createDeviceEx;
+
+				// 書き込み属性元に戻す
+				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), old_protect, &old_protect);
+
+				*ppD3D = direct3d9ex;
+				return S_OK;
+			}
+		}
+		return E_ABORT;
+	}
+
 } // extern "C"
 
-static void setBasePath()
+bool d3d9_initialize()
 {
-	char app_full_path[1024];	// アプリフルパス
-	
-	GetModuleFileNameA(NULL, app_full_path, sizeof(app_full_path) / sizeof(char));
+	// MMDフルパスの取得.
+	{
+		wchar_t app_full_path[1024];
+		GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(wchar_t));
+		std::wstring path(app_full_path);
+		BridgeParameter::mutable_instance().base_path = path.substr(0, path.rfind(_T("MikuMikuDance.exe")));
+	}
 
-	std::string path(app_full_path);
-	basePath = path.substr(0, path.rfind("MikuMikuDance.exe"));
-}
-
-static BOOL init() {
-	setlocale(LC_CTYPE, "");
-	setBasePath();
 	reload_python_file_paths();
 	relaod_python_script();
 
-	TCHAR system_path_buffer[1024]; // システムパス保存用
+	// システムパス保存用
+	TCHAR system_path_buffer[1024];
 	GetSystemDirectory(system_path_buffer, MAX_PATH );
 	std::wstring d3d9_path(system_path_buffer);
 	d3d9_path.append(_T("\\D3D9.DLL"));
-	HMODULE d3d9_module(LoadLibrary(d3d9_path.c_str())); // オリジナルのD3D9.DLLのモジュール
+	// オリジナルのD3D9.DLLのモジュール
+	HMODULE d3d9_module(LoadLibrary(d3d9_path.c_str()));
 
 	if (!d3d9_module) {
 		return FALSE;
 	}
-	
-	// MME
-	{
-		TCHAR app_full_path[1024];	// アプリフルパス
-		GetModuleFileNameW(NULL, app_full_path, sizeof(app_full_path) / sizeof(char));
-		std::wstring full_path(app_full_path);
-		std::wstring mme_path = full_path.substr(0, full_path.rfind(_T("MikuMikuDance.exe")));
-		mme_path.append(_T("\\d3d9_mme.dll"));
-		HMODULE mme_module = NULL;
-		if (PathFileExists(mme_path.c_str()))
-		{
-			mme_module = (LoadLibrary(mme_path.c_str()));
-		}
-		if (mme_module)
-		{
-			// MMEのDirect3DCreate9の関数ポインタを取得
-			mme_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(mme_module, "Direct3DCreate9"));
-		}
-		else
-		{
-			mme_direct3d_create = NULL;
-		}
-	}
 
 	// オリジナルDirect3DCreate9の関数ポインタを取得
 	original_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(d3d9_module, "Direct3DCreate9"));
-	if (!original_direct3d_create ) {
+	if (!original_direct3d_create) {
+		return FALSE;
+	}
+	original_direct3d9ex_create = reinterpret_cast<HRESULT(WINAPI*)(UINT, IDirect3D9Ex**)>(GetProcAddress(d3d9_module, "Direct3DCreate9Ex"));
+	if (!original_direct3d9ex_create) {
 		return FALSE;
 	}
 
 	return TRUE;
 }
-
-static void dispose() 
+	
+void d3d9_dispose() 
 {
-	//DeleteCriticalSection(&criticalSection);
 	renderData.dispose();
-	//Py_Finalize();
-	CloseHandle(hMutex);
-#ifdef WITH_ALEMBIC
-	AlembicArchive::instance().end();
-#endif
+	DisposeAlembic();
 }
 
 // DLLエントリポイント
-BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID) {
-	switch (reason) {
+BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
+{
+	switch (reason) 
+	{
 		case DLL_PROCESS_ATTACH:
 			hInstance=hinst;
-			init();
+			d3d9_initialize();
 			break;
 		case DLL_PROCESS_DETACH:
-			dispose();
+			d3d9_dispose();
 			break;
 	}
 	return TRUE;
 }
+
