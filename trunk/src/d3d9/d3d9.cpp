@@ -108,10 +108,10 @@ static bool copyTextureToFiles(const std::u16string &texturePath);
 static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
 
 //------------------------------------------Python呼び出し--------------------------------------------------------
-static float preFrameTime = 0.0f;
-static int preFrame = 0;
+static int pre_frame = 0;
 static int presentCount = 0;
-static int current_frame = 0;
+static int process_frame = -1;
+static int ui_frame = 0;
 
 // 行列で3Dベクトルをトランスフォームする
 // D3DXVec3Transformとほぼ同じ
@@ -543,15 +543,14 @@ namespace
 	
 	int get_frame_number()
 	{
-		int preFrameNumber = -1;
-		float time = ExpGetFrameTime();
-		int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
-		if (script_call_setting == 1 && preFrameNumber == frame)
+		if (process_frame >= 0) 
 		{
-			++frame;
+			return process_frame;
 		}
-		preFrameNumber = frame;
-		return frame;
+		else
+		{
+			return ui_frame;
+		}
 	}
 
 	int get_start_frame()
@@ -778,7 +777,7 @@ namespace
 			{
 				ret += ": " + returned();
 			}
-			else 
+			else
 			{
 				ret += std::string(": Unparseable Python traceback");
 			}
@@ -1102,7 +1101,7 @@ static void GetFrame(HWND hWnd)
 	char text[256];
 	::GetWindowTextA(hWnd, text, sizeof(text)/sizeof(text[0]));
 		
-	current_frame= atoi(text);
+	ui_frame= atoi(text);
 }
 
 static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
@@ -1374,7 +1373,7 @@ static bool IsValidCallSetting() {
 
 static bool IsValidFrame() {
 	float time = ExpGetFrameTime();
-	return ((script_call_setting == 0) && (preFrame != current_frame)) ||
+	return ((script_call_setting == 0) && (pre_frame != ui_frame)) ||
 			((script_call_setting == 1) && (time > 0));
 }
 
@@ -1402,17 +1401,14 @@ static HRESULT WINAPI present(
 	overrideGLWindow();
 
 	if (time > 0 && primitiveCounter > 0 && script_call_setting != 2) {
-
-		preFrameTime = time;
-		
 		if (script_call_setting == 0)
 		{
-			if (preFrame != current_frame)
+			if (pre_frame != ui_frame)
 			{
 				run_python_script();
-				preFrame = current_frame;
-				//::MessageBox(NULL, (to_wstring(preFrame) + _T("preFrame")).c_str(), _T("HOGE"), MB_OK);
-				//::MessageBox(NULL, (to_wstring(current_frame) + _T("current_frame")).c_str(), _T("HOGE"), MB_OK);
+				pre_frame = ui_frame;
+				//::MessageBox(NULL, (to_wstring(pre_frame) + _T("pre_frame")).c_str(), _T("HOGE"), MB_OK);
+				//::MessageBox(NULL, (to_wstring(ui_frame) + _T("ui_frame")).c_str(), _T("HOGE"), MB_OK);
 			}
 		}
 		else if (script_call_setting == 1)
@@ -1420,21 +1416,22 @@ static HRESULT WINAPI present(
 			const BridgeParameter& parameter = BridgeParameter::instance();
 			float time = ExpGetFrameTime();
 			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
-			if (current_frame == parameter.start_frame || frame == parameter.start_frame)
+			if (ui_frame == parameter.start_frame || frame == parameter.start_frame)
 			{
 				isExportedFrame = true;
 			}
 			if (isExportedFrame)
 			{
-				if (current_frame >= parameter.start_frame && current_frame <= parameter.end_frame)
+				if (ui_frame >= parameter.start_frame && ui_frame <= parameter.end_frame)
 				{
-					if (exportedFrames.find(current_frame) == exportedFrames.end())
+					if (exportedFrames.find(ui_frame) == exportedFrames.end())
 					{
+						process_frame = -1;
 						run_python_script();
-						exportedFrames[current_frame] = 1;
-						preFrame = current_frame;
+						exportedFrames[ui_frame] = 1;
+						pre_frame = ui_frame;
 					}
-					if (current_frame == parameter.end_frame)
+					if (ui_frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
 						isExportedFrame = false;
@@ -1444,14 +1441,19 @@ static HRESULT WINAPI present(
 				{
 					if (exportedFrames.find(frame) == exportedFrames.end())
 					{
-						run_python_script();
-						exportedFrames[frame] = 1;
-						preFrame = frame;
-					}
-					if (frame == parameter.end_frame)
-					{
-						exportedFrames.clear();
-						isExportedFrame = false;
+						const int frames = frame - pre_frame;
+						for (int i = 0; i < frames; ++i) {
+							process_frame = pre_frame + i + 1;
+							run_python_script();
+							exportedFrames[process_frame] = 1;
+							if (process_frame == parameter.end_frame)
+							{
+								exportedFrames.clear();
+								isExportedFrame = false;
+								break;
+							}
+						}
+						pre_frame = process_frame;
 					}
 				}
 			}
@@ -1488,7 +1490,7 @@ HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 {
 	HRESULT res = (*original_set_fvf)(device, fvf);
 
-	float time = ExpGetFrameTime();
+	//float time = ExpGetFrameTime();
 	if (script_call_setting != 2)
 	{
 		renderData.fvf = fvf;
@@ -1928,7 +1930,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	UINT startIndex, 
 	UINT primitiveCount)
 {
-	float time = ExpGetFrameTime();
+	//float time = ExpGetFrameTime();
 
 	const int currentMaterial = ExpGetCurrentMaterial();
 	const int currentObject = ExpGetCurrentObject();
@@ -2123,7 +2125,7 @@ static HRESULT WINAPI setStreamSource(
 {
 	HRESULT res = (*original_set_stream_source)(device, streamNumber, pStreamData, offsetInBytes, stride);
 
-	float time = ExpGetFrameTime();
+	//float time = ExpGetFrameTime();
 
 	int currentTechnic = ExpGetCurrentTechnic();
 
@@ -2149,7 +2151,7 @@ static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9
 {
 	HRESULT res = (*original_set_indices)(device, pIndexData);
 
-	float time = ExpGetFrameTime();
+	//float time = ExpGetFrameTime();
 		
 	int currentTechnic = ExpGetCurrentTechnic();
 
