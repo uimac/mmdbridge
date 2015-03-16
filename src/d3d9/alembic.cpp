@@ -1,4 +1,4 @@
-#ifdef WITH_ALEMBIC
+ï»¿#ifdef WITH_ALEMBIC
 
 #include "d3d9.h"
 #include "d3dx9.h"
@@ -52,8 +52,8 @@ template <class T> std::string to_string(T value)
 	return umbase::UMStringUtil::number_to_string(value);
 }
 
-// s—ñ‚Å3DƒxƒNƒgƒ‹‚ğƒgƒ‰ƒ“ƒXƒtƒH[ƒ€‚·‚é
-// D3DXVec3Transform‚Æ‚Ù‚Ú“¯‚¶
+// è¡Œåˆ—ã§3Dãƒ™ã‚¯ãƒˆãƒ«ã‚’ãƒˆãƒ©ãƒ³ã‚¹ãƒ•ã‚©ãƒ¼ãƒ ã™ã‚‹
+// D3DXVec3Transformã¨ã»ã¼åŒã˜
 static void d3d_vector3_dir_transform(
 	D3DXVECTOR3 &dst, 
 	const D3DXVECTOR3 &src, 
@@ -917,7 +917,7 @@ BOOST_PYTHON_MODULE( mmdbridge_abc )
 #endif //WITH_ALEMBIC
 
 // ---------------------------------------------------------------------------
-// ƒwƒbƒ_‚ÌÀ‘•.
+// ãƒ˜ãƒƒãƒ€ã®å®Ÿè£….
 #ifdef WITH_ALEMBIC
 	void InitAlembic()
 	{

@@ -1,4 +1,4 @@
-
+ï»¿
 #define CINTERFACE
 
 #include "d3d9.h"
@@ -48,7 +48,7 @@ template <class T> std::string to_string(T value)
 	return umbase::UMStringUtil::number_to_string(value);
 }
 
-//ƒƒCƒh•¶š—ñ‚©‚çutf8•¶š—ñ‚É•ÏŠ·
+//ãƒ¯ã‚¤ãƒ‰æ–‡å­—åˆ—ã‹ã‚‰utf8æ–‡å­—åˆ—ã«å¤‰æ›
 static void to_string(std::string &dest, const std::wstring &src) 
 {
 	dest = umbase::UMStringUtil::wstring_to_utf8(src);
@@ -83,15 +83,13 @@ static void messagebox_matrix(D3DXMATRIX& mat, const char *title)
 		+to_string(mat._41)+" "+to_string(mat._42)+" "+to_string(mat._43)+" "+to_string(mat._44)+"\n").c_str(), title, MB_OK);
 }
 
-// IDirect3DDevice9‚ÌƒtƒbƒNŠÖ”
+// IDirect3DDevice9ã®ãƒ•ãƒƒã‚¯é–¢æ•°
 void hookDevice(void);
 void originalDevice(void);
-// ƒtƒbƒN‚µ‚½ƒfƒoƒCƒX
+// ãƒ•ãƒƒã‚¯ã—ãŸãƒ‡ãƒã‚¤ã‚¹
 IDirect3DDevice9 *p_device = NULL;
 
 RenderData renderData;
-
-int primitiveCounter = 0;
 
 std::vector<std::pair<IDirect3DTexture9*, bool> > finishTextureBuffers;
 
@@ -107,14 +105,14 @@ static bool copyTextureToFiles(const std::u16string &texturePath);
 
 static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
 
-//------------------------------------------PythonŒÄ‚Ño‚µ--------------------------------------------------------
+//------------------------------------------Pythonå‘¼ã³å‡ºã—--------------------------------------------------------
 static int pre_frame = 0;
 static int presentCount = 0;
 static int process_frame = -1;
 static int ui_frame = 0;
 
-// s—ñ‚Å3DƒxƒNƒgƒ‹‚ğƒgƒ‰ƒ“ƒXƒtƒH[ƒ€‚·‚é
-// D3DXVec3Transform‚Æ‚Ù‚Ú“¯‚¶
+// è¡Œåˆ—ã§3Dãƒ™ã‚¯ãƒˆãƒ«ã‚’ãƒˆãƒ©ãƒ³ã‚¹ãƒ•ã‚©ãƒ¼ãƒ ã™ã‚‹
+// D3DXVec3Transformã¨ã»ã¼åŒã˜
 static void d3d_vector3_dir_transform(
 	D3DXVECTOR3 &dst, 
 	const D3DXVECTOR3 &src, 
@@ -149,11 +147,11 @@ static void d3d_vector3_transform(
 namespace
 {
 	using namespace boost::python;
-	std::wstring pythonName; // ƒXƒNƒŠƒvƒg–¼
-	int script_call_setting = 2; // ƒXƒNƒŠƒvƒgŒÄ‚Ño‚µİ’è
+	std::wstring pythonName; // ã‚¹ã‚¯ãƒªãƒ—ãƒˆå
+	int script_call_setting = 2; // ã‚¹ã‚¯ãƒªãƒ—ãƒˆå‘¼ã³å‡ºã—è¨­å®š
 	std::map<int, int> exportedFrames;
 
-	/// ƒXƒNƒŠƒvƒg‚ÌƒŠƒ[ƒh.
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆã®ãƒªãƒ­ãƒ¼ãƒ‰.
 	bool relaod_python_script()
 	{
 		BridgeParameter::mutable_instance().mmdbridge_python_script.clear();
@@ -168,10 +166,10 @@ namespace
 		return true;
 	}
 
-	/// ƒXƒNƒŠƒvƒgƒpƒX‚ÌƒŠƒ[ƒh.
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆãƒ‘ã‚¹ã®ãƒªãƒ­ãƒ¼ãƒ‰.
 	void reload_python_file_paths()
 	{
-		TCHAR app_full_path[1024];	// ƒAƒvƒŠƒtƒ‹ƒpƒX
+		TCHAR app_full_path[1024];	// ã‚¢ãƒ—ãƒªãƒ•ãƒ«ãƒ‘ã‚¹
 		
 		GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(TCHAR));
 
@@ -179,7 +177,7 @@ namespace
 		std::wstring searchPath = mutable_parameter.base_path;
 		std::wstring searchStr(searchPath + _T("*.py"));
 
-		// pythonƒtƒ@ƒCƒ‹ŒŸõ
+		// pythonãƒ•ã‚¡ã‚¤ãƒ«æ¤œç´¢
 		WIN32_FIND_DATA find;
 		HANDLE hFind = FindFirstFile(searchStr.c_str(), &find);
 		if (hFind != INVALID_HANDLE_VALUE)
@@ -190,7 +188,7 @@ namespace
 				{
 					std::wstring name( find.cFileName);
 					std::wstring path(searchPath + find.cFileName);
-					// ƒtƒ@ƒCƒ‹‚¾‚Á‚½
+					// ãƒ•ã‚¡ã‚¤ãƒ«ã ã£ãŸ
 					if (mutable_parameter.python_script_name.empty()) { 
 						mutable_parameter.python_script_name = name;
 						mutable_parameter.python_script_path = path;
@@ -870,7 +868,7 @@ void run_python_script()
 		PyImport_AppendInittab("mmdbridge", PyInit_mmdbridge);
 		Py_Initialize();
 			
-		// “ü—Íˆø”‚Ìİ’è
+		// å…¥åŠ›å¼•æ•°ã®è¨­å®š
 		{
 			int argc = 1;
 			const std::wstring wpath = BridgeParameter::instance().base_path;
@@ -883,9 +881,9 @@ void run_python_script()
 
 	try
 	{
-		// ƒ‚ƒWƒ…[ƒ‹‰Šú‰».
+		// ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«åˆæœŸåŒ–.
 		boost::python::object main_namespace = init_python();
-		// ƒXƒNƒŠƒvƒg‚ÌÀs.
+		// ã‚¹ã‚¯ãƒªãƒ—ãƒˆã®å®Ÿè¡Œ.
 		boost::python::object res = boost::python::exec(
 			BridgeParameter::instance().mmdbridge_python_script.c_str(),
 			main_namespace);
@@ -896,7 +894,7 @@ void run_python_script()
 		::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
 	}
 }
-//-----------------------------------------------------------HookŠÖ”ƒ|ƒCƒ“ƒ^-----------------------------------------------------------
+//-----------------------------------------------------------Hooké–¢æ•°ãƒã‚¤ãƒ³ã‚¿-----------------------------------------------------------
 
 // Direct3DCreate9
 IDirect3D9 *(WINAPI *original_direct3d_create)(UINT)(NULL);
@@ -918,11 +916,11 @@ HRESULT (WINAPI *original_present)(IDirect3DDevice9*, const RECT*, const RECT*, 
 HRESULT (WINAPI *original_reset)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*)(NULL);
 
 // IDirect3DDevice9::BeginStateBlock
-// ‚±‚ÌŠÖ”‚ÅAlpVtbl‚ªC³‚³‚ê‚é‚Ì‚ÅAlpVtbl‘‚«Š·‚¦‚È‚¨‚·
+// ã“ã®é–¢æ•°ã§ã€lpVtblãŒä¿®æ­£ã•ã‚Œã‚‹ã®ã§ã€lpVtblæ›¸ãæ›ãˆãªãŠã™
 HRESULT (WINAPI *original_begin_state_block)(IDirect3DDevice9 *)(NULL);
 
 // IDirect3DDevice9::EndStateBlock
-// ‚±‚ÌŠÖ”‚ÅAlpVtbl‚ªC³‚³‚ê‚é‚Ì‚ÅAlpVtbl‘‚«Š·‚¦‚È‚¨‚·
+// ã“ã®é–¢æ•°ã§ã€lpVtblãŒä¿®æ­£ã•ã‚Œã‚‹ã®ã§ã€lpVtblæ›¸ãæ›ãˆãªãŠã™
 HRESULT (WINAPI *original_end_state_block)(IDirect3DDevice9*, IDirect3DStateBlock9**)(NULL);
 
 // IDirect3DDevice9::DrawIndexedPrimitive
@@ -1023,7 +1021,7 @@ static bool copyTextureToFiles(const std::u16string &texturePath)
 
 static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied)
 {
-	// ‚·‚Å‚ÉfinishTexutureBuffer‚É‚ ‚é‚©‚Ç‚¤‚©
+	// ã™ã§ã«finishTexutureBufferã«ã‚ã‚‹ã‹ã©ã†ã‹
 	bool found = false;
 	for (size_t i = 0; i < finishTextureBuffers.size(); ++i)
 	{
@@ -1032,7 +1030,7 @@ static bool writeTextureToMemory(const std::string &textureName, IDirect3DTextur
 
 	if (!found)
 	{
-		// ‘‚«o‚µ‚Ä‚¢‚È‚©‚Á‚½‚Ì‚Å‘‚«o‚µƒtƒ@ƒCƒ‹ƒŠƒXƒg‚É“ü‚ê‚é
+		// æ›¸ãå‡ºã—ã¦ã„ãªã‹ã£ãŸã®ã§æ›¸ãå‡ºã—ãƒ•ã‚¡ã‚¤ãƒ«ãƒªã‚¹ãƒˆã«å…¥ã‚Œã‚‹
 		std::pair<IDirect3DTexture9*, bool> texturebuffer(texture, copied);
 		finishTextureBuffers.push_back(texturebuffer);
 	}
@@ -1042,7 +1040,7 @@ static bool writeTextureToMemory(const std::string &textureName, IDirect3DTextur
 		TextureBuffers::iterator tit = renderData.textureBuffers.find(texture);
 		if(tit != renderData.textureBuffers.end())
 		{
-			// ƒeƒNƒXƒ`ƒƒ‚ğƒƒ‚ƒŠ‚É‘‚«o‚µ
+			// ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãå‡ºã—
 			D3DLOCKED_RECT lockRect;
 			HRESULT isLocked = texture->lpVtbl->LockRect(texture, 0, &lockRect, NULL, D3DLOCK_READONLY);
 			if (isLocked != D3D_OK) { return false; }
@@ -1089,11 +1087,11 @@ static HRESULT WINAPI beginScene(IDirect3DDevice9 *device)
 	return res;
 }
 
-HWND g_hWnd=NULL;	//ƒEƒBƒ“ƒhƒEƒnƒ“ƒhƒ‹
-HMENU g_hMenu=NULL;	//ƒƒjƒ…[
-HWND g_hFrame = NULL; //ƒtƒŒ[ƒ€”
-HWND g_hFrameArrowLeft = NULL; //ƒtƒŒ[ƒ€–îˆó‰E
-HWND g_hFrameArrowRight = NULL; //ƒtƒŒ[ƒ€–îˆó‰E
+HWND g_hWnd=NULL;	//ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒãƒ³ãƒ‰ãƒ«
+HMENU g_hMenu=NULL;	//ãƒ¡ãƒ‹ãƒ¥ãƒ¼
+HWND g_hFrame = NULL; //ãƒ•ãƒ¬ãƒ¼ãƒ æ•°
+HWND g_hFrameArrowLeft = NULL; //ãƒ•ãƒ¬ãƒ¼ãƒ çŸ¢å°å³
+HWND g_hFrameArrowRight = NULL; //ãƒ•ãƒ¬ãƒ¼ãƒ çŸ¢å°å³
 
 
 static void GetFrame(HWND hWnd)
@@ -1112,11 +1110,11 @@ static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
 	WCHAR buf[10];
 	GetWindowText(hWnd, buf, 10);
 
-	if (!g_hFrameArrowLeft && wcscmp(buf, _T("ƒ")) == 0)
+	if (!g_hFrameArrowLeft && wcscmp(buf, _T("ï¼œ")) == 0)
 	{
 		g_hFrameArrowLeft = hWnd;
 	}
-	if (!g_hFrameArrowRight && wcscmp(buf, _T("„")) == 0)
+	if (!g_hFrameArrowRight && wcscmp(buf, _T("ï¼")) == 0)
 	{	
 		g_hFrameArrowRight = hWnd;
 	}
@@ -1132,7 +1130,7 @@ static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
 	return TRUE;	//continue
 }
 
-//æ‚Áæ‚è‘ÎÛƒEƒBƒ“ƒhƒE‚ÌŒŸõ
+//ä¹—ã£å–ã‚Šå¯¾è±¡ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®æ¤œç´¢
 static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 {
 	if (g_hWnd && g_hFrame) {
@@ -1142,7 +1140,7 @@ static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 	HANDLE hModule=(HANDLE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE);
 	if(GetModuleHandle(NULL)==hModule)
 	{
-		//©•ª‚ÌƒvƒƒZƒX‚ªì‚Á‚½ƒEƒBƒ“ƒhƒE‚ğŒ©‚Â‚¯‚½
+		//è‡ªåˆ†ã®ãƒ—ãƒ­ã‚»ã‚¹ãŒä½œã£ãŸã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚’è¦‹ã¤ã‘ãŸ
 		char szClassName[256];
 		GetClassNameA(hWnd,szClassName,sizeof(szClassName)/sizeof(szClassName[0]));
 
@@ -1176,7 +1174,7 @@ static void setMyMenu()
 
 		InsertMenuItem(hmenu, count + 1, TRUE, &minfo);
 		minfo.fMask = MIIM_ID | MIIM_TYPE;
-		minfo.dwTypeData = TEXT("ƒvƒ‰ƒOƒCƒ“İ’è");
+		minfo.dwTypeData = TEXT("ãƒ—ãƒ©ã‚°ã‚¤ãƒ³è¨­å®š");
 		minfo.wID = 1020;
 		InsertMenuItem(hsubs, 1, TRUE, &minfo);
 
@@ -1187,7 +1185,7 @@ static void setMyMenu()
 }
 
 LONG_PTR originalWndProc  =NULL;
-// ‚±‚ÌƒR[ƒh ƒ‚ƒWƒ…[ƒ‹‚ÉŠÜ‚Ü‚ê‚éŠÖ”‚ÌéŒ¾‚ğ“]‘—‚µ‚Ü‚·:
+// ã“ã®ã‚³ãƒ¼ãƒ‰ ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã«å«ã¾ã‚Œã‚‹é–¢æ•°ã®å®£è¨€ã‚’è»¢é€ã—ã¾ã™:
 INT_PTR CALLBACK DialogProc(HWND, UINT, WPARAM, LPARAM);
 HINSTANCE hInstance= NULL;
 HWND pluginDialog = NULL;
@@ -1200,7 +1198,7 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 		{
 			switch(LOWORD(wp))
 			{
-			case 1020: // ƒvƒ‰ƒOƒCƒ“İ’è
+			case 1020: // ãƒ—ãƒ©ã‚°ã‚¤ãƒ³è¨­å®š
 				if(hInstance)
 				{
 					pluginDialog = hWnd;
@@ -1216,7 +1214,7 @@ static LRESULT CALLBACK overrideWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM l
 		break;
 	}
 
-	// ƒTƒuƒNƒ‰ƒX‚Åˆ—‚µ‚È‚©‚Á‚½ƒƒbƒZ[ƒW‚ÍA–{—ˆ‚ÌƒEƒBƒ“ƒhƒEƒvƒƒV[ƒWƒƒ‚Éˆ—‚µ‚Ä‚à‚ç‚¤
+	// ã‚µãƒ–ã‚¯ãƒ©ã‚¹ã§å‡¦ç†ã—ãªã‹ã£ãŸãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã¯ã€æœ¬æ¥ã®ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ãƒ—ãƒ­ã‚·ãƒ¼ã‚¸ãƒ£ã«å‡¦ç†ã—ã¦ã‚‚ã‚‰ã†
 	return CallWindowProc( (WNDPROC)originalWndProc, hWnd, msg, wp, lp );
 }
 
@@ -1239,16 +1237,16 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 	switch (msg) {
 		case WM_INITDIALOG:
 			{
-				//::MessageBoxA(NULL, "hogeo—Íİ’è", "menu", MB_OK);
-				// ƒRƒ“ƒ{ƒ{ƒbƒNƒX‚Éƒf[ƒ^‚ğ‹l‚ß‚Ä‚¢‚­
+				//::MessageBoxA(NULL, "hogeå‡ºåŠ›è¨­å®š", "menu", MB_OK);
+				// ã‚³ãƒ³ãƒœãƒœãƒƒã‚¯ã‚¹ã«ãƒ‡ãƒ¼ã‚¿ã‚’è©°ã‚ã¦ã„ã
 				for (size_t i = 0 ; i < parameter.python_script_name_list.size() ; i++)
 				{
 					SendMessage(hCombo1 , CB_ADDSTRING , 0 , (LPARAM)parameter.python_script_name_list[i].c_str());
 				}
-				//SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("‰æ–Ê‘€ì‚ÉÀs"));
-				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("Às‚·‚é"));
-				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("Às‚µ‚È‚¢"));
-				// ƒEƒCƒ“ƒhƒE¶¬‚É‚Í‚¶‚ß‚É•\¦‚·‚éƒf[ƒ^‚ğw’è
+				//SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("ç”»é¢æ“ä½œæ™‚ã«å®Ÿè¡Œ"));
+				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("å®Ÿè¡Œã™ã‚‹"));
+				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("å®Ÿè¡Œã—ãªã„"));
+				// ã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦ç”Ÿæˆæ™‚ã«ã¯ã˜ã‚ã«è¡¨ç¤ºã™ã‚‹ãƒ‡ãƒ¼ã‚¿ã‚’æŒ‡å®š
 				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)parameter.python_script_name.c_str());
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
 				SendMessage(hCombo2, CB_SETCURSEL, script_call_setting - 1, 0);
@@ -1266,7 +1264,7 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 		case WM_COMMAND:
 			switch (LOWORD(wParam))
 			{
-				case IDOK: // ƒ{ƒ^ƒ“‚ª‰Ÿ‚³‚ê‚½‚Æ‚«
+				case IDOK: // ãƒœã‚¿ãƒ³ãŒæŠ¼ã•ã‚ŒãŸã¨ã
 					{
 						UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
 						if (num1 < parameter.python_script_name_list.size())
@@ -1296,12 +1294,6 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 						mutable_parameter.end_frame = atoi(text2);
 						mutable_parameter.export_fps = atof(text5);
 						
-						if (parameter.start_frame < 2)
-						{
-							messagebox("info", "ƒXƒ^[ƒgƒtƒŒ[ƒ€‚Í2ˆÈã‚É‚µ‚Ä‚­‚¾‚³‚¢");
-							mutable_parameter.start_frame = 2;
-							::SetWindowTextA(hEdit1, to_string(2).c_str());
-						}
 						if (parameter.start_frame >= parameter.end_frame)
 						{
 							mutable_parameter.end_frame = parameter.start_frame + 1;
@@ -1313,17 +1305,17 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 				case IDCANCEL:
 					EndDialog(hWnd, IDCANCEL);
 					break;
-				case IDC_BUTTON1: // ÄŒŸõ
+				case IDC_BUTTON1: // å†æ¤œç´¢
 					reload_python_file_paths();
 					SendMessage(hCombo1, CB_SETCURSEL, SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str()), 0);
 					break;
-				case IDC_BUTTON2: // Ú×İ’è
+				case IDC_BUTTON2: // è©³ç´°è¨­å®š
 
-					// ƒ_ƒCƒAƒƒO•\¦’†‚Í–â“š–³—p‚ÅƒXƒNƒŠƒvƒgÀs‚ğê—p‚Ìƒ‚[ƒh‚É‚·‚é
+					// ãƒ€ã‚¤ã‚¢ãƒ­ã‚°è¡¨ç¤ºä¸­ã¯å•ç­”ç„¡ç”¨ã§ã‚¹ã‚¯ãƒªãƒ—ãƒˆå®Ÿè¡Œã‚’å°‚ç”¨ã®ãƒ¢ãƒ¼ãƒ‰ã«ã™ã‚‹
 					int preSetting = script_call_setting;
 					script_call_setting = 3;
 
-					// scriptÄ“Ç‚İ‚İ
+					// scriptå†èª­ã¿è¾¼ã¿
 					UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
 					if (num1 < parameter.python_script_name_list.size())
 					{
@@ -1343,7 +1335,7 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 						}
 					}
 					script_call_setting = preSetting;
-					::MessageBoxA(NULL, "‚±‚ÌƒXƒNƒŠƒvƒg‚É‚ÍÚ×İ’è‚ª–³‚¢‚æ‚¤‚Å‚·", "info", MB_OK);
+					::MessageBoxA(NULL, "ã“ã®ã‚¹ã‚¯ãƒªãƒ—ãƒˆã«ã¯è©³ç´°è¨­å®šãŒç„¡ã„ã‚ˆã†ã§ã™", "info", MB_OK);
 					EndDialog(hWnd, IDOK);
 					break;
 
@@ -1354,12 +1346,12 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 	return FALSE;
 }
 
-//ƒEƒBƒ“ƒhƒE‚Ìæ‚Áæ‚è
+//ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ä¹—ã£å–ã‚Š
 static void overrideGLWindow()
 {
 	EnumWindows(enumWindowsProc,0);
 	setMyMenu();
-	// ƒTƒuƒNƒ‰ƒX‰»
+	// ã‚µãƒ–ã‚¯ãƒ©ã‚¹åŒ–
 	if(g_hWnd && !originalWndProc){
 		originalWndProc = GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
 		SetWindowLongPtr(g_hWnd,GWLP_WNDPROC,(_LONG_PTR)overrideWndProc);
@@ -1372,15 +1364,16 @@ static bool IsValidCallSetting() {
 }
 
 static bool IsValidFrame() {
-	float time = ExpGetFrameTime();
-	return ((script_call_setting == 0) && (pre_frame != ui_frame)) ||
-			((script_call_setting == 1) && (time > 0));
+	HWND recWindow = FindWindowA("RecWindow", NULL);
+	return (recWindow != NULL);
 }
 
 static bool IsValidTechniq() {
 	const int technic = ExpGetCurrentTechnic();
 	return (technic == 0 || technic == 1 || technic == 2);
 }
+
+float pretime = 0.0f;
 
 static HRESULT WINAPI present(
 	IDirect3DDevice9 *device, 
@@ -1399,81 +1392,35 @@ static HRESULT WINAPI present(
 		BridgeParameter::mutable_instance().frame_height = pDestRect->bottom - pDestRect->top;
 	}
 	overrideGLWindow();
-
-	if (time > 0 && primitiveCounter > 0 && script_call_setting != 2) {
-		if (script_call_setting == 0)
-		{
-			if (pre_frame != ui_frame)
-			{
-				run_python_script();
-				pre_frame = ui_frame;
-				//::MessageBox(NULL, (to_wstring(pre_frame) + _T("pre_frame")).c_str(), _T("HOGE"), MB_OK);
-				//::MessageBox(NULL, (to_wstring(ui_frame) + _T("ui_frame")).c_str(), _T("HOGE"), MB_OK);
-			}
-		}
-		else if (script_call_setting == 1)
+	const bool validFrame = IsValidFrame();
+	const bool validCallSetting = IsValidCallSetting();
+	const bool validTechniq = IsValidTechniq();
+	if (validFrame && validCallSetting && validTechniq)
+	{
+		if (script_call_setting == 1)
 		{
 			const BridgeParameter& parameter = BridgeParameter::instance();
-			float time = ExpGetFrameTime();
-			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps);
-			if (ui_frame == parameter.start_frame || frame == parameter.start_frame)
+			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps + 0.5f);
+			if (frame >= parameter.start_frame && frame <= parameter.end_frame)
 			{
-				isExportedFrame = true;
-			}
-			if (isExportedFrame)
-			{
-				if (ui_frame >= parameter.start_frame && ui_frame <= parameter.end_frame)
+				if (exportedFrames.find(frame) == exportedFrames.end())
 				{
-					if (exportedFrames.find(ui_frame) == exportedFrames.end())
-					{
-						process_frame = -1;
-						run_python_script();
-						exportedFrames[ui_frame] = 1;
-						pre_frame = ui_frame;
-					}
-					if (ui_frame == parameter.end_frame)
+					process_frame = frame;
+					run_python_script();
+					exportedFrames[process_frame] = 1;
+					if (process_frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
 						isExportedFrame = false;
 					}
-				}
-				else if (frame >= parameter.start_frame && frame <= parameter.end_frame)
-				{
-					if (exportedFrames.find(frame) == exportedFrames.end())
-					{
-						const int frames = frame - pre_frame;
-						for (int i = 0; i < frames; ++i) {
-							process_frame = pre_frame + i + 1;
-							run_python_script();
-							exportedFrames[process_frame] = 1;
-							if (process_frame == parameter.end_frame)
-							{
-								exportedFrames.clear();
-								isExportedFrame = false;
-								break;
-							}
-						}
-						pre_frame = process_frame;
-					}
+					pre_frame = frame;
 				}
 			}
 		}
-
 		BridgeParameter::mutable_instance().finish_buffer_list.clear();
-
 		presentCount++;
 	}
 	HRESULT res = (*original_present)(device, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
-	
-	const bool validCallSetting = IsValidCallSetting();
-	const bool validFrame = IsValidFrame();
-	const bool validTechniq =  IsValidTechniq();
-
-	if (validCallSetting && validFrame && validTechniq)
-	{
-		primitiveCounter = 0;
-	}
-	
 	return res;
 }
 
@@ -1481,7 +1428,7 @@ HRESULT WINAPI reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS* pPresentat
 {
 	HRESULT res = (*original_reset)(device, pPresentationParameters);
 
-	::MessageBox(NULL, _T("MMDBridge‚ÍAŒ»ó3D vision –¢‘Î‰‚Å‚·"), _T("HOGE"), MB_OK);
+	::MessageBox(NULL, _T("MMDBridgeã¯ã€ç¾çŠ¶3D vision æœªå¯¾å¿œã§ã™"), _T("HOGE"), MB_OK);
 
 	return res;
 }
@@ -1575,7 +1522,7 @@ static void getTextureParameter(TextureParameter &param)
 	}
 }
 
-// ’¸“_E–@üƒoƒbƒtƒ@EƒeƒNƒXƒ`ƒƒ‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
+// é ‚ç‚¹ãƒ»æ³•ç·šãƒãƒƒãƒ•ã‚¡ãƒ»ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
 static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 {
 	const int currentTechnic = ExpGetCurrentTechnic();
@@ -1594,7 +1541,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 			RenderBufferMap& renderedBuffers = BridgeParameter::mutable_instance().render_buffer_map;
 			pStreamData->lpVtbl->Lock(pStreamData, 0, 0, (void**)&pVertexBuf, D3DLOCK_READONLY);
 
-			// FVFæ“¾
+			// FVFå–å¾—
 			DWORD fvf;
 			device->lpVtbl->GetFVF(device, &fvf);
 			if (renderData.fvf != fvf)
@@ -1634,7 +1581,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				}
 			}
 
-			// ’¸“_
+			// é ‚ç‚¹
 			if (renderData.pos_xyz)
 			{
 				int initialVertexSize = renderedBuffer.vertecies.size();
@@ -1658,9 +1605,9 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				bytePos += (sizeof(DWORD) * 3);
 			}
 
-			// ƒEƒFƒCƒgi—ªj
+			// ã‚¦ã‚§ã‚¤ãƒˆï¼ˆç•¥ï¼‰
 
-			// –@ü
+			// æ³•ç·š
 			if (renderData.normal)
 			{
 				for (size_t i = bytePos; i < vit->second; i += renderData.stride)
@@ -1672,7 +1619,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				bytePos += (sizeof(DWORD) * 3);
 			}
 
-			// ’¸“_ƒJƒ‰[
+			// é ‚ç‚¹ã‚«ãƒ©ãƒ¼
 			if (renderData.diffuse)
 			{
 				for (size_t i = 0; i < vit->second; i += renderData.stride)
@@ -1685,7 +1632,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				bytePos += (sizeof(DWORD));
 			}
 
-			// ‚t‚u
+			// ï¼µï¼¶
 			if (renderData.texcount > 0) 
 			{
 				for (int n = 0; n < renderData.texcount; ++n) 
@@ -1703,7 +1650,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 			
 			pStreamData->lpVtbl->Unlock(pStreamData);
 
-			// ƒƒ‚ƒŠ‚É•Û‘¶
+			// ãƒ¡ãƒ¢ãƒªã«ä¿å­˜
 			finishBuffers.push_back(pStreamData);
 			renderedBuffers[pStreamData] = renderedBuffer;
 		}
@@ -1727,7 +1674,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	bool notFoundObjectMaterial = (renderedMaterials.find(currentObject) == renderedMaterials.end());
 	if (notFoundObjectMaterial || renderedMaterials[currentObject].find(currentMaterial) == renderedMaterials[currentObject].end())
 	{
-		// D3DMATERIAL9 æ“¾
+		// D3DMATERIAL9 å–å¾—
 		D3DMATERIAL9 material = ExpGetPmdMaterial(currentObject, currentMaterial);
 		//p_device->lpVtbl->GetMaterial(p_device, &material);
 		
@@ -1747,7 +1694,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		mat->emissive.z = material.Emissive.b;
 		mat->power = material.Power;
 		
-		// ƒVƒF[ƒ_[
+		// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼æ™‚
 		if (currentTechnic == 2) {
 			LPD3DXEFFECT* effect =  UMGetEffect();
 
@@ -1941,14 +1888,14 @@ static HRESULT WINAPI drawIndexedPrimitive(
 
 	if (validCallSetting && validFrame && validTechniq) 
 	{
-		// ƒŒƒ“ƒ_ƒŠƒ“ƒOŠJn
-		if (renderData.pIndexData && renderData.pStreamData && renderData.pos_xyz && primitiveCounter > 0)
+		// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°é–‹å§‹
+		if (renderData.pIndexData && renderData.pStreamData && renderData.pos_xyz)
 		{
-			// ƒeƒNƒXƒ`ƒƒî•ñæ“¾
+			// ãƒ†ã‚¯ã‚¹ãƒãƒ£æƒ…å ±å–å¾—
 			TextureParameter textureParameter;
 			getTextureParameter(textureParameter);
 
-			// ƒeƒNƒXƒ`ƒƒ‚ğƒƒ‚ƒŠ‚É•Û‘¶
+			// ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’ãƒ¡ãƒ¢ãƒªã«ä¿å­˜
 			if (textureParameter.texture)
 			{
 				if (!textureParameter.textureName.empty())
@@ -1961,20 +1908,20 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				}
 			}
 
-			// ’¸“_ƒoƒbƒtƒ@E–@üƒoƒbƒtƒ@EƒeƒNƒXƒ`ƒƒƒoƒbƒtƒ@‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
+			// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ãƒ»æ³•ç·šãƒãƒƒãƒ•ã‚¡ãƒ»ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
 			if (!writeBuffersToMemory(device))
 			{
 				return (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
 			}
 			
-			// ƒ}ƒeƒŠƒAƒ‹‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
+			// ãƒãƒ†ãƒªã‚¢ãƒ«ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
 			if (!writeMaterialsToMemory(textureParameter))
 			{
 				return  (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
 			}
 
-			// ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
-			// –@ü‚ª‚È‚¢ê‡–@ü‚ğŒvZ
+			// ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
+			// æ³•ç·šãŒãªã„å ´åˆæ³•ç·šã‚’è¨ˆç®—
 			IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
 			IDirect3DIndexBuffer9 *pIndexData = renderData.pIndexData;
 
@@ -1989,14 +1936,14 @@ static HRESULT WINAPI drawIndexedPrimitive(
 					RenderedSurface &renderedSurface = renderedBuffer.material_map[currentMaterial]->surface;
 					renderedSurface.faces.clear();
 
-					// •ÏŠ·s—ñ‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
+					// å¤‰æ›è¡Œåˆ—ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
 					writeMatrixToMemory(device, renderedBuffer);
 
-					// ƒ‰ƒCƒg‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
+					// ãƒ©ã‚¤ãƒˆã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
 					writeLightToMemory(device, renderedBuffer);
 
-					// ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ğƒƒ‚ƒŠ‚É‘‚«‚İ
-					// –@ü‚ğC³
+					// ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ãƒ¡ãƒ¢ãƒªã«æ›¸ãè¾¼ã¿
+					// æ³•ç·šã‚’ä¿®æ­£
 					for (size_t i = 0, size = primitiveCount * 3; i < size; i += 3)
 					{
 						UMVec3i face;
@@ -2050,7 +1997,6 @@ static HRESULT WINAPI drawIndexedPrimitive(
 			}
 			pIndexData->lpVtbl->Unlock(pIndexData);
 		}
-		primitiveCounter++;
 	}
 
 	
@@ -2167,7 +2113,7 @@ static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9
 }
 
 // IDirect3DDevice9::BeginStateBlock
-// ‚±‚ÌŠÖ”‚ÅAlpVtbl‚ªC³‚³‚ê‚é‚Ì‚ÅAlpVtbl‘‚«Š·‚¦‚È‚¨‚·
+// ã“ã®é–¢æ•°ã§ã€lpVtblãŒä¿®æ­£ã•ã‚Œã‚‹ã®ã§ã€lpVtblæ›¸ãæ›ãˆãªãŠã™
 static HRESULT WINAPI beginStateBlock(IDirect3DDevice9 *device)
 {
 	originalDevice();
@@ -2180,7 +2126,7 @@ static HRESULT WINAPI beginStateBlock(IDirect3DDevice9 *device)
 }
 
 // IDirect3DDevice9::EndStateBlock
-// ‚±‚ÌŠÖ”‚ÅAlpVtbl‚ªC³‚³‚ê‚é‚Ì‚ÅAlpVtbl‘‚«Š·‚¦‚È‚¨‚·
+// ã“ã®é–¢æ•°ã§ã€lpVtblãŒä¿®æ­£ã•ã‚Œã‚‹ã®ã§ã€lpVtblæ›¸ãæ›ãˆãªãŠã™
 static HRESULT WINAPI endStateBlock(IDirect3DDevice9 *device, IDirect3DStateBlock9 **ppSB)
 {
 	originalDevice();
@@ -2196,7 +2142,7 @@ static void hookDevice()
 {
 	if (p_device) 
 	{
-		// ‘‚«‚İ‘®«•t—^
+		// æ›¸ãè¾¼ã¿å±æ€§ä»˜ä¸
 		DWORD old_protect;
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
@@ -2215,7 +2161,7 @@ static void hookDevice()
 		p_device->lpVtbl->CreateTexture = createTexture;
 		//p_device->lpVtbl->SetTextureStageState = setTextureStageState;
 
-		// ‘‚«‚İ‘®«Œ³‚É–ß‚·
+		// æ›¸ãè¾¼ã¿å±æ€§å…ƒã«æˆ»ã™
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), old_protect, &old_protect);
 	}
 }
@@ -2224,7 +2170,7 @@ static void originalDevice()
 {
 	if (p_device) 
 	{
-		// ‘‚«‚İ‘®«•t—^
+		// æ›¸ãè¾¼ã¿å±æ€§ä»˜ä¸
 		DWORD old_protect;
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
@@ -2243,7 +2189,7 @@ static void originalDevice()
 		p_device->lpVtbl->CreateTexture = original_create_texture;
 		//p_device->lpVtbl->SetTextureStageState = setTextureStageState;
 
-		// ‘‚«‚İ‘®«Œ³‚É–ß‚·
+		// æ›¸ãè¾¼ã¿å±æ€§å…ƒã«æˆ»ã™
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), old_protect, &old_protect);
 	}
 }
@@ -2316,18 +2262,18 @@ static HRESULT WINAPI createDeviceEx(
 }
 
 extern "C" {
-	// ‹UDirect3DCreate9
+	// å½Direct3DCreate9
 	IDirect3D9 * WINAPI Direct3DCreate9(UINT SDKVersion) {
 		IDirect3D9 *direct3d((*original_direct3d_create)(SDKVersion));
 		original_create_device = direct3d->lpVtbl->CreateDevice;
 
-		// ‘‚«‚İ‘®«•t—^
+		// æ›¸ãè¾¼ã¿å±æ€§ä»˜ä¸
 		DWORD old_protect;
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
 		direct3d->lpVtbl->CreateDevice = createDevice;
 
-		// ‘‚«‚İ‘®«Œ³‚É–ß‚·
+		// æ›¸ãè¾¼ã¿å±æ€§å…ƒã«æˆ»ã™
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
 
 		return direct3d;
@@ -2342,13 +2288,13 @@ extern "C" {
 			original_create_deviceex = direct3d9ex->lpVtbl->CreateDeviceEx;
 			if (original_create_deviceex)
 			{
-				// ‘‚«‚İ‘®«•t—^
+				// æ›¸ãè¾¼ã¿å±æ€§ä»˜ä¸
 				DWORD old_protect;
 				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 
 				direct3d9ex->lpVtbl->CreateDeviceEx = createDeviceEx;
 
-				// ‘‚«‚İ‘®«Œ³‚É–ß‚·
+				// æ›¸ãè¾¼ã¿å±æ€§å…ƒã«æˆ»ã™
 				VirtualProtect(reinterpret_cast<void *>(direct3d9ex->lpVtbl), sizeof(direct3d9ex->lpVtbl), old_protect, &old_protect);
 
 				*ppD3D = direct3d9ex;
@@ -2362,7 +2308,7 @@ extern "C" {
 
 bool d3d9_initialize()
 {
-	// MMDƒtƒ‹ƒpƒX‚Ìæ“¾.
+	// MMDãƒ•ãƒ«ãƒ‘ã‚¹ã®å–å¾—.
 	{
 		wchar_t app_full_path[1024];
 		GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(wchar_t));
@@ -2373,19 +2319,19 @@ bool d3d9_initialize()
 	reload_python_file_paths();
 	relaod_python_script();
 
-	// ƒVƒXƒeƒ€ƒpƒX•Û‘¶—p
+	// ã‚·ã‚¹ãƒ†ãƒ ãƒ‘ã‚¹ä¿å­˜ç”¨
 	TCHAR system_path_buffer[1024];
 	GetSystemDirectory(system_path_buffer, MAX_PATH );
 	std::wstring d3d9_path(system_path_buffer);
 	d3d9_path.append(_T("\\D3D9.DLL"));
-	// ƒIƒŠƒWƒiƒ‹‚ÌD3D9.DLL‚Ìƒ‚ƒWƒ…[ƒ‹
+	// ã‚ªãƒªã‚¸ãƒŠãƒ«ã®D3D9.DLLã®ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«
 	HMODULE d3d9_module(LoadLibrary(d3d9_path.c_str()));
 
 	if (!d3d9_module) {
 		return FALSE;
 	}
 
-	// ƒIƒŠƒWƒiƒ‹Direct3DCreate9‚ÌŠÖ”ƒ|ƒCƒ“ƒ^‚ğæ“¾
+	// ã‚ªãƒªã‚¸ãƒŠãƒ«Direct3DCreate9ã®é–¢æ•°ãƒã‚¤ãƒ³ã‚¿ã‚’å–å¾—
 	original_direct3d_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT)>(GetProcAddress(d3d9_module, "Direct3DCreate9"));
 	if (!original_direct3d_create) {
 		return FALSE;
@@ -2404,7 +2350,7 @@ void d3d9_dispose()
 	DisposeAlembic();
 }
 
-// DLLƒGƒ“ƒgƒŠƒ|ƒCƒ“ƒg
+// DLLã‚¨ãƒ³ãƒˆãƒªãƒã‚¤ãƒ³ãƒˆ
 BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
 {
 	switch (reason) 

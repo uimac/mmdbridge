@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include <string>
 #include <vector>
@@ -18,37 +18,37 @@ public:
 		return parameter;
 	}
 
-	/// ƒx[ƒXƒfƒBƒŒƒNƒgƒŠ
+	/// ãƒ™ãƒ¼ã‚¹ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
 	std::wstring base_path;
-	/// pythonƒXƒNƒŠƒvƒg
+	/// pythonã‚¹ã‚¯ãƒªãƒ—ãƒˆ
 	std::string mmdbridge_python_script;
-	/// ƒXƒNƒŠƒvƒgƒpƒX
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆãƒ‘ã‚¹
 	std::wstring python_script_path;
-	/// ƒXƒNƒŠƒvƒg–¼
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆå
 	std ::wstring python_script_name;
-	/// ƒXƒNƒŠƒvƒg–¼
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆå
 	std::vector<std::wstring> python_script_name_list;
-	/// ƒXƒNƒŠƒvƒgƒpƒX
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆãƒ‘ã‚¹
 	std::vector<std::wstring> python_script_path_list;
 
-	/// ƒXƒNƒŠƒvƒgŒÄ‚Ño‚µİ’è
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆå‘¼ã³å‡ºã—è¨­å®š
 	//int script_call_setting;
-	/// ŠJnƒtƒŒ[ƒ€
+	/// é–‹å§‹ãƒ•ãƒ¬ãƒ¼ãƒ 
 	int start_frame;
-	/// I—¹ƒtƒŒ[ƒ€
+	/// çµ‚äº†ãƒ•ãƒ¬ãƒ¼ãƒ 
 	int end_frame;
-	/// o—Í•
+	/// å‡ºåŠ›å¹…
 	int frame_width;
-	/// o—Í‚‚³
+	/// å‡ºåŠ›é«˜ã•
 	int frame_height;
-	/// o—Ífps
+	/// å‡ºåŠ›fps
 	double export_fps;
-	/// ƒeƒNƒXƒ`ƒƒƒoƒbƒtƒ@‚ª—LŒø‚©‚Ç‚¤‚©.
+	/// ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ•ã‚¡ãŒæœ‰åŠ¹ã‹ã©ã†ã‹.
 	bool is_texture_buffer_enabled;
 
-	/// ƒXƒNƒŠƒvƒg‚©‚ç‚Ìˆê•Û‘¶’l(int)
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‹ã‚‰ã®ä¸€æ™‚ä¿å­˜å€¤(int)
 	std::map<int, int> py_int_map;
-	/// ƒXƒNƒŠƒvƒg‚©‚ç‚Ìˆê•Û‘¶’l(float)
+	/// ã‚¹ã‚¯ãƒªãƒ—ãƒˆã‹ã‚‰ã®ä¸€æ™‚ä¿å­˜å€¤(float)
 	std::map<int, float> py_float_map;
 	
 	VertexBufferList finish_buffer_list;
@@ -59,7 +59,7 @@ public:
 private:
 	BridgeParameter() :
 		//script_call_setting(2)
-		 start_frame(5)
+		 start_frame(0)
 		, end_frame(100)
 		, frame_width(800)
 		, frame_height(450)
