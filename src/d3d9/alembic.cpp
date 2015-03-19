@@ -156,7 +156,8 @@ bool start_alembic_export(
 	int export_mode, 
 	bool isExportNomals,
 	bool is_export_uvs,
-	bool is_use_euler_rotation_camera)
+	bool is_use_euler_rotation_camera,
+	bool is_use_ogawa)
 {
 	const BridgeParameter& parameter = BridgeParameter::instance();
 	if (parameter.export_fps <= 0)
@@ -171,9 +172,17 @@ bool start_alembic_export(
 		{
 			output_path = umbase::UMStringUtil::wstring_to_utf8(parameter.base_path) + ("out\\alembic_file.abc");
 		}
-		AlembicArchive::instance().archive =
-			new Alembic::Abc::OArchive(Alembic::AbcCoreOgawa::WriteArchive(),
-			output_path.c_str());
+		if (is_use_ogawa) {
+			AlembicArchive::instance().archive =
+				new Alembic::Abc::OArchive(Alembic::AbcCoreOgawa::WriteArchive(),
+				output_path.c_str());
+		}
+		else
+		{
+			AlembicArchive::instance().archive =
+				new Alembic::Abc::OArchive(Alembic::AbcCoreHDF5::WriteArchive(),
+				output_path.c_str());
+		}
 
 		AlembicArchive &archive = AlembicArchive::instance();
 		const double dt = 1.0 / parameter.export_fps;
