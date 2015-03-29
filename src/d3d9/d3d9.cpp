@@ -280,6 +280,11 @@ namespace
 		return false;
 	}
 
+	int get_pre_accessory_count()
+	{
+		return ExpGetPreAcsNum();
+	}
+
 	boost::python::list get_diffuse(int at, int mpos)
 	{
 		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
@@ -455,7 +460,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraUp(&v);
-		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -479,7 +484,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraAt(&v);
-		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -492,7 +497,7 @@ namespace
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraEye(&v);
-		d3d_vector3_transform(dst, v, BridgeParameter::instance().render_buffer(0).world_inv);
+		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
 		boost::python::list result;
 		result.append(dst.x);
 		result.append(dst.y);
@@ -712,11 +717,59 @@ namespace
 		result.append(vec.z);
 		return result;
 	}
-	
+
+	//class PythonRedirectBuffer
+	//{
+	//public:
+	//	typedef std::string Buffer;
+	//	Buffer& output() { return buffer_; }
+	//	bool flush() {
+	//		//std::cout << buffer_ << std::flush;
+	//		for (int i = 0, size = buffer_.size(); i < size; ++i) {
+	//			putchar(buffer_[i]);
+	//		}
+	//		buffer_.clear();
+	//		return true;
+	//	}
+	//	void write(std::string const& str) {
+	//		const int current = static_cast<int>(buffer_.size());
+	//		const int size = static_cast<int>(str.size());
+	//		const int next = current + size;
+	//		buffer_.resize(next);
+	//		memcpy(&buffer_[current], str.c_str(), size);
+	//	}
+	//private:
+	//	static Buffer buffer_;
+	//};
+	//PythonRedirectBuffer::Buffer PythonRedirectBuffer::buffer_;
+	//
+	//class PythonRedirect {
+	//public:
+	//	PythonRedirectBuffer redirect_buffer_;
+	//	void write(std::string const& str) {
+	//		const int current = static_cast<int>(redirect_buffer_.output().size());
+	//		const int size = static_cast<int>(str.size());
+	//		const int next = current + size;
+	//		redirect_buffer_.output().resize(next);
+	//		memcpy(&redirect_buffer_.output()[current], str.c_str(), size);
+	//	}
+	//};
+
 	object init_python()
 	{
 		object main_module = import("__main__");
 		object main_namespace = main_module.attr("__dict__");
+		//main_namespace["PythonRedirectBuffer"]
+		//	= class_<PythonRedirectBuffer>("PythonRedirectBuffer", init<>())
+		//	.def("flush", &PythonRedirectBuffer::flush)
+		//	.def("write", &PythonRedirectBuffer::write);
+		//main_namespace["PythonRedirect"] 
+		//	= class_<PythonRedirect>("PythonRedirect", init<>())
+		//	.add_property("buffer", &PythonRedirect::redirect_buffer_)
+		//	.def("write", &PythonRedirect::write);
+		//PythonRedirect redirect;
+		//boost::python::import("sys").attr("stderr") = redirect;
+		//boost::python::import("sys").attr("stdout") = redirect;
 		return main_namespace;
 	}
 	
@@ -797,6 +850,7 @@ BOOST_PYTHON_MODULE( mmdbridge )
 	def("get_uv", get_uv);
 	def("get_material_size", get_material_size);
 	def("is_accessory", is_accessory);
+	def("get_pre_accessory_count", get_pre_accessory_count);
 	def("get_ambient", get_ambient);
 	def("get_diffuse", get_diffuse);
 	def("get_specular", get_specular);

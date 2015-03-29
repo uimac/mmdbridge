@@ -755,6 +755,62 @@ void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	double roll = asin( 2*(test));
 	dst = Imath::V3d(yaw, pitch, roll);
 }
+
+boost::python::list get_abc_angle_axis()
+{
+	const RenderedBuffer & renderedBuffer = BridgeParameter::instance().first_noaccessory_buffer();
+	D3DXMATRIX convertMat(
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, -1, 0,
+		0, 0, 0, 1);
+
+	D3DXMATRIX convertedWordInv;
+	::D3DXMatrixMultiply(&convertedWordInv, &renderedBuffer.world_inv, &convertMat);
+			
+	D3DXVECTOR3 eye;
+	{
+		D3DXVECTOR3 v;
+		UMGetCameraEye(&v);
+		d3d_vector3_transform(eye, v, convertedWordInv);
+	}
+
+	D3DXVECTOR3 at;
+	{
+		D3DXVECTOR3 v;
+		UMGetCameraAt(&v);
+		d3d_vector3_transform(at, v, convertedWordInv);
+	}
+
+	D3DXVECTOR3 up;
+	{
+		D3DXVECTOR3 v;
+		UMGetCameraUp(&v);
+		d3d_vector3_dir_transform(up, v, convertedWordInv);
+		::D3DXVec3Normalize(&up, &up);
+	}
+
+	Imath::V3d trans((double)eye.x, (double)eye.y, (double)(eye.z));
+
+	D3DXMATRIX view;
+	::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
+
+	Imath::M44d rot(
+		-view.m[0][0], view.m[0][1], view.m[0][2], 0,
+		-view.m[1][0], view.m[1][1], view.m[1][2], 0,
+		view.m[2][0], -view.m[2][1], -view.m[2][2], 0,
+		0, 0, 0, 1);
+
+	Imath::Quatd quat = Imath::extractQuat(rot);
+	quat.normalize();
+
+	boost::python::list result;
+	result.append(quat.angle());
+	result.append(quat.axis()[0]);
+	result.append(quat.axis()[1]);
+	result.append(quat.axis()[2]);
+	return result;
+}
 	
 void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, bool isUseEuler)
 {
@@ -921,6 +977,7 @@ BOOST_PYTHON_MODULE( mmdbridge_abc )
 	def("start_alembic_export", start_alembic_export);
 	def("end_alembic_export", end_alembic_export);
 	def("execute_alembic_export", execute_alembic_export);
+	def("get_abc_angle_axis", get_abc_angle_axis);
 }
 
 #endif //WITH_ALEMBIC

@@ -56,6 +56,8 @@ public:
 
 	const RenderedBuffer& render_buffer(int finish_buffer_index) const;
 
+	const RenderedBuffer& first_noaccessory_buffer() const;
+
 private:
 	BridgeParameter() :
 		//script_call_setting(2)

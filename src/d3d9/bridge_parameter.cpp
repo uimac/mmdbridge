@@ -18,3 +18,22 @@ const RenderedBuffer& BridgeParameter::render_buffer(int finish_buffer_index) co
 	}
 	return none;
 }
+
+const RenderedBuffer& BridgeParameter::first_noaccessory_buffer() const
+{
+	static RenderedBuffer none;
+	for (int i = 0, size = static_cast<int>(finish_buffer_list.size()); i < size; ++i)
+	{
+		if (IDirect3DVertexBuffer9* buffer = finish_buffer_list.at(i))
+		{
+			RenderBufferMap::const_iterator it = render_buffer_map.find(buffer);
+			if (it != render_buffer_map.end())
+			{
+				if (!it->second.isAccessory) {
+					return it->second;
+				}
+			}
+		}
+	}
+	return none;
+}

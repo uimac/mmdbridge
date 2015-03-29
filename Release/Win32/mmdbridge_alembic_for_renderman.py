@@ -41,29 +41,22 @@ def mult_matrix(m, mm):
 def export_rib(ribpath, framenumber):
 	ribfile = open(ribpath, 'a')
 
-	eye = get_camera_eye_org()
+	eye = get_camera_eye()
 	up = get_camera_up()
 	aspect = get_camera_aspect()
 	camera_fov = get_camera_fovy()
 	fov = math.degrees(camera_fov)
-	#fov = math.degrees(2*atan(tan(camera_fov/2)*(aspect)))
 
-	winv = get_world(0)
-	axis = [winv[6] - winv[9], winv[8] - winv[2], winv[1] - winv[4]]
-	trace = winv[0] + winv[5] + winv[10] + winv[15] - 2
-	messagebox("trace:" + str(trace))
-	rot = math.degrees(acos(clip_cos(trace/2.0)))
-	eye = [eye[0] - winv[12], eye[1] - winv[13], eye[2] - winv[14]]
-	messagebox(str(winv))
+	angle_axis = get_abc_angle_axis()
+	rot = math.degrees(angle_axis[0])
+	axis = [angle_axis[1], angle_axis[2], angle_axis[3]]
 
-	messagebox(str(eye))
 	light = [0.5, 0.5, 0.5]
 	if (get_vertex_buffer_size() > 0):
 		light = get_light(0)
 
 	if get_frame_number() == start_frame:
 		ribfile.write("##RenderMan RIB-Structure 1.0\n")
-
 
 	ribfile.write("FrameBegin " + str(get_frame_number()-start_frame+1) +"\n")
 
@@ -72,8 +65,8 @@ def export_rib(ribpath, framenumber):
 	ribfile.write("Projection \"perspective\" \"fov\" " + '[' +str(fov) + ']' + "\n")
 	ribfile.write("PixelSamples 1 1\n")
 
-	ribfile.write("Translate "+str(-eye[0])+" "+str(-eye[1])+" "+str(-eye[2])+"\n")
 	ribfile.write("Rotate "+str(rot)+" "+str(axis[0])+" "+str(axis[1])+" "+str(axis[2])+"\n")
+	ribfile.write("Translate "+str(-eye[0])+" "+str(-eye[1])+" "+str(-eye[2])+"\n")
 	ribfile.write("Scale 1 1 -1\n")
 	ribfile.write("WorldBegin\n")
 	ribfile.write("Attribute \"visibility\"\n")
@@ -86,7 +79,7 @@ def export_rib(ribpath, framenumber):
 		w = get_world(buf)
 
 		for mat in range(get_material_size(buf)):
-			material_name = "material_" + str(buf) + "_" + str(mat)
+			material_name = "mesh_" + str(buf) + "_material_" + str(mat)
 			object_name = "xform_"+str(buf) + "_" + "material_" + str(mat)
 
 			ambient = get_ambient(buf, mat)
@@ -113,15 +106,15 @@ def export_rib(ribpath, framenumber):
 
 			# calculate bbox
 			box_min = [float("inf"), float("inf"), float("inf")]
-			box_max = [-float("inf"), -float("inf"), -float("inf")]
+			box_max = [float("-inf"), float("-inf"), float("-inf")]
 			for findex in range(get_face_size(buf, mat)):
 				f = get_face(buf, mat, findex)
 				v0 = get_vertex(buf, f[0]-1)
 				v1 = get_vertex(buf, f[1]-1)
 				v2 = get_vertex(buf, f[2]-1)
 				for i in range(3):
-					box_min[i] = min(v0[i], v1[i], v2[i], box_min[i])
-					box_max[i] = max(v0[i], v1[i], v2[i], box_max[i])
+					box_min[i] = min([v0[i], v1[i], v2[i], box_min[i]])
+					box_max[i] = max([v0[i], v1[i], v2[i], box_max[i]])
 
 			ribfile.write("Procedural \"DynamicLoad\" [ \"" + alembic_dll_path + "\""\
 							+" \" -filename alembic_file.abc -fps 30 -frame " + str(framenumber)\
@@ -129,7 +122,7 @@ def export_rib(ribpath, framenumber):
 							+"[ "\
 							+ str(box_min[0]) +" "+ str(box_max[0]) +" "\
 							+ str(box_min[1]) +" "+ str(box_max[1]) +" "\
-							+ str(box_min[2]) +" "+ str(box_max[2]) +" ]\n")
+							+ str(-box_min[2]) +" "+ str(-box_max[2]) +" ]\n")
 
 			ribfile.write("AttributeEnd\n")
 
@@ -219,8 +212,8 @@ if (framenumber == start_frame):
 		os.remove(ribpath)
 
 	messagebox("alembic export started")
-#	export_mtl(mtlpath, export_mode)
 	copy_textures(texture_export_dir.replace("/", "\\"))
+	export_mtl(mtlpath, export_mode)
 	start_alembic_export("", export_mode, export_normals, export_uvs, is_use_euler_rotation_for_camera, is_use_ogawa)
 
 if (framenumber >= start_frame or framenumber <= end_frame):
