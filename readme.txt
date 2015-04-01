@@ -1,34 +1,39 @@
 ﻿MMDBridge
 
 ビルド方法
+
 ・DirectX SDKをインストールしてinclude/libの設定をする.
   プロジェクトファイルには設定していない.
-  バージョンは9.0c以降の2005あたりのを適当に使う.
+  バージョンはApril 2006を使用している.
   ビルド時にDirectXのヘッダでエラーが出たらDirectXのヘッダを適当にコメントアウトする.
   他に対処法があるかもしれないが知らない.
-・python3.2 (win32)をインストールする.
-・libs/mmd/include, libs/mmd/lib にMikuMikuDanceのDataフォルダに入っている, 
+・libs/mmd/include, libs/mmd/Win32, にMikuMikuDanceのDataフォルダに入っている, 
   MMDExport.h, MMDExport.libを置く
-・Release/ にMikuMikuDance.exeと同階層にあるファイルを全て上書きコピーする.
-・Release/ にpython3.dllを置く.
-  (python3.dllはPython32をインストールしたディレクトリのDLLsの中にある)
-・VC2008 Express Editionでhook.slnを開いてビルドする.
+
+・Release/Win32/ にMikuMikuDance.exeと同階層にあるファイルを全て上書きコピーする.
+・boost.pythonをビルドしてlibs/boostに同じように配置する.
+・Python3.4をビルドしてlibs/pythonに同じように配置する.
+・(Alembic使用する場合)HDF5をビルドしてlibs/hdf5に同じように配置する.
+・(Alembic使用する場合)ilmbaseをビルドしてlibs/ilmbaseに同じように配置する.
+・(Alembic使用する場合)Alembicをビルドしてlibs/alembicに同じように配置する.
+・Release/Win32/ にビルドしたpython34.dllとPythonのLibフォルダを置く.
+
+・VC2013でhook.slnを開いてビルドする.
 ・Debugビルドは成功したところでデバッグできないので,
   構成にそもそも入れていない. 
   対処法があるかもしれないが知らない.
   めんどくさいがReleaseでMessageBoxデバッグしていた.
 
 その他
-・Alembic出力を実装しかけたがSimpleAbcViewerで見れる状態までいけたものの,
-  houdini,mayaでインポートできるには至らなかったので途中で放置している.
-  有効にするにはAlembicを頑張ってビルドして,libs以下に配置し,
-  WITH_ALEMBICを指定してビルドする.
+・Alembicを無効にするにはプリプロセッサの定義のWITH_ALEMBICを外す。
+・Alembic含めて完全なビルドをする場合の難易度は, かなり高いです。
 
 免責事項
 ・MITライセンスに従います.
 ・詳細はLICENSE.txtをご参照ください.
 
-更新履歴
-2012/03/10 - MMDオフ前に杯動画を見ながら - uimac
+README更新履歴
+2015/03/30 - いい加減古くなっていたので更新
+2012/03/10
 
 http://code.google.com/p/mmdbridge/
