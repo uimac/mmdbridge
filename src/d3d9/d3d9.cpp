@@ -1940,7 +1940,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	const bool validFrame = IsValidFrame();
 	const bool validTechniq = IsValidTechniq();
 
-	if (validCallSetting && validFrame && validTechniq) 
+	if (validCallSetting && validFrame && validTechniq && type == D3DPT_TRIANGLELIST)
 	{
 		// レンダリング開始
 		if (renderData.pIndexData && renderData.pStreamData && renderData.pos_xyz)
@@ -2015,27 +2015,30 @@ static HRESULT WINAPI drawIndexedPrimitive(
 							face.y = static_cast<int>((p[startIndex + i + 1]) + 1);
 							face.z = static_cast<int>((p[startIndex + i + 2]) + 1);
 						}
+						const int vsize = renderedBuffer.vertecies.size();
+						if (face.x > vsize || face.y > vsize || face.z > vsize) {
+							continue;
+						}
+						if (face.x <= 0 || face.y <= 0 || face.z <= 0) {
+							continue;
+						}
 						renderedSurface.faces.push_back(face);
 						if (!renderData.normal)
 						{
-							int vsize = renderedBuffer.vertecies.size();
 							if (renderedBuffer.normals.size() != vsize)
 							{
 								renderedBuffer.normals.resize(vsize);
 							}
-							if (face.x >= vsize || face.y >= vsize || face.z >= vsize) continue;
-							if (face.x < 0 || face.y < 0 || face.z < 0) continue;
-
 							D3DXVECTOR3 n;
-							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.x];
-							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.y];
-							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.z];
+							D3DXVECTOR3 v0 = renderedBuffer.vertecies[face.x - 1];
+							D3DXVECTOR3 v1 = renderedBuffer.vertecies[face.y - 1];
+							D3DXVECTOR3 v2 = renderedBuffer.vertecies[face.z - 1];
 							D3DXVECTOR3 v10 = v1-v0;
 							D3DXVECTOR3 v20 = v2-v0;
 							::D3DXVec3Cross(&n, &v10, &v20);
-							renderedBuffer.normals[face.x] += n;
-							renderedBuffer.normals[face.y] += n;
-							renderedBuffer.normals[face.z] += n;
+							renderedBuffer.normals[face.x - 1] += n;
+							renderedBuffer.normals[face.y - 1] += n;
+							renderedBuffer.normals[face.z - 1] += n;
 						}
 						if (!renderData.normal)
 						{
