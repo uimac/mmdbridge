@@ -596,6 +596,62 @@ namespace
 		return result;
 	}
 
+	int get_object_size()
+	{
+		return ExpGetPmdNum();
+	}
+
+	int get_bone_size(int at)
+	{
+		return ExpGetPmdBoneNum(at);
+	}
+
+	std::string get_object_filename(int at)
+	{
+		const int count = get_bone_size(at);
+		if (count <= 0) return "";
+		const char* sjis = ExpGetPmdFilename(at);
+		//const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		//wchar_t* utf16 = new wchar_t[size];
+		//::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		//std::wstring wchar(utf16);
+		//delete [] utf16;
+		//std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
+		return sjis;
+	}
+
+	std::string get_bone_name(int at, int bone_index)
+	{
+		const int count = get_bone_size(at);
+		if (count <= 0) return "";
+		const char* sjis = ExpGetPmdBoneName(at, bone_index);
+
+		//const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		//wchar_t* utf16 = new wchar_t[size];
+		//::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		//std::wstring wchar(utf16);
+		//delete [] utf16;
+		//std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
+		return sjis;
+	}
+
+	boost::python::list get_bone_matrix(int at, int bone_index)
+	{
+		const int count = get_bone_size(at);
+		boost::python::list result;
+		if (count <= 0) return result;
+
+		D3DMATRIX mat = ExpGetPmdBoneWorldMat(at, bone_index);
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				result.append(mat.m[i][k]);
+			}
+		}
+		return result;
+	}
+
 	boost::python::list get_world(int at)
 	{
 		const D3DXMATRIX& world = BridgeParameter::instance().render_buffer(at).world;
@@ -811,6 +867,11 @@ BOOST_PYTHON_MODULE( mmdbridge )
 	def("get_base_path", get_base_path);
 	def("get_light", get_light);
 	def("get_light_color", get_light_color);
+	def("get_object_size", get_object_size);
+	def("get_object_filename", get_object_filename);
+	def("get_bone_size", get_bone_size);
+	def("get_bone_name", get_bone_name);
+	def("get_bone_matrix", get_bone_matrix);
 	def("get_world", get_world);
 	def("get_world_inv", get_world_inv);
 	def("get_view", get_view);
@@ -1076,8 +1137,6 @@ static HRESULT WINAPI endScene(IDirect3DDevice9 *device)
 HWND g_hWnd=NULL;	//ウィンドウハンドル
 HMENU g_hMenu=NULL;	//メニュー
 HWND g_hFrame = NULL; //フレーム数
-HWND g_hFrameArrowLeft = NULL; //フレーム矢印右
-HWND g_hFrameArrowRight = NULL; //フレーム矢印右
 
 
 static void GetFrame(HWND hWnd)
@@ -1096,20 +1155,12 @@ static BOOL CALLBACK enumChildWindowsProc(HWND hWnd, LPARAM lParam)
 	WCHAR buf[10];
 	GetWindowText(hWnd, buf, 10);
 
-	if (!g_hFrameArrowLeft && wcscmp(buf, _T("＜")) == 0)
-	{
-		g_hFrameArrowLeft = hWnd;
-	}
-	if (!g_hFrameArrowRight && wcscmp(buf, _T("＞")) == 0)
-	{	
-		g_hFrameArrowRight = hWnd;
-	}
 	if (!g_hFrame && rect.right == 48 && rect.bottom == 22)
 	{
 		g_hFrame = hWnd;
 		GetFrame(hWnd);
 	}
-	if (g_hFrame && g_hFrameArrowLeft && g_hFrameArrowRight)
+	if (g_hFrame)
 	{
 		return FALSE;
 	}
@@ -1360,14 +1411,14 @@ static HRESULT WINAPI present(
 	return res;
 }
 
-HRESULT WINAPI reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS* pPresentationParameters)
+static HRESULT WINAPI reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS* pPresentationParameters)
 {
 	HRESULT res = (*original_reset)(device, pPresentationParameters);
 	::MessageBox(NULL, _T("MMDBridgeは、3D vision 未対応です"), _T("HOGE"), MB_OK);
 	return res;
 }
 
-HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
+static HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 {
 	HRESULT res = (*original_set_fvf)(device, fvf);
 
