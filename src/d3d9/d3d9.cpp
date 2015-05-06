@@ -606,33 +606,38 @@ namespace
 		return ExpGetPmdBoneNum(at);
 	}
 
-	std::string get_object_filename(int at)
+	boost::python::object get_object_filename(int at)
 	{
 		const int count = get_bone_size(at);
-		if (count <= 0) return "";
+		if (count <= 0) return boost::python::object();
 		const char* sjis = ExpGetPmdFilename(at);
-		//const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
-		//wchar_t* utf16 = new wchar_t[size];
-		//::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
-		//std::wstring wchar(utf16);
-		//delete [] utf16;
-		//std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-		return sjis;
+		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		wchar_t* utf16 = new wchar_t[size];
+		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		std::wstring wchar(utf16);
+		delete [] utf16;
+		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
+
+		boost::python::object result(boost::python::handle<>(
+			PyUnicode_FromString(utf8str.c_str())));
+		return result;
 	}
 
-	std::string get_bone_name(int at, int bone_index)
+	boost::python::object get_bone_name(int at, int bone_index)
 	{
 		const int count = get_bone_size(at);
-		if (count <= 0) return "";
+		if (count <= 0) return boost::python::object();
 		const char* sjis = ExpGetPmdBoneName(at, bone_index);
+		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		wchar_t* utf16 = new wchar_t[size];
+		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		std::wstring wchar(utf16);
+		delete [] utf16;
+		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
 
-		//const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
-		//wchar_t* utf16 = new wchar_t[size];
-		//::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
-		//std::wstring wchar(utf16);
-		//delete [] utf16;
-		//std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-		return sjis;
+		boost::python::object result(boost::python::handle<>(
+			PyUnicode_FromString(utf8str.c_str())));
+		return result;
 	}
 
 	boost::python::list get_bone_matrix(int at, int bone_index)
