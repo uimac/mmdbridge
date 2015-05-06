@@ -715,11 +715,6 @@ static void export_alembic_xform_by_buffer(AlembicArchive &archive, const Render
 
 }
 
-static double to_degree(double radian)
-{
-	return (radian * 180) / M_PI;
-}
-
 static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	double xy = quat.v.x * quat.v.y;
 	double zw = quat.v.z * quat.r;
@@ -834,7 +829,7 @@ static void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer 
 	{
 		Alembic::AbcGeom::OXformSchema &xformSchema = archive.xform_schema_map[cameraKey];
 		xformSchema.setTimeSampling(archive.timesampling);
-
+		
 		Alembic::AbcGeom::XformSample xformSample;
 
 		D3DXMATRIX convertMat(
@@ -873,8 +868,7 @@ static void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer 
 
 		D3DXMATRIX view;
 		::D3DXMatrixLookAtLH(&view, &eye, &at, &up);
-			
-			
+
 		Imath::M44d rot(
 			-view.m[0][0], view.m[0][1], view.m[0][2], 0,
 			-view.m[1][0], view.m[1][1], view.m[1][2], 0,
@@ -886,15 +880,22 @@ static void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer 
 
 		if (isUseEuler)
 		{
-			Imath::V3d euler;
-			quatToEuler(euler, quat);
-			xformSample.setXRotation(to_degree(euler.y));
-			xformSample.setYRotation(to_degree(euler.x));
-			xformSample.setZRotation(-to_degree(euler.z));
+			Imath::V3d imeuler;
+			quatToEuler(imeuler, quat);
+
+			//UMMat44d umrot(
+			//	-view.m[0][0], view.m[0][1], view.m[0][2], 0,
+			//	-view.m[1][0], view.m[1][1], view.m[1][2], 0,
+			//	view.m[2][0], -view.m[2][1], -view.m[2][2], 0,
+			//	0, 0, 0, 1);
+			//UMVec3d umeuler = umbase::um_matrix_to_euler_xyz(umrot.transposed());
+			xformSample.setXRotation(umbase::um_to_degree(imeuler.y));
+			xformSample.setYRotation(umbase::um_to_degree(imeuler.x));
+			xformSample.setZRotation(-umbase::um_to_degree(imeuler.z));
 		}
 		else
 		{
-			xformSample.setRotation(quat.axis(), to_degree(quat.angle()));
+			xformSample.setRotation(quat.axis(), umbase::um_to_degree(quat.angle()));
 		}
 
 		xformSchema.set(xformSample);
@@ -918,12 +919,22 @@ static void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer 
 	cameraSchema.setTimeSampling(archive.timesampling);
 	Alembic::AbcGeom::CameraSample sample;
 
-		
 	D3DXVECTOR4 v;
 	UMGetCameraFovLH(&v);
 
-	sample.setNearClippingPlane(v.y);
+	sample.setNearClippingPlane(v.z);
 	sample.setFarClippingPlane(v.w);
+
+	double fovy = v.x;
+	double aspect = v.y;
+	double fovx = 2.0 * atan(tan(fovy / 2.0)*(aspect));
+	double w = BridgeParameter::instance().frame_width / 10.0;
+	double h = BridgeParameter::instance().frame_height / 10.0;
+	double focalLength = w / (2.0 * tan(fovx / 2.0));
+
+	sample.setHorizontalAperture(w / 10.0);
+	sample.setVerticalAperture(h / 10.0);
+	sample.setFocalLength(focalLength);
 
 	cameraSchema.set(sample);
 }
