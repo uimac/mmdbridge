@@ -58,5 +58,13 @@ T um_clip(T val) {
 	return val;
 }
 
+/**
+ * clamp
+ */
+template <class T>
+T um_clamp(T a, T l, T h)
+{
+	return (a < l) ? l : ((a > h) ? h : a);
+}
 
 } // umbase

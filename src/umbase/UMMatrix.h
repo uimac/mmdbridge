@@ -93,7 +93,33 @@ public:
 		}
 		return *this;
 	}
-	
+
+	/**
+	* assign
+	*/
+	void set(int row, int column, T value)
+	{
+		m[row][column] = value;
+	}
+
+	/**
+	* get
+	*/
+	T get(int row, int column)
+	{
+		return m[row][column];
+	}
+
+	T* operator [] (int i)
+	{
+		return m[i];
+	}
+
+	const T* operator [] (int i) const
+	{
+		return m[i];
+	}
+
 	/**
 	 * compare equal
 	 */
@@ -257,6 +283,79 @@ public:
 };
 
 
+/**
+* convert matrix to euler xyz
+*/
+template<typename T>
+UMVector3<T> um_matrix_to_euler_xyz(const UMMatrix44<T> &src)
+{
+	UMVector3<T> euler;
+
+	const T &r00 = src[0][0];
+	const T &r01 = src[0][1];
+	const T &r02 = src[0][2];
+
+	const T &r10 = src[1][0];
+	const T &r11 = src[1][1];
+	const T &r12 = src[1][2];
+
+	const T &r20 = src[2][0];
+	const T &r21 = src[2][1];
+	const T &r22 = src[2][2];
+
+	if (r02 < +1)
+	{
+		if (r02 > -1)
+		{
+			euler.y = asin(r02);
+			euler.x = atan2(-r12, r22);
+			euler.z = atan2(-r01, r00);
+		}
+		else     // r02 = -1
+		{
+			euler.y = -M_PI / 2.0;
+			euler.x = -atan2(r10, r11);
+			euler.z = 0;
+		}
+	}
+	else // r02 = +1
+	{
+		euler.y = +M_PI / 2.0;
+		euler.x = atan2(r10, r11);
+		euler.z = 0;
+	}
+	return euler;
+}
+
+/**
+* convert euler  xyz to matrix
+*/
+template<typename T>
+UMMatrix44<T> um_euler_to_matrix_xyz(const UMVector3<T> &src)
+{
+	UMMatrix44<T> dst;
+
+	const T cx = cos(src.x);
+	const T cy = cos(src.y);
+	const T cz = cos(src.z);
+	const T sx = sin(src.x);
+	const T sy = sin(src.y);
+	const T sz = sin(src.z);
+
+	dst[0][0] = cy * cz;
+	dst[0][1] = -cy * sz;
+	dst[0][2] = sy;
+
+	dst[1][0] = cz * sx * sy + cx * sz;
+	dst[1][1] = cx * cz - sx * sy * sz;
+	dst[1][2] = -cy * sx;
+
+	dst[2][0] = -cx * cz * sy + sx * sz;
+	dst[2][1] = cz * sx + cx * sy * sz;
+	dst[2][2] = cx * cy;
+
+	return dst;
+}
 
 /**
  * D3DXMatrixOrthoLH

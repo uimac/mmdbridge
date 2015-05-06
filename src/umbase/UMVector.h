@@ -179,6 +179,13 @@ public:
 	}
 
 	/**
+	* cross
+	*/
+	T cross(const UMVector2 &v) const {
+		return (x*v.y - y*v.x);
+	}
+
+	/**
 	 * multiply
 	 */
 	UMVector2 multiply(const UMVector2 &v) const {

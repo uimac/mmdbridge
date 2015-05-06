@@ -156,6 +156,12 @@ umstring UMPath::resource_absolute_path(const umstring& file_name)
 #endif // WITH_EMSCRIPTEN
 }
 
+umstring UMPath::resource_absolute_path(const std::string& file_name)
+{
+	umstring utf16name = UMStringUtil::utf8_to_utf16(file_name);
+	return resource_absolute_path(utf16name);
+}
+
 umstring UMPath::get_file_name(const umstring& file_path)
 {
 #ifdef WITH_EMSCRIPTEN

@@ -44,6 +44,8 @@ public:
 
 	static umstring resource_absolute_path(const umstring& file_name);
 
+	static umstring resource_absolute_path(const std::string& file_name);
+
 	static umstring get_file_name(const umstring& file_name);
 	
 	static umstring get_absolute_path(const umstring& base_path, umstring& file_name);
