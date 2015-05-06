@@ -1,6 +1,5 @@
 ﻿
-#ifndef D3D9_H
-#define D3D9_H
+#pragma once
 
 #ifndef CINTERFACE
 #define CINTERFACE
@@ -171,6 +170,3 @@ struct TextureParameter
 
 typedef std::vector<IDirect3DVertexBuffer9* > VertexBufferList;
 typedef std::map<IDirect3DVertexBuffer9*, RenderedBuffer> RenderBufferMap;
-
-
-#endif

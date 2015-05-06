@@ -25,7 +25,6 @@
 
 #pragma comment(lib, "libhdf5_hl.lib")
 #pragma comment(lib, "libhdf5.lib")
-#pragma comment(lib, "zlib.lib")
 #pragma comment(lib, "Imath.lib")
 #pragma comment(lib, "IlmThread.lib")
 #pragma comment(lib, "IexMath.lib")
@@ -151,7 +150,7 @@ private:
 	AlembicArchive() : archive(NULL), timeindex(0), export_mode(0), is_use_euler_rotation_camera(false) {}
 };
 
-bool start_alembic_export(
+static bool start_alembic_export(
 	const std::string& filepath,
 	int export_mode, 
 	bool isExportNomals,
@@ -197,7 +196,7 @@ bool start_alembic_export(
 	return false;
 }
 
-bool end_alembic_export()
+static bool end_alembic_export()
 {
 	if (AlembicArchive::instance().archive)
 	{
@@ -208,7 +207,7 @@ bool end_alembic_export()
 	return false;
 }
 
-void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -415,7 +414,7 @@ void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,  const
 	}
 }
 	
-void export_alembic_xform_by_material_direct(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+static void export_alembic_xform_by_material_direct(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -580,7 +579,7 @@ void export_alembic_xform_by_material_direct(AlembicArchive &archive,  const Ren
 	}
 }
 
-void export_alembic_xform_by_buffer(AlembicArchive &archive,  const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+static void export_alembic_xform_by_buffer(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -716,12 +715,12 @@ void export_alembic_xform_by_buffer(AlembicArchive &archive,  const RenderedBuff
 
 }
 
-double to_degree(double radian)
+static double to_degree(double radian)
 {
 	return (radian * 180) / M_PI;
 }
 
-void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
+static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	double xy = quat.v.x * quat.v.y;
 	double zw = quat.v.z * quat.r;
 
@@ -756,7 +755,7 @@ void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	dst = Imath::V3d(yaw, pitch, roll);
 }
 
-boost::python::list get_abc_angle_axis()
+static boost::python::list get_abc_angle_axis()
 {
 	const RenderedBuffer & renderedBuffer = BridgeParameter::instance().first_noaccessory_buffer();
 	D3DXMATRIX convertMat(
@@ -812,7 +811,7 @@ boost::python::list get_abc_angle_axis()
 	return result;
 }
 	
-void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, bool isUseEuler)
+static void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, bool isUseEuler)
 {
 	static const int cameraKey = 0xFFFFFF;
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
@@ -929,7 +928,7 @@ void export_alembic_camera(AlembicArchive &archive, const RenderedBuffer & rende
 	cameraSchema.set(sample);
 }
 
-bool execute_alembic_export(int currentframe)
+static bool execute_alembic_export(int currentframe)
 {
 	AlembicArchive &archive = AlembicArchive::instance();
 	if (!archive.archive) { return Py_BuildValue(""); }
@@ -983,7 +982,6 @@ BOOST_PYTHON_MODULE( mmdbridge_abc )
 #endif //WITH_ALEMBIC
 
 // ---------------------------------------------------------------------------
-// ヘッダの実装.
 #ifdef WITH_ALEMBIC
 	void InitAlembic()
 	{

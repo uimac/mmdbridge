@@ -688,25 +688,6 @@ namespace
 		return 0;
 	}
 
-	//boost::python::list d3dx_invert_matrix(PyObject *self, PyObject* args)
-	//{
-	//	D3DXMATRIX src;		
-	//	if (!PyArg_ParseTuple(args, "(ffffffffffffffff)", 			
-	//		&src.m[0][0], &src.m[0][1], &src.m[0][2], &src.m[0][3],
-	//		&src.m[1][0], &src.m[1][1], &src.m[1][2], &src.m[1][3],
-	//		&src.m[2][0], &src.m[2][1], &src.m[2][2], &src.m[2][3],
-	//		&src.m[3][0], &src.m[3][1], &src.m[3][2], &src.m[3][3])) { return NULL; }
-
-	//	D3DXMATRIX dst;
-	//	::D3DXMatrixInverse(&dst, NULL, &src);
-
-	//	return Py_BuildValue("[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]", 
-	//		dst.m[0][0], dst.m[0][1], dst.m[0][2], dst.m[0][3],
-	//		dst.m[1][0], dst.m[1][1], dst.m[1][2], dst.m[1][3],
-	//		dst.m[2][0], dst.m[2][1], dst.m[2][2], dst.m[2][3],
-	//		dst.m[3][0], dst.m[3][1], dst.m[3][2], dst.m[3][3]);
-	//}
-
 	boost::python::list d3dx_vec3_normalize(float x, float y, float z)
 	{
 		D3DXVECTOR3 vec(x, y, z);
@@ -718,58 +699,10 @@ namespace
 		return result;
 	}
 
-	//class PythonRedirectBuffer
-	//{
-	//public:
-	//	typedef std::string Buffer;
-	//	Buffer& output() { return buffer_; }
-	//	bool flush() {
-	//		//std::cout << buffer_ << std::flush;
-	//		for (int i = 0, size = buffer_.size(); i < size; ++i) {
-	//			putchar(buffer_[i]);
-	//		}
-	//		buffer_.clear();
-	//		return true;
-	//	}
-	//	void write(std::string const& str) {
-	//		const int current = static_cast<int>(buffer_.size());
-	//		const int size = static_cast<int>(str.size());
-	//		const int next = current + size;
-	//		buffer_.resize(next);
-	//		memcpy(&buffer_[current], str.c_str(), size);
-	//	}
-	//private:
-	//	static Buffer buffer_;
-	//};
-	//PythonRedirectBuffer::Buffer PythonRedirectBuffer::buffer_;
-	//
-	//class PythonRedirect {
-	//public:
-	//	PythonRedirectBuffer redirect_buffer_;
-	//	void write(std::string const& str) {
-	//		const int current = static_cast<int>(redirect_buffer_.output().size());
-	//		const int size = static_cast<int>(str.size());
-	//		const int next = current + size;
-	//		redirect_buffer_.output().resize(next);
-	//		memcpy(&redirect_buffer_.output()[current], str.c_str(), size);
-	//	}
-	//};
-
 	object init_python()
 	{
 		object main_module = import("__main__");
 		object main_namespace = main_module.attr("__dict__");
-		//main_namespace["PythonRedirectBuffer"]
-		//	= class_<PythonRedirectBuffer>("PythonRedirectBuffer", init<>())
-		//	.def("flush", &PythonRedirectBuffer::flush)
-		//	.def("write", &PythonRedirectBuffer::write);
-		//main_namespace["PythonRedirect"] 
-		//	= class_<PythonRedirect>("PythonRedirect", init<>())
-		//	.add_property("buffer", &PythonRedirect::redirect_buffer_)
-		//	.def("write", &PythonRedirect::write);
-		//PythonRedirect redirect;
-		//boost::python::import("sys").attr("stderr") = redirect;
-		//boost::python::import("sys").attr("stdout") = redirect;
 		return main_namespace;
 	}
 	
@@ -780,14 +713,12 @@ namespace
 		PyObject *traceback_ptr = NULL;
 		PyErr_Fetch(&type_ptr, &value_ptr, &traceback_ptr);
 
-		// Fallback error
 		std::string ret("Fallback error");
 		if(type_ptr != NULL)
 		{
 			boost::python::handle<> h_type(type_ptr);
 			boost::python::str type_pstr(h_type);
 			boost::python::extract<std::string> e_type_pstr(type_pstr);
-			//  otherwise use fallback
 			if(e_type_pstr.check())
 			{
 				ret = e_type_pstr();
@@ -797,7 +728,6 @@ namespace
 				ret = "Unknown exception";
 			}
 		}
-		// Do the same for the exception value (the stringification of the exception)
 		if(value_ptr != NULL){
 			boost::python::handle<> h_val(value_ptr);
 			boost::python::str a(h_val);
@@ -811,18 +741,13 @@ namespace
 				ret += std::string(": Unparseable Python error: ");
 			}
 		}
-		// Parse lines from the traceback using the Python traceback module
 		if(traceback_ptr != NULL)
 		{
 			boost::python::handle<> h_tb(traceback_ptr);
-			// Load the traceback module and the format_tb function
 			boost::python::object tb(boost::python::import("traceback"));
 			boost::python::object fmt_tb(tb.attr("format_tb"));
-			// Call format_tb to get a list of traceback strings
 			boost::python::object tb_list(fmt_tb(h_tb));
-			// Join the traceback strings into a single string
 			boost::python::object tb_str(boost::python::str("\n").join(tb_list));
-			// Extract the string, check the extraction, and fallback in necessary
 			boost::python::extract<std::string> returned(tb_str);
 			if(returned.check()) 
 			{
@@ -891,12 +816,10 @@ BOOST_PYTHON_MODULE( mmdbridge )
 	def("get_view", get_view);
 	def("get_projection", get_projection);
 	def("set_texture_buffer_enabled", set_texture_buffer_enabled);
-	//def("set_current_material", set_current_material);
 	def("set_int_value", set_int_value);
 	def("set_float_value", set_float_value);
 	def("get_int_value", get_int_value);
 	def("get_float_value", get_float_value);
-	//def("d3dx_invert_matrix", d3dx_invert_matrix);
 	def("d3dx_vec3_normalize", d3dx_vec3_normalize);
 }
 
@@ -960,6 +883,8 @@ HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWO
 HRESULT(WINAPI *original_create_deviceex)(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**)(NULL);
 // IDirect3DDevice9::BeginScene
 HRESULT (WINAPI *original_begin_scene)(IDirect3DDevice9*)(NULL);
+// IDirect3DDevice9::EndScene
+HRESULT(WINAPI *original_end_scene)(IDirect3DDevice9*)(NULL);
 // IDirect3DDevice9::SetFVF
 HRESULT (WINAPI *original_set_fvf)(IDirect3DDevice9*, DWORD);
 // IDirect3DDevice9::Clear
@@ -1141,6 +1066,13 @@ static HRESULT WINAPI beginScene(IDirect3DDevice9 *device)
 	return res;
 }
 
+static HRESULT WINAPI endScene(IDirect3DDevice9 *device)
+{
+	HRESULT res = (*original_end_scene)(device);
+	return res;
+
+}
+
 HWND g_hWnd=NULL;	//ウィンドウハンドル
 HMENU g_hMenu=NULL;	//メニュー
 HWND g_hFrame = NULL; //フレーム数
@@ -1201,7 +1133,6 @@ static BOOL CALLBACK enumWindowsProc(HWND hWnd,LPARAM lParam)
 		std::string name(szClassName);
 
 		if (name == "Polygon Movie Maker"){
-			//::MessageBoxA(NULL, name.c_str(), "window", MB_OK);
 			g_hWnd = hWnd;
 			EnumChildWindows(hWnd, enumChildWindowsProc, 0);
 			return FALSE;	//break
@@ -1215,7 +1146,7 @@ static void setMyMenu()
 	if (g_hMenu) return;
 	if (g_hWnd)
 	{
-		HMENU hmenu = GetMenu(g_hWnd);//CreateMenu();
+		HMENU hmenu = GetMenu(g_hWnd);
 		HMENU hsubs = CreatePopupMenu();
 		int count = GetMenuItemCount(hmenu);
 		
@@ -1280,24 +1211,14 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 	HWND hCombo2 = GetDlgItem(hWnd, IDC_COMBO2);
 	HWND hEdit1 = GetDlgItem(hWnd, IDC_EDIT1);
 	HWND hEdit2 = GetDlgItem(hWnd, IDC_EDIT2);
-	//HWND hEdit3 = GetDlgItem(hWnd, IDC_EDIT3);
-	//HWND hEdit4 = GetDlgItem(hWnd, IDC_EDIT4);
 	HWND hEdit5 = GetDlgItem(hWnd, IDC_EDIT5);
-	//if (!hCombo1) { return FALSE; }
-	//if (!hCombo2) { return FALSE; }
-	//if (!hEdit1) { return FALSE; }
-	//if (!hEdit2) { return FALSE; }
-	//if (!hEdit5) { return FALSE; }
 	switch (msg) {
 		case WM_INITDIALOG:
 			{
-				//::MessageBoxA(NULL, "hoge出力設定", "menu", MB_OK);
-				// コンボボックスにデータを詰めていく
 				for (size_t i = 0 ; i < parameter.python_script_name_list.size() ; i++)
 				{
 					SendMessage(hCombo1 , CB_ADDSTRING , 0 , (LPARAM)parameter.python_script_name_list[i].c_str());
 				}
-				//SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("画面操作時に実行"));
 				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行する"));
 				SendMessage(hCombo2 , CB_ADDSTRING , 0 , (LPARAM)_T("実行しない"));
 				// ウインドウ生成時にはじめに表示するデータを指定
@@ -1307,8 +1228,6 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 
 				::SetWindowTextA(hEdit1, to_string(parameter.start_frame).c_str());
 				::SetWindowTextA(hEdit2, to_string(parameter.end_frame).c_str());
-				//::SetWindowTextA(hEdit3, to_string().c_str());
-				//::SetWindowTextA(hEdit4, to_string().c_str());
 				::SetWindowTextA(hEdit5, to_string(parameter.export_fps).c_str());
 			}
 			return TRUE;
@@ -1341,8 +1260,6 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 						char text5[32];
 						::GetWindowTextA(hEdit1, text1, sizeof(text1)/sizeof(text1[0]));
 						::GetWindowTextA(hEdit2, text2, sizeof(text2)/sizeof(text2[0]));
-						//::GetWindowTextA(hEdit3, text3, sizeof(text3)/sizeof(text3[0]));
-						//::GetWindowTextA(hEdit4, text4, sizeof(text4)/sizeof(text4[0]));
 						::GetWindowTextA(hEdit5, text5, sizeof(text5)/sizeof(text5[0]));
 						mutable_parameter.start_frame = atoi(text1);
 						mutable_parameter.end_frame = atoi(text2);
@@ -1363,36 +1280,6 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 					reload_python_file_paths();
 					SendMessage(hCombo1, CB_SETCURSEL, SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str()), 0);
 					break;
-				case IDC_BUTTON2: // 詳細設定
-
-					// ダイアログ表示中は問答無用でスクリプト実行を専用のモードにする
-					int preSetting = script_call_setting;
-					script_call_setting = 3;
-
-					// script再読み込み
-					UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
-					if (num1 < parameter.python_script_name_list.size())
-					{
-						if (pythonName != parameter.python_script_name_list[num1]) {
-							pythonName = parameter.python_script_name_list[num1];
-							mutable_parameter.python_script_path = parameter.python_script_path_list[num1];
-							relaod_python_script();
-						}
-					}
-					if (!parameter.mmdbridge_python_script.empty())
-					{
-						if (parameter.mmdbridge_python_script.find("#thread") != std::string::npos)
-						{
-							EndDialog(hWnd, IDOK);
-							SendMessage(g_hFrameArrowRight, BM_CLICK, 0, 0);
-							break;
-						}
-					}
-					script_call_setting = preSetting;
-					::MessageBoxA(NULL, "このスクリプトには詳細設定が無いようです", "info", MB_OK);
-					EndDialog(hWnd, IDOK);
-					break;
-
 			}
 			break;
 		return TRUE;
@@ -1427,8 +1314,6 @@ static bool IsValidTechniq() {
 	return (technic == 0 || technic == 1 || technic == 2);
 }
 
-float pretime = 0.0f;
-
 static HRESULT WINAPI present(
 	IDirect3DDevice9 *device, 
 	const RECT * pSourceRect, 
@@ -1436,9 +1321,7 @@ static HRESULT WINAPI present(
 	HWND hDestWindowOverride, 
 	const RGNDATA * pDirtyRegion)
 {
-	static bool isExportedFrame = false;
-
-	float time = ExpGetFrameTime();
+	const float time = ExpGetFrameTime();
 
 	if (pDestRect)
 	{
@@ -1465,7 +1348,6 @@ static HRESULT WINAPI present(
 					if (process_frame == parameter.end_frame)
 					{
 						exportedFrames.clear();
-						isExportedFrame = false;
 					}
 					pre_frame = frame;
 				}
@@ -1481,9 +1363,7 @@ static HRESULT WINAPI present(
 HRESULT WINAPI reset(IDirect3DDevice9 *device, D3DPRESENT_PARAMETERS* pPresentationParameters)
 {
 	HRESULT res = (*original_reset)(device, pPresentationParameters);
-
-	::MessageBox(NULL, _T("MMDBridgeは、現状3D vision 未対応です"), _T("HOGE"), MB_OK);
-
+	::MessageBox(NULL, _T("MMDBridgeは、3D vision 未対応です"), _T("HOGE"), MB_OK);
 	return res;
 }
 
@@ -1491,7 +1371,6 @@ HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 {
 	HRESULT res = (*original_set_fvf)(device, fvf);
 
-	//float time = ExpGetFrameTime();
 	if (script_call_setting != 2)
 	{
 		renderData.fvf = fvf;
@@ -1686,7 +1565,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				bytePos += (sizeof(DWORD));
 			}
 
-			// ＵＶ
+			// UV
 			if (renderData.texcount > 0) 
 			{
 				for (int n = 0; n < renderData.texcount; ++n) 
@@ -1931,8 +1810,6 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	UINT startIndex, 
 	UINT primitiveCount)
 {
-	//float time = ExpGetFrameTime();
-
 	const int currentMaterial = ExpGetCurrentMaterial();
 	const int currentObject = ExpGetCurrentObject();
 
@@ -2127,9 +2004,7 @@ static HRESULT WINAPI setStreamSource(
 	UINT stride)
 {
 	HRESULT res = (*original_set_stream_source)(device, streamNumber, pStreamData, offsetInBytes, stride);
-
-	//float time = ExpGetFrameTime();
-
+	
 	int currentTechnic = ExpGetCurrentTechnic();
 
 	const bool validCallSetting = IsValidCallSetting();
@@ -2153,9 +2028,7 @@ static HRESULT WINAPI setStreamSource(
 static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9 * pIndexData)
 {
 	HRESULT res = (*original_set_indices)(device, pIndexData);
-
-	//float time = ExpGetFrameTime();
-		
+			
 	int currentTechnic = ExpGetCurrentTechnic();
 
 	const bool validCallSetting = IsValidCallSetting();
@@ -2204,6 +2077,7 @@ static void hookDevice()
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
 		p_device->lpVtbl->BeginScene = beginScene;
+		p_device->lpVtbl->EndScene = endScene;
 		//p_device->lpVtbl->Clear = clear;
 		p_device->lpVtbl->Present = present;
 		//p_device->lpVtbl->Reset = reset;
@@ -2232,6 +2106,7 @@ static void originalDevice()
 		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
 		p_device->lpVtbl->BeginScene = original_begin_scene;
+		p_device->lpVtbl->EndScene = original_end_scene;
 		//p_device->lpVtbl->Clear = clear;
 		p_device->lpVtbl->Present = original_present;
 		//p_device->lpVtbl->Reset = reset;
@@ -2265,6 +2140,7 @@ static HRESULT WINAPI createDevice(
 	
 	if (p_device) {
 		original_begin_scene = p_device->lpVtbl->BeginScene;
+		original_end_scene = p_device->lpVtbl->EndScene;
 		//original_clear = p_device->lpVtbl->Clear;
 		original_present = p_device->lpVtbl->Present;
 		//original_reset = p_device->lpVtbl->Reset;
