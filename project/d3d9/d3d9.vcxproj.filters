@@ -33,6 +33,9 @@
     <ClInclude Include="..\..\src\d3d9\bridge_parameter.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\d3d9\vmd.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\d3d9\d3d9.cpp">
@@ -42,6 +45,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\d3d9\bridge_parameter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\d3d9\vmd.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

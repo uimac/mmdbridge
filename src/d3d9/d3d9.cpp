@@ -32,6 +32,7 @@
 
 #include "bridge_parameter.h"
 #include "alembic.h"
+#include "vmd.h"
 #include "resource.h"
 #include "MMDExport.h"
 #include "UMStringUtil.h"
@@ -713,6 +714,51 @@ namespace
 		return result;
 	}
 
+	boost::python::list invert_matrix(boost::python::object p)
+	{
+		const boost::python::list tp1 = extract<list>(p)();
+		if (len(tp1) < 16) {
+			PyErr_SetString(PyExc_IndexError, "index out of range");
+			throw boost::python::error_already_set();
+		}
+		boost::python::list result;
+		UMMat44d src;
+		for (int i = 0; i < 4; ++i) {
+			for (int k = 0; k < 4; ++k) {
+				src[i][k] = extract<double>(tp1[i * 4 + k]);
+			}
+		}
+		const UMMat44d dst = src.inverted();
+		for (int i = 0; i < 4; ++i) {
+			for (int k = 0; k < 4; ++k) {
+				result.append(dst[i][k]);
+			}
+		}
+		return result;
+	}
+
+	boost::python::list extract_xyz_degree(boost::python::object p)
+	{
+		const boost::python::list tp1 = extract<list>(p)();
+		if (len(tp1) < 16) {
+			PyErr_SetString(PyExc_IndexError, "index out of range");
+			throw boost::python::error_already_set();
+		}
+		boost::python::list result;
+		UMMat44d src;
+		for (int i = 0; i < 4; ++i) {
+			for (int k = 0; k < 4; ++k) {
+				src[i][k] = extract<double>(tp1[i * 4 + k]);
+			}
+		}
+
+		const UMVec3d euler = umbase::um_matrix_to_euler_xyz(src);
+		for (int i = 0; i < 3; ++i) {
+			result.append(umbase::um_to_degree(euler[i]));
+		}
+		return result;
+	}
+
 	bool set_texture_buffer_enabled(bool enabled)
 	{
 		BridgeParameter::mutable_instance().is_texture_buffer_enabled = enabled;
@@ -886,6 +932,8 @@ BOOST_PYTHON_MODULE( mmdbridge )
 	def("set_float_value", set_float_value);
 	def("get_int_value", get_int_value);
 	def("get_float_value", get_float_value);
+	def("extract_xyz_degree", extract_xyz_degree);
+	def("invert_matrix", invert_matrix);
 	def("d3dx_vec3_normalize", d3dx_vec3_normalize);
 }
 
@@ -908,6 +956,7 @@ void run_python_script()
 	else
 	{
 		InitAlembic();
+		InitVMD();
 		PyImport_AppendInittab("mmdbridge", PyInit_mmdbridge);
 		Py_Initialize();
 			
@@ -2336,6 +2385,7 @@ bool d3d9_initialize()
 void d3d9_dispose() 
 {
 	renderData.dispose();
+	DisposeVMD();
 	DisposeAlembic();
 }
 
