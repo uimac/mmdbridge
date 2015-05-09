@@ -1433,6 +1433,7 @@ static HRESULT WINAPI present(
 		BridgeParameter::mutable_instance().frame_width = pDestRect->right - pDestRect->left;
 		BridgeParameter::mutable_instance().frame_height = pDestRect->bottom - pDestRect->top;
 	}
+	BridgeParameter::mutable_instance().is_exporting_without_mesh = false;
 	overrideGLWindow();
 	const bool validFrame = IsValidFrame();
 	const bool validCallSetting = IsValidCallSetting();
@@ -1921,8 +1922,9 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	const bool validCallSetting = IsValidCallSetting();
 	const bool validFrame = IsValidFrame();
 	const bool validTechniq = IsValidTechniq();
+	const bool validBuffer = (!BridgeParameter::instance().is_exporting_without_mesh);
 
-	if (validCallSetting && validFrame && validTechniq && type == D3DPT_TRIANGLELIST)
+	if (validBuffer && validCallSetting && validFrame && validTechniq && type == D3DPT_TRIANGLELIST)
 	{
 		// レンダリング開始
 		if (renderData.pIndexData && renderData.pStreamData && renderData.pos_xyz)

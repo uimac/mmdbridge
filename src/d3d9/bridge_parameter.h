@@ -58,6 +58,10 @@ public:
 
 	const RenderedBuffer& first_noaccessory_buffer() const;
 
+	/// メッシュ以外のものを出力中.
+	/// VertexBuffer, RenderedBufferが必要ない場合trueにする.
+	bool is_exporting_without_mesh;
+
 private:
 	BridgeParameter() :
 		//script_call_setting(2)
@@ -66,7 +70,8 @@ private:
 		, frame_width(800)
 		, frame_height(450)
 		, export_fps(30.0)
-		, is_texture_buffer_enabled(false) {}
+		, is_texture_buffer_enabled(false)
+		, is_exporting_without_mesh(false) {}
 	
 	static BridgeParameter parameter;
 };
