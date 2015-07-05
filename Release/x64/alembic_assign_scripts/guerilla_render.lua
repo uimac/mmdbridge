@@ -147,7 +147,7 @@ function assign_plug(modifier, plug_name, plug_parent, plug_node, mtl)
 	end
 end
 
-function assign_shader(modifier, mtl, mat_name, shader, tex)
+function assign_shader(modifier, mtl, mat_name, shader, tex, mat_group_name)
 	if tex then
         for i, v in pairs(tex) do
 			if i == "Children" then
@@ -174,7 +174,7 @@ function assign_shader(modifier, mtl, mat_name, shader, tex)
 			end
 		end
 	end
-	shader.Shader:set(mat_name)
+	shader.Shader:set(mat_group_name .. "|" .. mat_name)
 	modifier.renamenode(shader, mat_name)
 end
 
@@ -223,7 +223,7 @@ function create_trace_to_output_nodes()
 	return trace
 end
 
-function create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_name, pre_binop)
+function create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_name, mat_group_name, pre_binop)
 	local binop = nil
 	for graph in children (Document, "RenderGraph", nil, true) do
 		for outnode in children (graph, "RenderGraphNodeOutput", nil, true) do
@@ -237,7 +237,7 @@ function create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_nam
 				-- create texture node
 				local tex = Document:loadfile("$(LIBRARY)/attributes/texture.gnode")[1]
 				shader = graph:loadfile(get_texture_gnode_path())[1]
-				assign_shader(modifier, mtl, mat_name, shader, tex)
+				assign_shader(modifier, mtl, mat_name, shader, tex, mat_group_name)
 				tex:move(material)
 				local standard = material:findchild("Standard")
 				if standard ~= nil then
@@ -245,7 +245,7 @@ function create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_nam
 				end
 			else
 				shader = graph:loadfile("$(LIBRARY)/rendergraph/shader.gnode")[1]
-				assign_shader(modifier, mtl, mat_name, shader, nil)
+				assign_shader(modifier, mtl, mat_name, shader, nil, mat_group_name)
 			end
 			-- create union Bindop
 			binop = graph:loadfile("$(LIBRARY)/rendergraph/binop.gnode")[1]
@@ -273,14 +273,17 @@ function assign_mtl(modifier, mtl_data)
 	end
 	local trace = create_trace_to_output_nodes();
 	local pre_binop = nil
+	local mat_group = modifier.createnode (Document, "Node", "Materials")
+	local mat_group_name = mat_group:getname()
 	for i, primitive in pairs(primitives) do
 		local mat_name = to_material_name(primitive:getname())
 		if mtl_data[mat_name] then
 			print(primitive:getname(), mat_name)
 			local mtl = mtl_data[mat_name]
 			local material = create_material(modifier, mtl, mat_name)
-			local binop = create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_name, pre_binop)
+			local binop = create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_name, mat_group_name, pre_binop)
 			pre_binop = binop
+			material:move(mat_group)
 		end
 	end
 end
