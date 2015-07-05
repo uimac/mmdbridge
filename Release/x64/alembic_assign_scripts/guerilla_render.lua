@@ -149,13 +149,25 @@ end
 
 function assign_shader(modifier, mtl, mat_name, shader, tex)
 	if tex then
-		tex.Filename:set(to_full_path(mtl.textureMap))
+        for i, v in pairs(tex) do
+			if i == "Children" then
+				for k, vv in pairs(v) do
+					if vv.PlugName:get() == "File" then
+						vv.Value:set(to_full_path(mtl.textureMap))
+					end
+					if vv.PlugName:get() == "Mode" then
+						vv.Value:set("ww")
+					end
+				end
+			end
+		end
 		local tex_name = to_tex_name(mat_name)
 		modifier.renamenode(tex, tex_name)
 		for i, v in pairs(shader) do
 			if type(v) == "table" then
 				for k, w in pairs(v) do
 					if k == "DiffuseColor" then	
+						print("wshaderset", tex_name)
 						w.Shader:set(tex_name)
 					end
 				end
@@ -223,9 +235,14 @@ function create_prim_mat_node(modifier, trace, primitive, material, mtl, mat_nam
 			local shader = nil
 			if has_texture(mtl) then
 				-- create texture node
-				local tex = Document:loadfile("$(LIBRARY)/nodes/texture/texture.gnode")[1]
+				local tex = Document:loadfile("$(LIBRARY)/attributes/texture.gnode")[1]
 				shader = graph:loadfile(get_texture_gnode_path())[1]
 				assign_shader(modifier, mtl, mat_name, shader, tex)
+				tex:move(material)
+				local standard = material:findchild("Standard")
+				if standard ~= nil then
+					standard:getinput("DiffuseColor"):connect(tex:getoutput("Output"))
+				end
 			else
 				shader = graph:loadfile("$(LIBRARY)/rendergraph/shader.gnode")[1]
 				assign_shader(modifier, mtl, mat_name, shader, nil)
