@@ -6,7 +6,7 @@ import math
 from math import *
 import time
 
-octanepath = 'F:/work/OctaneRender_TEST_1025_beta255_win_x64/octane.exe'
+octanepath = 'C://Program Files/Refractive Software/OctaneRender 1.024 beta2.46b CUDA 3.2/octane.exe'
 
 def export_mtl(mtlpath):
 	if os.path.isfile(mtlpath):
@@ -26,7 +26,9 @@ def export_mtl(mtlpath):
 			power = get_power(buf, mat)
 			texture = get_texture(buf, mat)
 			if len(texture) == 0:
-				texture = get_exported_texture(buf, mat) + ".png"
+				texture = get_exported_texture(buf, mat)
+				if len(texture) > 0:
+					texture = texture + ".png"
 
 			mtlfile.write("Ka "+str(ambient[0])+" "+str(ambient[1])+" "+str(ambient[2])+"\n")
 			mtlfile.write("Kd "+str(diffuse[0])+" "+str(diffuse[1])+" "+str(diffuse[2])+"\n")

@@ -11,6 +11,7 @@ import time
 export_normals = True
 export_uvs = True
 is_use_euler_rotation_for_camera = True
+is_use_ogawa = False
 
 # 0 = create buffer every marerials, fixed vertex index for face
 # 1 = create buffer every objects, original vertex index for face
@@ -118,7 +119,7 @@ if (framenumber == start_frame):
 	export_mtl(mtlpath, export_mode)
 	export_gnode(gnodepath, export_mode)
 	copy_textures(texture_export_dir.replace("/", "\\"))
-	start_alembic_export("", export_mode, export_normals, export_uvs, is_use_euler_rotation_for_camera)
+	start_alembic_export("", export_mode, export_normals, export_uvs, is_use_euler_rotation_for_camera, is_use_ogawa)
 
 if (framenumber >= start_frame or framenumber <= end_frame):
 	execute_alembic_export(framenumber)
