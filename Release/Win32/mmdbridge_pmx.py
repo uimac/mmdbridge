@@ -23,7 +23,7 @@ if (framenumber == start_frame):
 	copy_textures(texture_export_dir.replace("/", "\\"))
 	export_uncopied_textures(texture_export_dir.replace("/", "\\"), "png")
 	messagebox("pmx export started")
-	start_pmx_export("")
+	start_pmx_export("", "pmx_export")
 
 if (framenumber >= start_frame or framenumber <= end_frame):
 	execute_pmx_export(framenumber)
