@@ -36,6 +36,9 @@
     <ClInclude Include="..\..\src\d3d9\vmd.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\d3d9\pmx.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\d3d9\d3d9.cpp">
@@ -48,6 +51,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\d3d9\vmd.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\d3d9\pmx.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
