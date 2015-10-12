@@ -120,6 +120,10 @@ public:
 	typedef std::map<int, FaceToVertexIndex> FaceToVertexIndexMap;
 	FaceToVertexIndexMap face_to_vertex_index_map;
 
+	typedef std::map<int, int> TriViToVertexIndex;
+	typedef std::map<int, TriViToVertexIndex> TriViToVertexIndexMap;
+	TriViToVertexIndexMap trivi_to_vertex_index_map;
+
 	bool is_export_normals;
 	bool is_export_uvs;
 	int export_mode;
@@ -138,6 +142,7 @@ public:
 		camera_map.clear();
 		camera_schema_map.clear();
 		face_to_vertex_index_map.clear();
+		trivi_to_vertex_index_map.clear();
 		surface_size_map.clear();
 		temporary_uv_list.clear();
 		temporary_normal_list.clear();
@@ -207,7 +212,207 @@ static bool end_alembic_export()
 	return false;
 }
 
-static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, int renderedBufferIndex)
+static void convertToQuad(
+	std::map<int, int>& viToViMap,
+	std::vector<Alembic::Util::int32_t>& faceList,
+	std::vector<Alembic::Util::int32_t>& faceCountList,
+	const RenderedBuffer::VertexList& vertexListByMaterial)
+{
+	/*
+	struct Triangle {
+		int triIndex;
+		Triangle *next;
+	};
+	std::vector<Triangle> triList(faceCountList.size());
+	std::vector<Triangle*> triHeadList(faceCountList.size());
+	int vnumber = 0;
+	for (int i = 0, isize = static_cast<int>(faceCountList.size()); i < isize; ++i)
+	{
+		for (int k = 0; k < 3; ++k) {
+			const int vnumber = i * 3 + k;
+			const int vi = faceList[vnumber];
+			triList[vnumber].triIndex = vnumber;
+			triList[vnumber].next = triHeadList[vi];
+			triHeadList[vi] = &triList[vnumber];
+		}
+	}
+	*/
+
+	struct Edge {
+		int vertexIndex[2];
+		int triangleIndex[2];
+		int edgeNumber[2];
+		Edge *next;
+	};
+	std::vector<Edge> edgeList(3 * faceCountList.size());
+	std::vector<Edge*> edgeHeadList(3 * faceCountList.size());
+	for (int i = 0, size = (3 * faceCountList.size()); i < size; ++i) {
+		edgeHeadList[i] = NULL;
+		edgeList[i].vertexIndex[0] = -1;
+		edgeList[i].vertexIndex[1] = -1;
+		edgeList[i].triangleIndex[0] = -1;
+		edgeList[i].triangleIndex[1] = -1;
+		edgeList[i].edgeNumber[0] = -1;
+		edgeList[i].edgeNumber[1] = -1;
+		edgeList[i].next = NULL;
+	}
+	std::map<std::pair<int, int>, int> edgeHashMap;
+	int count = 0;
+	for (int i = 0, isize = static_cast<int>(faceCountList.size()); i < isize; ++i)
+	{
+		for (int k = 0, j = 2; k < 2; j = k, ++k) {
+			int vj = faceList[i * 3 + j];
+			int vk = faceList[i * 3 + k];
+			if (vj > vk) {
+				int temp = vj;
+				vj = vk;
+				vk = temp;
+			}
+			std::pair<int, int> indexPair(vj, vk);
+			if (edgeHashMap.find(indexPair) == edgeHashMap.end()) {
+				edgeHashMap[indexPair] = edgeHashMap.size();
+			}
+			int hash = edgeHashMap[indexPair];
+			for (Edge *edge = edgeHeadList[hash]; ; edge = edge->next) {
+				if (edge == NULL) {
+					edgeList[count].vertexIndex[0] = vj;
+					edgeList[count].vertexIndex[1] = vk;
+					edgeList[count].triangleIndex[0] = i;
+					edgeList[count].edgeNumber[0] = j;
+					edgeList[count].next = edgeHeadList[hash];
+					edgeHeadList[hash] = &edgeList[count++];
+					break;
+				} else if (edge->vertexIndex[0] == vj && edge->vertexIndex[1] == vk) {
+					edge->triangleIndex[1] = i;
+					edge->edgeNumber[1] = j;
+					break;
+				}
+			}
+		}
+	}
+	
+	std::vector<UMVec3f> faceNormalList(faceCountList.size());
+	for (int i = 0, isize = static_cast<int>(faceCountList.size()); i < isize; ++i)
+	{
+		const D3DXVECTOR3& dxv1 = vertexListByMaterial[faceList[i * 3 + 0]];
+		const D3DXVECTOR3& dxv2 = vertexListByMaterial[faceList[i * 3 + 1]];
+		const D3DXVECTOR3& dxv3 = vertexListByMaterial[faceList[i * 3 + 2]];
+		const UMVec3f v1(dxv1[0], dxv1[1], dxv1[2]);
+		const UMVec3f v2(dxv2[0], dxv2[1], dxv2[2]);
+		const UMVec3f v3(dxv3[0], dxv3[1], dxv3[2]);
+		faceNormalList[i] = ((v2 - v1).cross(v3 - v1)).normalized();
+	}
+
+	std::vector<Alembic::Util::int32_t> quadFaceList;
+	std::vector<Alembic::Util::int32_t> quadFaceCountList;
+	std::map<int, int> exportedFaces;
+	for (int i = 0, isize = 3 * faceCountList.size(); i < isize; ++i) {
+		Edge* edge = edgeHeadList[i];
+		if (edge) {
+			const int t1 = edge->triangleIndex[0];
+			const int t2 = edge->triangleIndex[1];
+			if (t1 >= 0 && exportedFaces.find(t1) == exportedFaces.end())
+			{
+				const UMVec3i tri1(faceList[t1 * 3 + 0], faceList[t1 * 3 + 1], faceList[t1 * 3 + 2]);
+				if (t2 >= 0 && exportedFaces.find(t2) == exportedFaces.end() && faceNormalList[t1].dot(faceNormalList[t2]) > 0.9) {
+					const UMVec3i tri2(faceList[t2 * 3 + 0], faceList[t2 * 3 + 1], faceList[t2 * 3 + 2]);
+
+					bool share[3] = { false, false, false };
+					for (int k = 0; k < 3; ++k) {
+						for (int n = 0; n < 3; ++n) {
+							if (tri1[k] == tri2[n]) {
+								share[k] = true;
+							}
+						}
+					}
+					int forthV = -1;
+					for (int k = 0; k < 3; ++k) {
+						if (tri2[k] != tri1[0] &&
+							tri2[k] != tri1[1] &&
+							tri2[k] != tri1[2])
+						{
+							forthV = k;
+							break;
+						}
+					}
+					if (share[0] && share[2]) {
+						// 0, 1, 2, V
+						viToViMap[t1 * 3 + 0] = quadFaceList.size();
+						quadFaceList.push_back(tri1[0]);
+						viToViMap[t1 * 3 + 1] = quadFaceList.size();
+						quadFaceList.push_back(tri1[1]);
+						viToViMap[t1 * 3 + 2] = quadFaceList.size();
+						quadFaceList.push_back(tri1[2]);
+						viToViMap[t2 * 3 + forthV] = quadFaceList.size();
+						quadFaceList.push_back(tri2[forthV]);
+					}
+					else if (share[1] && share[2]) {
+						// 0, 1, V, 2
+						viToViMap[t1 * 3 + 0] = quadFaceList.size();
+						quadFaceList.push_back(tri1[0]);
+						viToViMap[t1 * 3 + 1] = quadFaceList.size();
+						quadFaceList.push_back(tri1[1]);
+						viToViMap[t2 * 3 + forthV] = quadFaceList.size();
+						quadFaceList.push_back(tri2[forthV]);
+						viToViMap[t1 * 3 + 2] = quadFaceList.size();
+						quadFaceList.push_back(tri1[2]);
+					}
+					else if (share[0] && share[1]) {
+						// 0, V, 1, 2
+						viToViMap[t1 * 3 + 0] = quadFaceList.size();
+						quadFaceList.push_back(tri1[0]);
+						viToViMap[t2 * 3 + forthV] = quadFaceList.size();
+						quadFaceList.push_back(tri2[forthV]);
+						viToViMap[t1 * 3 + 1] = quadFaceList.size();
+						quadFaceList.push_back(tri1[1]);
+						viToViMap[t1 * 3 + 2] = quadFaceList.size();
+						quadFaceList.push_back(tri1[2]);
+					}
+					
+					quadFaceCountList.push_back(4);
+					exportedFaces[t1] = 1;
+					exportedFaces[t2] = 1;
+				}
+			}
+		}
+	}
+
+	for (int i = 0, isize = 3 * faceCountList.size(); i < isize; ++i) {
+		Edge* edge = edgeHeadList[i];
+		if (edge) {
+			const int t1 = edge->triangleIndex[0];
+			const int t2 = edge->triangleIndex[1];
+			if (t1 >= 0 && exportedFaces.find(t1) == exportedFaces.end())
+			{
+				const UMVec3i tri1(faceList[t1 * 3 + 0], faceList[t1 * 3 + 1], faceList[t1 * 3 + 2]);
+				viToViMap[t1 * 3 + 0] = quadFaceList.size();
+				quadFaceList.push_back(tri1[0]);
+				viToViMap[t1 * 3 + 1] = quadFaceList.size();
+				quadFaceList.push_back(tri1[1]);
+				viToViMap[t1 * 3 + 2] = quadFaceList.size();
+				quadFaceList.push_back(tri1[2]);
+				quadFaceCountList.push_back(3);
+				exportedFaces[t1] = 1;
+			}
+			if (t2 >= 0 && exportedFaces.find(t2) == exportedFaces.end())
+			{
+				const UMVec3i tri2(faceList[t2 * 3 + 0], faceList[t2 * 3 + 1], faceList[t2 * 3 + 2]);
+				viToViMap[t2 * 3 + 0] = quadFaceList.size();
+				quadFaceList.push_back(tri2[0]);
+				viToViMap[t2 * 3 + 1] = quadFaceList.size();
+				quadFaceList.push_back(tri2[1]);
+				viToViMap[t2 * 3 + 2] = quadFaceList.size();
+				quadFaceList.push_back(tri2[2]);
+				quadFaceCountList.push_back(3);
+				exportedFaces[t2] = 1;
+			}
+		}
+	}
+	quadFaceCountList.swap(faceCountList);
+	quadFaceList.swap(faceList);
+}
+
+static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive, const RenderedBuffer & renderedBuffer, int renderedBufferIndex, bool isConvertToQuad)
 {
 	Alembic::AbcGeom::OObject topObj(*archive.archive, Alembic::AbcGeom::kTop);
 
@@ -252,6 +457,12 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 			AlembicArchive::FaceToVertexIndex fiToVi;
 			archive.face_to_vertex_index_map[key] = fiToVi;
 		}
+
+		if (archive.trivi_to_vertex_index_map.find(key) == archive.trivi_to_vertex_index_map.end())
+		{
+			AlembicArchive::TriViToVertexIndex triViToVi;
+			archive.trivi_to_vertex_index_map[key] = triViToVi;
+		}
 			
 		Alembic::AbcGeom::OPolyMeshSchema &meshSchema = archive.schema_map[key];
 		meshSchema.setTimeSampling(archive.timesampling);
@@ -285,6 +496,7 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		}
 			
 		AlembicArchive::FaceToVertexIndex& fiToVi = archive.face_to_vertex_index_map[key];
+		AlembicArchive::TriViToVertexIndex& triViToVi = archive.trivi_to_vertex_index_map[key];
 		int& preSurfaceSize = archive.surface_size_map[key];
 		bool isFirstSurface = material->surface.faces.size() != preSurfaceSize;
 		if (!isFirstMesh && isFirstSurface)
@@ -295,32 +507,33 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		// re assign par material
 		int lastIndex = 0;
 
-		for (int n = 0; n < materialSurfaceSize; ++n)
+		if (isFirstMesh)
 		{
-			UMVec3i face = material->surface.faces[n];
-
-			const int f1 = face.x - 1;
-			const int f2 = face.y - 1;
-			const int f3 = face.z - 1;
-			int vi1 = 0;
-			int vi2 = 0;
-			int vi3 = 0;
-
-			if (isFirstMesh)
+			for (int n = 0; n < materialSurfaceSize; ++n)
 			{
+				UMVec3i face = material->surface.faces[n];
+				const int f1 = face.x - 1;
+				const int f2 = face.y - 1;
+				const int f3 = face.z - 1;
+				int vi1 = 0;
+				int vi2 = 0;
+				int vi3 = 0;
+
 				if (fiToVi.find(f1) == fiToVi.end()) {
 					vi1 = lastIndex;
 					fiToVi[f1] = vi1;
 					++lastIndex;
-				} else {
+				}
+				else {
 					vi1 = fiToVi[f1];
 				}
-				
+
 				if (fiToVi.find(f2) == fiToVi.end()) {
 					vi2 = lastIndex;
 					fiToVi[f2] = vi2;
 					++lastIndex;
-				} else {
+				}
+				else {
 					vi2 = fiToVi[f2];
 				}
 
@@ -328,31 +541,36 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 					vi3 = lastIndex;
 					fiToVi[f3] = vi3;
 					++lastIndex;
-				} else {
+				}
+				else {
 					vi3 = fiToVi[f3];
 				}
 			}
-			else
-			{
-				vi1 = fiToVi[f1];
-				vi2 = fiToVi[f2];
-				vi3 = fiToVi[f3];
-			}
+		}
 
+		for (int n = 0; n < materialSurfaceSize; ++n)
+		{
+			UMVec3i face = material->surface.faces[n];
+			const int f1 = face.x - 1;
+			const int f2 = face.y - 1;
+			const int f3 = face.z - 1;
+			int vi1 = fiToVi[f1];
+			int vi2 = fiToVi[f2];
+			int vi3 = fiToVi[f3];
 			vertexListByMaterial[vi1] = vertexList.at(f1);
 			vertexListByMaterial[vi2] = vertexList.at(f2);
 			vertexListByMaterial[vi3] = vertexList.at(f3);
-			if (!uvList.empty() && archive.is_export_uvs)
-			{
-				uvListByMaterial[n * 3 + 0] = uvList.at(f1);
-				uvListByMaterial[n * 3 + 1] = uvList.at(f2);
-				uvListByMaterial[n * 3 + 2] = uvList.at(f3);
-			}
 			if (!normalList.empty() && archive.is_export_normals)
 			{
 				normalListByMaterial[vi1] = normalList.at(f1);
 				normalListByMaterial[vi2] = normalList.at(f2);
 				normalListByMaterial[vi3] = normalList.at(f3);
+			}
+			if (!uvList.empty() && archive.is_export_uvs)
+			{
+				uvListByMaterial[n * 3 + 0] = uvList.at(f1);
+				uvListByMaterial[n * 3 + 1] = uvList.at(f2);
+				uvListByMaterial[n * 3 + 2] = uvList.at(f3);
 			}
 			faceList[n * 3 + 0] = vi1;
 			faceList[n * 3 + 1] = vi2;
@@ -363,10 +581,30 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		preSurfaceSize = material->surface.faces.size();
 		vertexListByMaterial.resize(fiToVi.size());
 		normalListByMaterial.resize(fiToVi.size());
-
 		for (int n = 0, nsize = vertexListByMaterial.size(); n < nsize; ++n)
 		{
 			vertexListByMaterial[n].z = -vertexListByMaterial[n].z;
+		}
+
+		if (isFirstMesh && isConvertToQuad) {
+			convertToQuad(triViToVi, faceList, faceCountList, vertexListByMaterial);
+		}
+
+		if (isConvertToQuad) {
+			if (!uvList.empty() && archive.is_export_uvs)
+			{
+				uvListByMaterial.resize(faceList.size());
+				for (int n = 0; n < materialSurfaceSize; ++n)
+				{
+					UMVec3i face = material->surface.faces[n];
+					const int f1 = face.x - 1;
+					const int f2 = face.y - 1;
+					const int f3 = face.z - 1;
+					uvListByMaterial[triViToVi[n * 3 + 0]] = uvList.at(f1);
+					uvListByMaterial[triViToVi[n * 3 + 1]] = uvList.at(f2);
+					uvListByMaterial[triViToVi[n * 3 + 2]] = uvList.at(f3);
+				}
+			}
 		}
 
 		Alembic::AbcGeom::OPolyMeshSchema::Sample sample;
@@ -387,9 +625,12 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		// UVs
 		if (!uvListByMaterial.empty() && archive.is_export_uvs)
 		{
-			for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
+			if (!uvListByMaterial.empty() && archive.is_export_uvs)
 			{
-				uvListByMaterial[n].y = 1.0f - uvListByMaterial[n].y;
+				for (int n = 0, nsize = uvListByMaterial.size(); n < nsize; ++n)
+				{
+					uvListByMaterial[n].y = 1.0f - uvListByMaterial[n].y;
+				}
 			}
 			Alembic::AbcGeom::OV2fGeomParam::Sample uvSample;
 			uvSample.setScope(Alembic::AbcGeom::kVertexScope );
@@ -400,16 +641,19 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		// Normals
 		if (!normalListByMaterial.empty() && archive.is_export_normals)
 		{
-			for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
+			if (!normalListByMaterial.empty() && archive.is_export_normals)
 			{
-				normalListByMaterial[n].z = -normalListByMaterial[n].z;
+				for (int n = 0, nsize = normalListByMaterial.size(); n < nsize; ++n)
+				{
+					normalListByMaterial[n].z = -normalListByMaterial[n].z;
+				}
 			}
 			Alembic::AbcGeom::ON3fGeomParam::Sample normalSample;
 			normalSample.setScope(Alembic::AbcGeom::kVertexScope );
 			normalSample.setVals(Alembic::AbcGeom::N3fArraySample( (const Alembic::AbcGeom::N3f *) &normalListByMaterial.front(), normalListByMaterial.size()));
 			sample.setNormals(normalSample);
 		}
-			
+
 		meshSchema.set(sample);
 	}
 }
@@ -966,7 +1210,7 @@ static bool execute_alembic_export(int currentframe)
 
 		if (archive.export_mode == 0)
 		{
-			export_alembic_xform_by_material_fix_vindex(archive, renderedBuffer, i);
+			export_alembic_xform_by_material_fix_vindex(archive, renderedBuffer, i, false);
 		}
 		else if (archive.export_mode == 1)
 		{
@@ -975,6 +1219,10 @@ static bool execute_alembic_export(int currentframe)
 		else if (archive.export_mode == 2)
 		{
 			export_alembic_xform_by_material_direct(archive, renderedBuffer, i);
+		}
+		else if (archive.export_mode == 3)
+		{
+			export_alembic_xform_by_material_fix_vindex(archive, renderedBuffer, i, true);
 		}
 	}
 	return true;
