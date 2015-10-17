@@ -124,6 +124,9 @@ public:
 	typedef std::map<int, TriViToVertexIndex> TriViToVertexIndexMap;
 	TriViToVertexIndexMap trivi_to_vertex_index_map;
 
+	typedef std::map<int, int> QuadViToCountMap;
+	QuadViToCountMap quadvi_count_map;
+
 	bool is_export_normals;
 	bool is_export_uvs;
 	int export_mode;
@@ -143,6 +146,7 @@ public:
 		camera_schema_map.clear();
 		face_to_vertex_index_map.clear();
 		trivi_to_vertex_index_map.clear();
+		quadvi_count_map.clear();
 		surface_size_map.clear();
 		temporary_uv_list.clear();
 		temporary_normal_list.clear();
@@ -588,12 +592,13 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 
 		if (isFirstMesh && isConvertToQuad) {
 			convertToQuad(triViToVi, faceList, faceCountList, vertexListByMaterial);
+			archive.quadvi_count_map[key] = faceList.size();
 		}
 
 		if (isConvertToQuad) {
 			if (!uvList.empty() && archive.is_export_uvs)
 			{
-				uvListByMaterial.resize(faceList.size());
+				uvListByMaterial.resize(archive.quadvi_count_map[key]);
 				for (int n = 0; n < materialSurfaceSize; ++n)
 				{
 					UMVec3i face = material->surface.faces[n];
