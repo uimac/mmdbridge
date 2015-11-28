@@ -39,38 +39,6 @@ template <class T> std::string to_string(T value)
 	return umbase::UMStringUtil::number_to_string(value);
 }
 
-// 行列で3Dベクトルをトランスフォームする
-// D3DXVec3Transformとほぼ同じ
-static void d3d_vector3_dir_transform(
-	D3DXVECTOR3 &dst, 
-	const D3DXVECTOR3 &src, 
-	const D3DXMATRIX &matrix)
-{
-	const float tmp[] = {
-		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0],
-		src.x*matrix.m[0][1] + src.y*matrix.m[1][1] + src.z*matrix.m[2][1],
-		src.x*matrix.m[0][2] + src.y*matrix.m[1][2] + src.z*matrix.m[2][2]
-	};
-	dst.x = tmp[0];
-	dst.y = tmp[1];
-	dst.z = tmp[2];
-}
-
-static void d3d_vector3_transform(
-	D3DXVECTOR3 &dst, 
-	const D3DXVECTOR3 &src, 
-	const D3DXMATRIX &matrix)
-{
-	const float tmp[] = {
-		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0] + 1.0f*matrix.m[3][0],
-		src.x*matrix.m[0][1] + src.y*matrix.m[1][1] + src.z*matrix.m[2][1] + 1.0f*matrix.m[3][1],
-		src.x*matrix.m[0][2] + src.y*matrix.m[1][2] + src.z*matrix.m[2][2] + 1.0f*matrix.m[3][2]
-	};
-	dst.x = tmp[0];
-	dst.y = tmp[1];
-	dst.z = tmp[2];
-}
-
 typedef std::shared_ptr<pmd::PmdModel> PMDPtr;
 typedef std::shared_ptr<pmx::PmxModel> PMXPtr;
 typedef std::shared_ptr<vmd::VmdMotion> VMDPtr;

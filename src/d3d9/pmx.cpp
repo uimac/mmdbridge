@@ -31,7 +31,6 @@
 
 #include "MMDExport.h"
 
-typedef std::shared_ptr<pmd::PmdModel> PMDPtr;
 typedef std::shared_ptr<pmx::PmxModel> PMXPtr;
 typedef std::shared_ptr<vmd::VmdMotion> VMDPtr;
 typedef std::shared_ptr<pmx::PmxMorph> PmxMorphPtr;
@@ -39,12 +38,7 @@ typedef std::shared_ptr<pmx::PmxMorph> PmxMorphPtr;
 class FileData {
 public:
 	PMXPtr pmx;
-	PMDPtr pmd;
 	VMDPtr vmd;
-	std::map<int, int> parent_index_map;
-	std::map<int, std::string> bone_name_map;
-	std::map<int, int> physics_bone_map;
-	std::map<int, int> ik_bone_map;
 };
 
 class PMXArchive {

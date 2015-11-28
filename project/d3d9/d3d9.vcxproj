@@ -88,7 +88,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;$(SolutionDir)/libs/MikuMikuFormats/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/avi20/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;$(SolutionDir)/libs/MikuMikuFormats/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;BOOST_PYTHON_STATIC_LIB;_DEBUG;_WINDOWS;_USRDLL;HOOK_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -109,7 +109,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/avi20/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;BOOST_PYTHON_STATIC_LIB;_DEBUG;_WINDOWS;_USRDLL;HOOK_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -128,10 +128,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;$(SolutionDir)/libs/MikuMikuFormats/include;$(SolutionDir)/libs/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;WIN32;BOOST_PYTHON_STATIC_LIB;NDEBUG;_WINDOWS;HOOK_EXPORTS;WITH_ALEMBIC;WITH_VMD;WITH_PMX;_CRT_SECURE_NO_WARNINGS;PLATFORM_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/avi20/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;$(SolutionDir)/libs/MikuMikuFormats/include;$(SolutionDir)/libs/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;WIN32;BOOST_PYTHON_STATIC_LIB;NDEBUG;_WINDOWS;HOOK_EXPORTS;WITH_ALEMBIC;WITH_VMD;WITH_PMX;WITH_AVI;_CRT_SECURE_NO_WARNINGS;PLATFORM_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
@@ -147,9 +147,9 @@
       <ResourceOutputFileName>%(Filename).res</ResourceOutputFileName>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>MMDExport.lib;shlwapi.lib;d3dx9_32.lib;winmm.lib;MikuMikuFormats.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>MMDExport.lib;shlwapi.lib;d3dx9_32.lib;winmm.lib;avi20.lib;MikuMikuFormats.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName)_.dll</OutputFile>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x86;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)libs/MikuMikuFormats/$(Platform)/$(Configuration)/;$(SolutionDir)libs/;$(SolutionDir)/libs/mmd/Win32/;$(SolutionDir)/Release/$(Platform)/;$(SolutionDir)/src/d3dx9_32;C:\Users\uimac\Desktop\old\mmdb\svn\libs\ilmbase2\Win32\Release;C:\Users\uimac\Desktop\old\mmdb\svn\libs\alembic\Win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Lib\x86;$(SolutionDir)libs/boost/$(Platform)/$(Configuration)/;$(SolutionDir)libs/python/$(Platform)/$(Configuration)/;$(SolutionDir)libs/alembic/$(Platform)/$(Configuration)/;$(SolutionDir)libs/hdf5/$(Platform)/$(Configuration)/;$(SolutionDir)libs/ilmbase2/$(Platform)/$(Configuration)/;$(SolutionDir)libs/zlib/$(Platform)/$(Configuration)/;$(SolutionDir)libs/avi20/$(Platform)/$(Configuration)/;$(SolutionDir)libs/MikuMikuFormats/$(Platform)/$(Configuration)/;$(SolutionDir)libs/;$(SolutionDir)/libs/mmd/Win32/;$(SolutionDir)/Release/$(Platform)/;$(SolutionDir)/src/d3dx9_32;C:\Users\uimac\Desktop\old\mmdb\svn\libs\ilmbase2\Win32\Release;C:\Users\uimac\Desktop\old\mmdb\svn\libs\alembic\Win32\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>$(SolutionDir)/src/$(ProjectName)/hook.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -176,7 +176,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;$(SolutionDir)/src/d3dx9_32;$(SolutionDir)/src/umbase;C:\Program Files (x86)\Microsoft DirectX SDK (April 2006)\Include;$(SolutionDir)/src/($ProjectName);$(SolutionDir)/libs/python/include;$(SolutionDir)/libs/ilmbase2/include;$(SolutionDir)/libs/ilmbase2/include/config.windows;$(SolutionDir)/libs/ilmbase2/include/Half;$(SolutionDir)/libs/ilmbase2/include/Iex;$(SolutionDir)/libs/ilmbase2/include/IexMath;$(SolutionDir)/libs/ilmbase2/include/IlmThread;$(SolutionDir)/libs/ilmbase2/include/Imath;$(SolutionDir)/libs/alembic/include;$(SolutionDir)/libs/hdf5/include;$(SolutionDir)/libs/avi20/include;$(SolutionDir)/libs/boost/include;$(SolutionDir)/libs/mmd/include;;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;BOOST_PYTHON_STATIC_LIB;NDEBUG;_WINDOWS;HOOK_EXPORTS;WITH_ALEMBIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -221,6 +221,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\d3d9\alembic.h" />
+    <ClInclude Include="..\..\src\d3d9\avi.h" />
     <ClInclude Include="..\..\src\d3d9\bridge_parameter.h" />
     <ClInclude Include="..\..\src\d3d9\d3d9.h" />
     <ClInclude Include="..\..\src\d3d9\pmx.h" />
@@ -229,6 +230,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\d3d9\alembic.cpp" />
+    <ClCompile Include="..\..\src\d3d9\avi.cpp" />
     <ClCompile Include="..\..\src\d3d9\bridge_parameter.cpp" />
     <ClCompile Include="..\..\src\d3d9\d3d9.cpp" />
     <ClCompile Include="..\..\src\d3d9\pmx.cpp" />
