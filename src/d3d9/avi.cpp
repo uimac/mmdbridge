@@ -53,6 +53,7 @@ public:
 	StreamPtr stream;
 	WriterPtr writer;
 	AVI20::Write::MediaStreamWriter streamWriter;
+	std::vector<unsigned int> image;
 };
 
 class AVIArchive {
@@ -71,28 +72,28 @@ public:
 
 	int export_mode;
 
-	void end()
-	{
-		if (file_data.writer) {
-			file_data.writer->Finalize();
-			file_data.writer = WriterPtr();
-		}
-		if (file_data.stream) {
-			file_data.stream = StreamPtr();
-		}
-		if (file_data.fstream) {
-			if (file_data.fstream->is_open()) {
-				file_data.fstream->close();
-			}
-			delete file_data.fstream;
-			file_data.fstream = NULL;
-		}
-		file_path_map.clear();
-		output_path.clear();
+void end()
+{
+	if (file_data.writer) {
+		file_data.writer->Finalize();
+		file_data.writer = WriterPtr();
 	}
+	if (file_data.stream) {
+		file_data.stream = StreamPtr();
+	}
+	if (file_data.fstream) {
+		if (file_data.fstream->is_open()) {
+			file_data.fstream->close();
+		}
+		delete file_data.fstream;
+		file_data.fstream = NULL;
+	}
+	file_path_map.clear();
+	output_path.clear();
+}
 
-	~AVIArchive() {
-	}
+~AVIArchive() {
+}
 private:
 	AVIArchive() {}
 };
@@ -122,11 +123,72 @@ static bool start_avi_export(
 	archive.file_data.stream = std::make_shared<AVI20::Write::Stream>(archive.file_data.fstream);
 	archive.file_data.writer = std::make_shared<AVI20::Write::Writer>(*archive.file_data.stream);
 
+	const VertexBufferList& finishBuffers = BridgeParameter::instance().finish_buffer_list;
+	int all_size = 0;
+
+	// header
+	{
+		all_size += 1; // buffersize
+		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
+		{
+			all_size += 3; // vsize(=nsize), uvsize, matsize
+			const RenderedBuffer &renderedBuffer = parameter.render_buffer(i);
+		}
+	}
+
+	// contents
+	for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
+	{
+		const RenderedBuffer &renderedBuffer = parameter.render_buffer(i);
+		const RenderedBuffer::VertexList& vertexList = renderedBuffer.vertecies;
+		const RenderedBuffer::NormalList& normalList = renderedBuffer.normals;
+		const RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+		const int material_size = static_cast<int>(renderedBuffer.materials.size());
+		// material face sizes
+		all_size += material_size;
+		for (int k = 0; k < material_size; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			// vertex size
+			all_size += materialSurfaceSize * 3 * 3;
+
+			if (!normalList.empty()) {
+				// normal size
+				all_size += materialSurfaceSize * 3 * 3;
+			}
+			if (!uvList.empty()) {
+				// uv size
+				all_size += materialSurfaceSize * 2 * 3;
+			}
+		}
+	}
+
 	WriterPtr writer = archive.file_data.writer;
 	if (writer) {
-		archive.file_data.streamWriter = writer->AddMediaStream(512, 512, 24, 0, 512 * 512 * 3, 30);
-		writer->Start();
+		if (all_size < (256 * 256)) {
+			archive.file_data.streamWriter = writer->AddMediaStream(256, 256, 24, 0, 256 * 256 * 3, 30);
+			writer->Start();
+			archive.file_data.image.resize(256 * 256);
+		}
+		else if (all_size < (512 * 512)) {
+			archive.file_data.streamWriter = writer->AddMediaStream(512, 512, 24, 0, 512 * 512 * 3, 30);
+			writer->Start();
+			archive.file_data.image.resize(512 * 512);
+		}
+		else if (all_size < 1024 * 1024) {
+			archive.file_data.streamWriter = writer->AddMediaStream(1024, 1024, 24, 0, 1024 * 1024 * 3, 30);
+			writer->Start();
+			archive.file_data.image.resize(1024 * 1024);
+
+		}
+		else if (all_size < 2048 * 2048) {
+			archive.file_data.streamWriter = writer->AddMediaStream(2048, 2048, 24, 0, 2048 * 2048 * 3, 30);
+			writer->Start();
+			archive.file_data.image.resize(2048 * 2048);
+		}
 	}
+
 	return true;
 }
 
@@ -141,8 +203,6 @@ static bool end_avi_export()
 	return true;
 }
 
-std::vector<char> image(512 * 512 * 3);
-
 static bool execute_avi_export(int currentframe)
 {
 	AVIArchive &archive = AVIArchive::instance();
@@ -150,9 +210,76 @@ static bool execute_avi_export(int currentframe)
 
 	const BridgeParameter& parameter = BridgeParameter::instance();
 
-	AVI20::Write::MediaStreamWriter& streamWriter = archive.file_data.streamWriter;
+	const VertexBufferList& finishBuffers = BridgeParameter::instance().finish_buffer_list;
+	int bufferpos = 0;
+	std::vector<unsigned int> & image = archive.file_data.image;
+	image[bufferpos++] = finishBuffers.size();
+	for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)
+	{
+		const RenderedBuffer &renderedBuffer = parameter.render_buffer(i);
+		const RenderedBuffer::VertexList& vertexList = renderedBuffer.vertecies;
+		const RenderedBuffer::NormalList& normalList = renderedBuffer.normals;
+		const RenderedBuffer::UVList &uvList = renderedBuffer.uvs;
+		const int material_size = static_cast<int>(renderedBuffer.materials.size());
 
-	streamWriter.WriteFrame(image.data(), image.size(), true);
+		const int vertsizepos = bufferpos++;
+		const int uvsizepos = bufferpos++;
+		image[bufferpos++] = material_size;
+
+		int vertex_size = 0;
+		for (int k = 0; k < material_size; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			image[bufferpos++] = materialSurfaceSize;
+			image[vertsizepos] += materialSurfaceSize * 3;
+			if (!uvList.empty()) {
+				// uv size
+				image[uvsizepos] += materialSurfaceSize * 2;
+			}
+		}
+		// vert
+		for (int k = 0; k < material_size; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			for (int n = 0; n < materialSurfaceSize; ++n) {
+				for (int m = 0; m < 3; ++m) {
+					memcpy(&image[bufferpos++], &vertexList[material->surface.faces[n][m]].x, sizeof(float));
+					memcpy(&image[bufferpos++], &vertexList[material->surface.faces[n][m]].y, sizeof(float));
+					memcpy(&image[bufferpos++], &vertexList[material->surface.faces[n][m]].z, sizeof(float));
+				}
+			}
+		}
+		// normal
+		for (int k = 0; k < material_size; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			for (int n = 0; n < materialSurfaceSize; ++n) {
+				for (int m = 0; m < 3; ++m) {
+					memcpy(&image[bufferpos++], &normalList[material->surface.faces[n][m]].x, sizeof(float));
+					memcpy(&image[bufferpos++], &normalList[material->surface.faces[n][m]].y, sizeof(float));
+					memcpy(&image[bufferpos++], &normalList[material->surface.faces[n][m]].z, sizeof(float));
+				}
+			}
+		}
+		// uv
+		for (int k = 0; k < material_size; ++k)
+		{
+			RenderedMaterial* material = renderedBuffer.materials.at(k);
+			const int materialSurfaceSize = static_cast<int>(material->surface.faces.size());
+			for (int n = 0; n < materialSurfaceSize; ++n) {
+				for (int m = 0; m < 3; ++m) {
+					memcpy(&image[bufferpos++], &uvList[material->surface.faces[n][m]].x, sizeof(float));
+					memcpy(&image[bufferpos++], &uvList[material->surface.faces[n][m]].y, sizeof(float));
+				}
+			}
+		}
+	}
+
+	AVI20::Write::MediaStreamWriter& streamWriter = archive.file_data.streamWriter;
+	streamWriter.WriteFrame(archive.file_data.image.data(), archive.file_data.image.size() * 3, true);
 
 	return true;
 }
@@ -173,12 +300,6 @@ BOOST_PYTHON_MODULE( mmdbridge_avi )
 void InitAVI()
 	{
 		PyImport_AppendInittab("mmdbridge_avi", PyInit_mmdbridge_avi);
-
-		for (int i = 0, isize = 512 * 512; i < isize; ++i) {
-			image[i * 3 + 0] = 0x00;
-			image[i * 3 + 1] = 0x00;
-			image[i * 3 + 2] = 0xFF;
-		}
 	}
 	void DisposeAVI() 
 	{
