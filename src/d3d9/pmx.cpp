@@ -100,7 +100,7 @@ static bool end_pmx_export()
 	PMXPtr pmx = archive.file_data.pmx;
 	converter.Utf8ToUtf16(archive.model_name.c_str(), archive.model_name.size(), &pmx->model_name);
 	pmx->morph_count = static_cast<int>(archive.morph_list.size());
-	pmx->morphs = std::make_unique<pmx::PmxMorph[]>(pmx->morph_count);
+	pmx->morphs.resize(pmx->morph_count);
 
 	archive.file_data.vmd = std::make_unique<vmd::VmdMotion>();
 	VMDPtr vmd = archive.file_data.vmd;
@@ -115,7 +115,7 @@ static bool end_pmx_export()
 		pmx->morphs[i].morph_type = mo->morph_type;
 		pmx->morphs[i].category = mo->category;
 		pmx->morphs[i].offset_count = mo->offset_count;
-		pmx->morphs[i].vertex_offsets = std::make_unique<pmx::PmxMorphVertexOffset[]>(mo->offset_count);
+		pmx->morphs[i].vertex_offsets.resize(mo->offset_count);
 		for (int k = 0; k < mo->offset_count; ++k)
 		{
 			pmx->morphs[i].vertex_offsets[k] = mo->vertex_offsets[k];
@@ -190,15 +190,15 @@ static void export_pmx(int currentframe, bool isfirst)
 		}
 
 		pmx->vertex_count = vertex_count;
-		pmx->vertices = std::make_unique<pmx::PmxVertex[]>(vertex_count);
+		pmx->vertices.resize(vertex_count);
 		pmx->index_count = index_count;
-		pmx->indices = std::make_unique<int[]>(index_count);
+		pmx->indices.resize(index_count);
 		pmx->material_count = material_count;
-		pmx->materials = std::make_unique<pmx::PmxMaterial[]>(material_count);
+		pmx->materials.resize(material_count);
 		pmx->bone_count = 1;
-		pmx->bones = std::make_unique<pmx::PmxBone[]>(1);
+		pmx->bones.resize(1);
 		pmx->texture_count = texture_map.size();
-		pmx->textures = std::make_unique<std::wstring[]>(pmx->texture_count);
+		pmx->textures.resize(pmx->texture_count);
 		int i = 0;
 		for (TextureMap::iterator it = texture_map.begin(); it != texture_map.end(); ++it, ++i)
 		{
@@ -270,9 +270,9 @@ static void export_pmx(int currentframe, bool isfirst)
 						pmx::PmxVertex& v = pmx->vertices[vertex_offset + vi[m]];
 						pmx->indices[index_offset + m] = vertex_offset + vi[m];
 
-						v.positon[0] = vertexList[vi[m]][0];
-						v.positon[1] = vertexList[vi[m]][1];
-						v.positon[2] = vertexList[vi[m]][2];
+						v.position[0] = vertexList[vi[m]][0];
+						v.position[1] = vertexList[vi[m]][1];
+						v.position[2] = vertexList[vi[m]][2];
 						if (!normalList.empty())
 						{
 							v.normal[0] = normalList[vi[m]][0];
@@ -303,7 +303,7 @@ static void export_pmx(int currentframe, bool isfirst)
 		morph->morph_type = pmx::MorphType::Vertex;
 		morph->category = pmx::MorphCategory::Other;
 		morph->offset_count = vertex_count;
-		morph->vertex_offsets = std::make_unique<pmx::PmxMorphVertexOffset []>(vertex_count);
+		morph->vertex_offsets.resize(vertex_count);
 
 		int vertex_offset = 0;
 		for (int i = 0, isize = static_cast<int>(finishBuffers.size()); i < isize; ++i)

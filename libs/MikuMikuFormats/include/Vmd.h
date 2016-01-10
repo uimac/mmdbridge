@@ -22,6 +22,10 @@ namespace vmd
 		/// 補間曲線
 		char interpolation[4][4][4];
 
+		bool operator == (const VmdBoneFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdBoneFrame)) == 0);
+		}
+
 		void Read(std::istream* stream)
 		{
 			char buffer[15];
@@ -53,6 +57,10 @@ namespace vmd
 		float weight;
 		/// フレーム番号
 		uint32_t frame;
+
+		bool operator == (const VmdFaceFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdFaceFrame)) == 0);
+		}
 
 		void Read(std::istream* stream)
 		{
@@ -90,6 +98,10 @@ namespace vmd
 		/// 不明データ
 		char unknown[3];
 
+		bool operator == (const VmdCameraFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdCameraFrame)) == 0);
+		}
+
 		void Read(std::istream *stream)
 		{
 			stream->read((char*) &frame, sizeof(int));
@@ -124,6 +136,10 @@ namespace vmd
 		/// 位置
 		float position[3];
 
+		bool operator == (const VmdLightFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdLightFrame)) == 0);
+		}
+
 		void Read(std::istream* stream)
 		{
 			stream->read((char*) &frame, sizeof(int));
@@ -144,7 +160,7 @@ namespace vmd
 	{
 	public:
 		std::string ik_name;
-		bool enable;
+		uint8_t enable;
 	};
 
 	/// IKフレーム
@@ -152,8 +168,12 @@ namespace vmd
 	{
 	public:
 		int frame;
-		bool display;
+		uint8_t display;
 		std::vector<VmdIkEnable> ik_enable;
+
+		bool operator == (const VmdIkFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdIkEnable)) == 0);
+		}
 
 		void Read(std::istream *stream)
 		{
@@ -204,6 +224,10 @@ namespace vmd
 		std::vector<VmdLightFrame> light_frames;
 		/// IKフレーム
 		std::vector<VmdIkFrame> ik_frames;
+
+		bool operator == (const VmdMotion &v) const {
+			return (std::memcmp(this, &v, sizeof(VmdMotion)) == 0);
+		}
 
 		static std::unique_ptr<VmdMotion> LoadFromFile(char const *filename)
 		{

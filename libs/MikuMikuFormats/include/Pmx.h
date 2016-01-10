@@ -173,7 +173,7 @@ namespace pmx
 		{
 			uv[0] = uv[1] = 0.0f;
 			for (int i = 0; i < 3; ++i) {
-				positon[i] = 0.0f;
+				position[i] = 0.0f;
 				normal[i] = 0.0f;
 			}
 			for (int i = 0; i < 4; ++i) {
@@ -183,8 +183,12 @@ namespace pmx
 			}
 		}
 
+		bool operator == (const PmxVertex &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxVertex)) == 0);
+		}
+
 		/// 位置
-		float positon[3];
+		float position[3];
 		/// 法線
 		float normal[3];
 		/// テクスチャ座標
@@ -194,7 +198,7 @@ namespace pmx
 		/// スキニングタイプ
 		PmxVertexSkinningType skinning_type;
 		/// スキニング
-		std::unique_ptr<PmxVertexSkinning> skinning;
+		std::shared_ptr<PmxVertexSkinning> skinning;
 		/// エッジ倍率
 		float edge;
 		void Read(std::istream *stream, PmxSetting *setting);
@@ -224,6 +228,10 @@ namespace pmx
 			for (int i = 0; i < 4; ++i) {
 				diffuse[i] = 0.0f;
 			}
+		}
+
+		bool operator == (const PmxMaterial &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMaterial)) == 0);
 		}
 
 		/// モデル名
@@ -276,6 +284,9 @@ namespace pmx
 			}
 		}
 
+		bool operator == (const PmxIkLink &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxIkLink)) == 0);
+		}
 		/// リンクボーンインデックス
 		int link_target;
 		/// 角度制限
@@ -312,6 +323,10 @@ namespace pmx
 				local_axis_x_orientation[i] = 0.0f;
 				local_axis_y_orientation[i] = 0.0f;
 			}
+		}
+
+		bool operator == (const PmxBone &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxBone)) == 0);
 		}
 
 		/// ボーン名
@@ -351,7 +366,7 @@ namespace pmx
 		/// IKリンク数
 		int ik_link_count;
 		/// IKリンク
-		std::unique_ptr<PmxIkLink []> ik_links;
+		std::vector<PmxIkLink> ik_links;
 		void Read(std::istream *stream, PmxSetting *setting);
 		void Write(std::ostream *stream, PmxSetting *setting);
 	};
@@ -397,6 +412,9 @@ namespace pmx
 				position_offset[i] = 0.0f;
 			}
 		}
+		bool operator == (const PmxMorphVertexOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphVertexOffset)) == 0);
+		}
 		int vertex_index;
 		float position_offset[3];
 		void Read(std::istream *stream, PmxSetting *setting) override;
@@ -412,6 +430,9 @@ namespace pmx
 			for (int i = 0; i < 4; ++i) {
 				uv_offset[i] = 0.0f;
 			}
+		}
+		bool operator == (const PmxMorphUVOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphUVOffset)) == 0);
 		}
 		int vertex_index;
 		float uv_offset[4];
@@ -431,6 +452,9 @@ namespace pmx
 			for (int i = 0; i < 4; ++i) {
 				rotation[i] = 0.0f;
 			}
+		}
+		bool operator == (const PmxMorphBoneOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphBoneOffset)) == 0);
 		}
 		int bone_index;
 		float translation[3];
@@ -458,6 +482,9 @@ namespace pmx
 				toon_texture_argb[i] = 0.0f;
 			}
 		}
+		bool operator == (const PmxMorphMaterialOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphMaterialOffset)) == 0);
+		}
 		int material_index;
 		uint8_t offset_operation;
 		float diffuse[4];
@@ -480,6 +507,9 @@ namespace pmx
 			: morph_index(0)
 			, morph_weight(0.0f)
 		{}
+		bool operator == (const PmxMorphGroupOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphGroupOffset)) == 0);
+		}
 		int morph_index;
 		float morph_weight;
 		void Read(std::istream *stream, PmxSetting *setting) override;
@@ -493,6 +523,9 @@ namespace pmx
 			: morph_index(0)
 			, morph_value(0.0f)
 		{}
+		bool operator == (const PmxMorphFlipOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphFlipOffset)) == 0);
+		}
 		int morph_index;
 		float morph_value;
 		void Read(std::istream *stream, PmxSetting *setting) override;
@@ -511,6 +544,10 @@ namespace pmx
 				angular_torque[i] = 0.0f;
 			}
 		}
+		bool operator == (const PmxMorphImplusOffset &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorphImplusOffset)) == 0);
+		}
+
 		int rigid_body_index;
 		uint8_t is_local;
 		float velocity[3];
@@ -527,6 +564,11 @@ namespace pmx
 			: offset_count(0)
 		{
 		}
+
+		bool operator == (const PmxMorph &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxMorph)) == 0);
+		}
+
 		/// モーフ名
 		std::wstring morph_name;
 		/// モーフ英名
@@ -538,19 +580,19 @@ namespace pmx
 		/// オフセット数
 		int offset_count;
 		/// 頂点モーフ配列
-		std::unique_ptr<PmxMorphVertexOffset []> vertex_offsets;
+		std::vector<PmxMorphVertexOffset> vertex_offsets;
 		/// UVモーフ配列
-		std::unique_ptr<PmxMorphUVOffset []> uv_offsets;
+		std::vector<PmxMorphUVOffset> uv_offsets;
 		/// ボーンモーフ配列
-		std::unique_ptr<PmxMorphBoneOffset []> bone_offsets;
+		std::vector<PmxMorphBoneOffset> bone_offsets;
 		/// マテリアルモーフ配列
-		std::unique_ptr<PmxMorphMaterialOffset []> material_offsets;
+		std::vector<PmxMorphMaterialOffset> material_offsets;
 		/// グループモーフ配列
-		std::unique_ptr<PmxMorphGroupOffset []> group_offsets;
+		std::vector<PmxMorphGroupOffset> group_offsets;
 		/// フリップモーフ配列
-		std::unique_ptr<PmxMorphFlipOffset []> flip_offsets;
+		std::vector<PmxMorphFlipOffset> flip_offsets;
 		/// インパルスモーフ配列
-		std::unique_ptr<PmxMorphImplusOffset []> implus_offsets;
+		std::vector<PmxMorphImplusOffset> implus_offsets;
 		void Read(std::istream *stream, PmxSetting *setting);
 		void Write(std::ostream *stream, PmxSetting *setting);
 	};
@@ -564,6 +606,11 @@ namespace pmx
 			, index(0)
 		{
 		}
+
+		bool operator == (const PmxFrameElement &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxFrameElement)) == 0);
+		}
+
 		/// 要素対象
 		uint8_t element_target;
 		/// 要素対象インデックス
@@ -581,6 +628,11 @@ namespace pmx
 			, element_count(0)
 		{
 		}
+
+		bool operator == (const PmxFrame &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxFrame)) == 0);
+		}
+
 		/// 枠名
 		std::wstring frame_name;
 		/// 枠英名
@@ -590,7 +642,7 @@ namespace pmx
 		/// 枠内要素数
 		int element_count;
 		/// 枠内要素配列
-		std::unique_ptr<PmxFrameElement []> elements;
+		std::vector<PmxFrameElement> elements;
 		void Read(std::istream *stream, PmxSetting *setting);
 		void Write(std::ostream *stream, PmxSetting *setting);
 	};
@@ -616,10 +668,15 @@ namespace pmx
 				orientation[i] = 0.0f;
 			}
 		}
+
+		bool operator == (const PmxRigidBody &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxRigidBody)) == 0);
+		}
+
 		/// 剛体名
-		std::wstring girid_body_name;
+		std::wstring rigid_body_name;
 		/// 剛体英名
-		std::wstring girid_body_english_name;
+		std::wstring rigid_body_english_name;
 		/// 関連ボーンインデックス
 		int target_bone;
 		/// グループ
@@ -690,6 +747,9 @@ namespace pmx
 		std::wstring joint_english_name;
 		PmxJointType joint_type;
 		PmxJointParam param;
+		bool operator == (const PmxJoint &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxJoint)) == 0);
+		}
 		void Read(std::istream *stream, PmxSetting *setting);
 		void Write(std::ostream *stream, PmxSetting *setting);
 	};
@@ -757,6 +817,11 @@ namespace pmx
 			, anchor_count(0)
 			, pin_vertex_count(0)
 		{}
+
+		bool operator == (const PmxSoftBody &v) const {
+			return (std::memcmp(this, &v, sizeof(PmxSoftBody)) == 0);
+		}
+
 		std::wstring soft_body_name;
 		std::wstring soft_body_english_name;
 		uint8_t shape;
@@ -795,9 +860,9 @@ namespace pmx
 		float AST;
 		float VST;
 		int anchor_count;
-		std::unique_ptr<PmxAncherRigidBody []> anchers;
+		std::vector<PmxAncherRigidBody> anchers;
 		int pin_vertex_count;
-		std::unique_ptr<int []> pin_vertices;
+		std::vector<int> pin_vertices;
 		void Read(std::istream *stream, PmxSetting *setting);
 		void Write(std::ostream *stream, PmxSetting *setting);
 	};
@@ -835,43 +900,43 @@ namespace pmx
 		/// 頂点数
 		int vertex_count;
 		/// 頂点配列
-		std::unique_ptr<PmxVertex []> vertices;
+		std::vector<PmxVertex> vertices;
 		/// インデックス数
 		int index_count;
 		/// インデックス配列
-		std::unique_ptr<int []> indices;
+		std::vector<int> indices;
 		/// テクスチャ数
 		int texture_count;
 		/// テクスチャ配列
-		std::unique_ptr< std::wstring []> textures;
+		std::vector<std::wstring> textures;
 		/// マテリアル数
 		int material_count;
 		/// マテリアル
-		std::unique_ptr<PmxMaterial []> materials;
+		std::vector<PmxMaterial> materials;
 		/// ボーン数
 		int bone_count;
 		/// ボーン配列
-		std::unique_ptr<PmxBone []> bones;
+		std::vector<PmxBone> bones;
 		/// モーフ数
 		int morph_count;
 		/// モーフ配列
-		std::unique_ptr<PmxMorph []> morphs;
+		std::vector<PmxMorph> morphs;
 		/// 表示枠数
 		int frame_count;
 		/// 表示枠配列
-		std::unique_ptr<PmxFrame [] > frames;
+		std::vector<PmxFrame> frames;
 		/// 剛体数
 		int rigid_body_count;
 		/// 剛体配列
-		std::unique_ptr<PmxRigidBody []> rigid_bodies;
+		std::vector<PmxRigidBody> rigid_bodies;
 		/// ジョイント数
 		int joint_count;
 		/// ジョイント配列
-		std::unique_ptr<PmxJoint []> joints;
+		std::vector<PmxJoint> joints;
 		/// ソフトボディ数
 		int soft_body_count;
 		/// ソフトボディ配列
-		std::unique_ptr<PmxSoftBody []> soft_bodies;
+		std::vector<PmxSoftBody> soft_bodies;
 		/// モデル初期化
 		void Init();
 		/// モデル読み込み
