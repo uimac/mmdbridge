@@ -7,7 +7,7 @@ from math import *
 import time
 
 
-vidropath = 'C://Program Files/vidro100630x64en/vidro.exe'
+vidropath = 'C:/Users/uimac/Desktop/vidro100630x64en//vidro.exe'
 
 
 def export_mtl(mtlpath):
@@ -28,9 +28,7 @@ def export_mtl(mtlpath):
 			power = get_power(buf, mat)
 			texture = get_texture(buf, mat)
 			if len(texture) == 0:
-				texture = get_exported_texture(buf, mat)
-				if len(texture) > 0:
-					texture = texture + ".png"
+				texture = get_exported_texture(buf, mat) + ".png"
 
 			mtlfile.write("Ka "+str(ambient[0])+" "+str(ambient[1])+" "+str(ambient[2])+"\n")
 			mtlfile.write("Kd "+str(diffuse[0])+" "+str(diffuse[1])+" "+str(diffuse[2])+"\n")

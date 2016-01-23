@@ -674,10 +674,12 @@ HRESULT (WINAPI *original_D3DXCreateFontW)(
 	LPCWSTR				 pFaceName,
 	LPD3DXFONT*		  ppFont)(NULL);
 
+/*
 HRESULT (WINAPI *original_D3DXCreateFragmentLinker)(
 	LPDIRECT3DDEVICE9		    pDevice,
 	UINT						 ShaderCacheSize,
 	LPD3DXFRAGMENTLINKER*		ppFragmentLinker)(NULL);
+*/
 
 HRESULT (WINAPI *original_D3DXCreateKeyframedAnimationSet)(
 	LPCSTR pName,
@@ -3626,6 +3628,7 @@ extern "C" {
 		return (*original_D3DXCreateFontW)(pDevice, Height, Width, Weight, MipLevels, Italic, CharSet, OutputPrecision, Quality, PitchAndFamily, pFaceName, ppFont);
 	}
 
+	/*
 	HRESULT WINAPI D3DXCreateFragmentLinker(
 		LPDIRECT3DDEVICE9		    pDevice,
 		UINT						 ShaderCacheSize,
@@ -3633,6 +3636,7 @@ extern "C" {
 	{
 		return (*original_D3DXCreateFragmentLinker)(pDevice, ShaderCacheSize, ppFragmentLinker);
 	}
+	*/
 
 	HRESULT WINAPI D3DXCreateKeyframedAnimationSet(
 		LPCSTR pName,
@@ -6006,6 +6010,7 @@ extern "C" {
 		return (*original_D3DXTriPatchSize)(pfNumSegs, pdwTriangles, pdwVertices);
 	}
 
+	/*
 	HRESULT WINAPI D3DXUVAtlasCreate(
 		LPD3DXMESH pMesh,
 		UINT uMaxChartNumber,
@@ -6028,7 +6033,9 @@ extern "C" {
 	{
 		return (*original_D3DXUVAtlasCreate)(pMesh, uMaxChartNumber, fMaxStretch, uWidth, uHeight, fGutter, dwTextureIndex, pdwAdjacency, pdwFalseEdgeAdjacency, pfIMTArray, pStatusCallback, fCallbackFrequency, pUserContext, ppMeshOut, ppFacePartitioning, ppVertexRemapArray, pfMaxStretchOut, puNumChartsOut);
 	}
+	*/
 
+	/*
 	HRESULT WINAPI D3DXUVAtlasPack(
 		ID3DXMesh *pMesh,
         UINT uWidth,
@@ -6045,7 +6052,9 @@ extern "C" {
 			(pMesh, uWidth, uHeight, fGutter, dwTextureIndex,
 			pdwPartitionResultAdjacency, pStatusCallback, fCallbackFrequency, pUserContext, pFacePartitioning);
 	}
+	*/
 
+	/*
 	HRESULT WINAPI D3DXUVAtlasPartition(
 		LPD3DXMESH pMesh,
         UINT uMaxChartNumber,
@@ -6068,6 +6077,7 @@ extern "C" {
 			(pMesh, uMaxChartNumber, fMaxStretch, dwTextureIndex, pdwAdjacency,
 			pdwFalseEdgeAdjacency, pfIMTArray, pStatusCallback, fCallbackFrequency, pUserContext, ppMeshOut, ppFacePartitioning, ppVertexRemapArray, ppPartitionResultAdjacency, pfMaxStretchOut, puNumChartsOut);
 	}
+	*/
 
 	HRESULT WINAPI D3DXValidMesh (
 		LPD3DXMESH pMeshIn,
@@ -6517,7 +6527,7 @@ BOOL init()
 	original_D3DXCreateFontIndirectA = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9       pDevice,   CONST D3DXFONT_DESCA*   pDesc,   LPD3DXFONT*    ppFont)>(GetProcAddress(d3d9x_module, "D3DXCreateFontIndirectA"));
 	original_D3DXCreateFontIndirectW = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9       pDevice,   CONST D3DXFONT_DESCW*   pDesc,   LPD3DXFONT*    ppFont)>(GetProcAddress(d3d9x_module, "D3DXCreateFontIndirectW"));
 	original_D3DXCreateFontW = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9       pDevice,   INT      Height,   UINT     Width,   UINT     Weight,   UINT     MipLevels,   BOOL     Italic,   DWORD    CharSet,   DWORD    OutputPrecision,   DWORD    Quality,   DWORD    PitchAndFamily,   LPCWSTR     pFaceName,   LPD3DXFONT*    ppFont)>(GetProcAddress(d3d9x_module, "D3DXCreateFontW"));
-	original_D3DXCreateFragmentLinker = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9      pDevice,   UINT       ShaderCacheSize,   LPD3DXFRAGMENTLINKER*  ppFragmentLinker)>(GetProcAddress(d3d9x_module, "D3DXCreateFragmentLinker"));
+	//original_D3DXCreateFragmentLinker = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9      pDevice,   UINT       ShaderCacheSize,   LPD3DXFRAGMENTLINKER*  ppFragmentLinker)>(GetProcAddress(d3d9x_module, "D3DXCreateFragmentLinker"));
 	original_D3DXCreateKeyframedAnimationSet = reinterpret_cast<HRESULT  (WINAPI*)(  LPCSTR pName,   DOUBLE TicksPerSecond,   D3DXPLAYBACK_TYPE Playback,   UINT NumAnimations,   UINT NumCallbackKeys,   CONST D3DXKEY_CALLBACK *pCallbackKeys,   LPD3DXKEYFRAMEDANIMATIONSET *ppAnimationSet )>(GetProcAddress(d3d9x_module, "D3DXCreateKeyframedAnimationSet"));
 	original_D3DXCreateLine = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DDEVICE9   pDevice,   LPD3DXLINE*   ppLine)>(GetProcAddress(d3d9x_module, "D3DXCreateLine"));
 	original_D3DXCreateMatrixStack = reinterpret_cast<HRESULT  (WINAPI*)(  DWORD      Flags,   LPD3DXMATRIXSTACK*  ppStack)>(GetProcAddress(d3d9x_module, "D3DXCreateMatrixStack"));
@@ -6745,9 +6755,9 @@ BOOL init()
 	original_D3DXTessellateRectPatch = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DVERTEXBUFFER9 pVB,   CONST FLOAT *pNumSegs,   CONST D3DVERTEXELEMENT9 *pdwInDecl,   CONST D3DRECTPATCH_INFO *pRectPatchInfo,   LPD3DXMESH pMesh)>(GetProcAddress(d3d9x_module, "D3DXTessellateRectPatch"));
 	original_D3DXTessellateTriPatch = reinterpret_cast<HRESULT  (WINAPI*)(  LPDIRECT3DVERTEXBUFFER9 pVB,   CONST FLOAT *pNumSegs,   CONST D3DVERTEXELEMENT9 *pInDecl,   CONST D3DTRIPATCH_INFO *pTriPatchInfo,   LPD3DXMESH pMesh)>(GetProcAddress(d3d9x_module, "D3DXTessellateTriPatch"));
 	original_D3DXTriPatchSize = reinterpret_cast<HRESULT  (WINAPI*)(  CONST FLOAT *pfNumSegs,   DWORD *pdwTriangles,   DWORD *pdwVertices)>(GetProcAddress(d3d9x_module, "D3DXTriPatchSize"));
-	original_D3DXUVAtlasCreate = reinterpret_cast<HRESULT  (WINAPI*)(  LPD3DXMESH pMesh,   UINT uMaxChartNumber,   FLOAT fMaxStretch,   UINT uWidth,   UINT uHeight,   FLOAT fGutter,   DWORD dwTextureIndex,   CONST DWORD *pdwAdjacency,   CONST DWORD *pdwFalseEdgeAdjacency,   CONST FLOAT *pfIMTArray,   LPD3DXUVATLASCB pStatusCallback,   FLOAT fCallbackFrequency,   LPVOID pUserContext,   LPD3DXMESH *ppMeshOut,   LPD3DXBUFFER *ppFacePartitioning,   LPD3DXBUFFER *ppVertexRemapArray,   FLOAT *pfMaxStretchOut,   UINT *puNumChartsOut)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasCreate"));
-	original_D3DXUVAtlasPack = reinterpret_cast<HRESULT  (WINAPI*)(  ID3DXMesh *pMesh, UINT uWidth,   UINT uHeight,   FLOAT fGutter,   DWORD dwTextureIndex,   CONST DWORD *pdwPartitionResultAdjacency,   LPD3DXUVATLASCB pStatusCallback,   FLOAT fCallbackFrequency,   LPVOID pUserContext,    LPD3DXBUFFER pFacePartitioning)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasPack"));
-	original_D3DXUVAtlasPartition = reinterpret_cast<HRESULT  (WINAPI*)( LPD3DXMESH pMesh, UINT uMaxChartNumber, FLOAT fMaxStretch,  DWORD dwTextureIndex, 	CONST DWORD *pdwAdjacency, 	CONST DWORD *pdwFalseEdgeAdjacency, 	CONST FLOAT *pfIMTArray, 	LPD3DXUVATLASCB pStatusCallback, 	FLOAT fCallbackFrequency,	LPVOID pUserContext, LPD3DXMESH *ppMeshOut,  LPD3DXBUFFER *ppFacePartitioning,LPD3DXBUFFER *ppVertexRemapArray, LPD3DXBUFFER *ppPartitionResultAdjacency,  FLOAT *pfMaxStretchOut, UINT *puNumChartsOut)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasPartition"));
+	//original_D3DXUVAtlasCreate = reinterpret_cast<HRESULT  (WINAPI*)(  LPD3DXMESH pMesh,   UINT uMaxChartNumber,   FLOAT fMaxStretch,   UINT uWidth,   UINT uHeight,   FLOAT fGutter,   DWORD dwTextureIndex,   CONST DWORD *pdwAdjacency,   CONST DWORD *pdwFalseEdgeAdjacency,   CONST FLOAT *pfIMTArray,   LPD3DXUVATLASCB pStatusCallback,   FLOAT fCallbackFrequency,   LPVOID pUserContext,   LPD3DXMESH *ppMeshOut,   LPD3DXBUFFER *ppFacePartitioning,   LPD3DXBUFFER *ppVertexRemapArray,   FLOAT *pfMaxStretchOut,   UINT *puNumChartsOut)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasCreate"));
+	//original_D3DXUVAtlasPack = reinterpret_cast<HRESULT  (WINAPI*)(  ID3DXMesh *pMesh, UINT uWidth,   UINT uHeight,   FLOAT fGutter,   DWORD dwTextureIndex,   CONST DWORD *pdwPartitionResultAdjacency,   LPD3DXUVATLASCB pStatusCallback,   FLOAT fCallbackFrequency,   LPVOID pUserContext,    LPD3DXBUFFER pFacePartitioning)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasPack"));
+	//original_D3DXUVAtlasPartition = reinterpret_cast<HRESULT  (WINAPI*)( LPD3DXMESH pMesh, UINT uMaxChartNumber, FLOAT fMaxStretch,  DWORD dwTextureIndex, 	CONST DWORD *pdwAdjacency, 	CONST DWORD *pdwFalseEdgeAdjacency, 	CONST FLOAT *pfIMTArray, 	LPD3DXUVATLASCB pStatusCallback, 	FLOAT fCallbackFrequency,	LPVOID pUserContext, LPD3DXMESH *ppMeshOut,  LPD3DXBUFFER *ppFacePartitioning,LPD3DXBUFFER *ppVertexRemapArray, LPD3DXBUFFER *ppPartitionResultAdjacency,  FLOAT *pfMaxStretchOut, UINT *puNumChartsOut)>(GetProcAddress(d3d9x_module, "D3DXUVAtlasPartition"));
 	original_D3DXValidMesh = reinterpret_cast<HRESULT  (WINAPI*)(  LPD3DXMESH pMeshIn,   CONST DWORD* pAdjacency,   LPD3DXBUFFER* ppErrorsAndWarnings)>(GetProcAddress(d3d9x_module, "D3DXValidMesh"));
 	original_D3DXValidPatchMesh = reinterpret_cast<HRESULT  (WINAPI*)(  LPD3DXPATCHMESH pMesh,   DWORD *dwcDegenerateVertices,   DWORD *dwcDegeneratePatches,   LPD3DXBUFFER *ppErrorsAndWarnings)>(GetProcAddress(d3d9x_module, "D3DXValidPatchMesh("));
 	original_D3DXVec2BaryCentric = reinterpret_cast<D3DXVECTOR2*  (WINAPI*)(  D3DXVECTOR2 *pOut,   CONST D3DXVECTOR2 *pV1,   CONST D3DXVECTOR2 *pV2,   CONST D3DXVECTOR2 *pV3,   FLOAT f,   FLOAT g)>(GetProcAddress(d3d9x_module, "D3DXVec2BaryCentric"));
