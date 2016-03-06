@@ -13,7 +13,7 @@ class Mtl():
         self.trans = 1.0
         self.power = 0.0
         self.lum = 1
-	self.isAccessory = False
+        self.isAccessory = False
 
 def import_mtl(path, result):
     
@@ -48,12 +48,12 @@ def import_mtl(path, result):
         elif "d" == words[0]:
             current.trans = float(words[1])
         elif "map_Kd" == words[0]:
-            current.textureMap = str(words[1])
+            current.textureMap = line[line.find(words[1]):line.find(".png")+4]
         elif "map_d" == words[0]:
-            current.alphaMap = str(words[1])
+            current.alphaMap = line[line.find(words[1]):line.find(".png")+4]
         elif "#" == words[0]:
             if words[1] == "is_accessory":
-		current.isAccessory = True
+                current.isAccessory = True
 
     if current != None and current.name != "":
         result[current.name] = current
@@ -89,11 +89,14 @@ def main():
 
     if mtl == "":
         return
+        
+    if len(hou.node('/obj').glob('alembicarchive*')) == 0:
+        return
 
     mtlDict = {}
     import_mtl(mtl, mtlDict)
 
-    shop = hou.node('/obj').createNode('shopnet', 'abcSHOP')
+    shop = hou.node('/obj').glob('alembicarchive*')[0].createNode('shopnet', 'abcSHOP')
     shop.moveToGoodPosition()
 
     for obj in hou.node('/obj').children():
@@ -126,24 +129,24 @@ def main():
                             searchPath = root + '.png'
                             if os.path.exists(searchPath):
                                 texturePath = searchPath
-                        mat.parm('useColorMap').set(True)
-                        mat.parm('baseColorMap').set(texturePath)
+                        mat.parm('diff_colorUseTexture').set(True)
+                        mat.parm('diff_colorTexture').set(texturePath)
                         mat.parm('ogl_tex1').set(texturePath)
-
-                    if mtlData.isAccessory:
-	                mat.parm('baseColorr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
-	                mat.parm('baseColorg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
-	                mat.parm('baseColorb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
-	                mat.parm('ogl_diffr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
-	                mat.parm('ogl_diffg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
-	                mat.parm('ogl_diffb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
                     else:
-	                mat.parm('baseColorr').set(mtlData.diffuse[0])
-	                mat.parm('baseColorg').set(mtlData.diffuse[1])
-	                mat.parm('baseColorb').set(mtlData.diffuse[2])
-	                mat.parm('ogl_diffr').set(mtlData.diffuse[0])
-	                mat.parm('ogl_diffg').set(mtlData.diffuse[1])
-	                mat.parm('ogl_diffb').set(mtlData.diffuse[2])
+                        if mtlData.isAccessory:
+                            mat.parm('diff_colorr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
+                            mat.parm('diff_colorg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
+                            mat.parm('diff_colorb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
+                            mat.parm('ogl_diffr').set(mtlData.diffuse[0] + 0.5 * mtlData.ambient[0])
+                            mat.parm('ogl_diffg').set(mtlData.diffuse[1] + 0.5 * mtlData.ambient[1])
+                            mat.parm('ogl_diffb').set(mtlData.diffuse[2] + 0.5 * mtlData.ambient[2])
+                        else:
+                            mat.parm('diff_colorr').set(mtlData.diffuse[0])
+                            mat.parm('diff_colorg').set(mtlData.diffuse[1])
+                            mat.parm('diff_colorb').set(mtlData.diffuse[2])
+                            mat.parm('ogl_diffr').set(mtlData.diffuse[0])
+                            mat.parm('ogl_diffg').set(mtlData.diffuse[1])
+                            mat.parm('ogl_diffb').set(mtlData.diffuse[2])
 
                     mat.parm('ogl_specr').set(mtlData.specular[0])
                     mat.parm('ogl_specg').set(mtlData.specular[1])
@@ -152,9 +155,10 @@ def main():
                     mat.parm('ogl_ambg').set(mtlData.ambient[1])
                     mat.parm('ogl_ambb').set(mtlData.ambient[2])
 
-                    isUseTextureAlpha = mtlData.trans > 0.9999
-                    mat.parm('ogl_cutout').set(isUseTextureAlpha)
-                    mat.parm('ogl_alpha').set(mtlData.trans)
+                    isUseTextureAlpha = mtlData.trans < 0.999
+                    if isUseTextureAlpha:
+                        mat.parm('ogl_cutout').set(isUseTextureAlpha)
+#                    mat.parm('ogl_alpha').set(mtlData.trans)
 
                     geometry.parm('shop_materialpath').set(geometry.relativePathTo(mat))
 
