@@ -33,15 +33,15 @@
 #pragma comment(lib, "AlembicAbc.lib")
 #pragma comment(lib, "AlembicAbcCoreAbstract.lib")
 #pragma comment(lib, "AlembicAbcCoreHDF5.lib")
-//#pragma comment(lib, "AlembicAbcCoreOgawa.lib")
-//#pragma comment(lib, "AlembicOgawa.lib")
+#pragma comment(lib, "AlembicAbcCoreOgawa.lib")
+#pragma comment(lib, "AlembicOgawa.lib")
 #pragma comment(lib, "AlembicAbcGeom.lib")
 #pragma comment(lib, "AlembicUtil.lib")
 
 #include <Alembic/Abc/All.h>
 #include <Alembic/AbcGeom/All.h>
 #include <Alembic/AbcCoreHDF5/All.h>
-//#include <Alembic/AbcCoreOgawa/All.h>
+#include <Alembic/AbcCoreOgawa/All.h>
 
 
 namespace AbcA = Alembic::AbcCoreAbstract;
@@ -180,12 +180,12 @@ static bool start_alembic_export(
 		{
 			output_path = umbase::UMStringUtil::wstring_to_utf8(parameter.base_path) + ("out\\alembic_file.abc");
 		}
-		//if (is_use_ogawa) {
-		//	AlembicArchive::instance().archive =
-		//		new Alembic::Abc::OArchive(Alembic::AbcCoreOgawa::WriteArchive(),
-		//		output_path.c_str());
-		//}
-		//else
+		if (is_use_ogawa) {
+			AlembicArchive::instance().archive =
+				new Alembic::Abc::OArchive(Alembic::AbcCoreOgawa::WriteArchive(),
+				output_path.c_str());
+		}
+		else
 		{
 			AlembicArchive::instance().archive =
 				new Alembic::Abc::OArchive(Alembic::AbcCoreHDF5::WriteArchive(),
