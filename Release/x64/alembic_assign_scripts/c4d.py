@@ -50,9 +50,9 @@ def import_mtl(path, result):
         elif "d" == words[0]:
             current.trans = float(words[1])
         elif "map_Kd" == words[0]:
-            current.textureMap = str(words[1])
+            current.textureMap = line[line.find(words[1]):line.find(".png")+4]
         elif "map_d" == words[0]:
-            current.alphaMap = str(words[1])
+            current.alphaMap = line[line.find(words[1]):line.find(".png")+4]
         elif "#" == words[0]:
             if words[1] == "is_accessory":
 		current.isAccessory = True

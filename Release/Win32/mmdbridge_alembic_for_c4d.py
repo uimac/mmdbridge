@@ -16,7 +16,7 @@ is_use_ogawa = False
 # 0 = create buffer every marerials, fixed vertex index for face
 # 1 = create buffer every objects, original vertex index for face
 # 2 = create buffer every marerials, direct vertex index for face
-export_mode = 0
+export_mode = 3
 
 
 
