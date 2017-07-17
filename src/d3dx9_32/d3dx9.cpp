@@ -14,8 +14,6 @@
 #include <vector>
 #include <map>
 
-#include <Python.h>
-
 template <class T> std::string to_string(T value)
 {
 	std::stringstream converter;

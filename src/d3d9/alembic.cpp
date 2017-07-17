@@ -9,34 +9,10 @@
 #include "UMMath.h"
 #include "UMVector.h"
 
-#include <boost/python/detail/wrap_python.hpp>
-#include <boost/python.hpp>
-#include <boost/python/make_constructor.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/copy_non_const_reference.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/args.hpp>
-#include <boost/python/tuple.hpp>
-#include <boost/python/class.hpp>
-#include <boost/python/overloads.hpp>
-#include <boost/format.hpp>
 
-#pragma comment(lib, "libhdf5_hl.lib")
-#pragma comment(lib, "libhdf5.lib")
-#pragma comment(lib, "Imath.lib")
-#pragma comment(lib, "IlmThread.lib")
-#pragma comment(lib, "IexMath.lib")
-#pragma comment(lib, "Iex.lib")
-#pragma comment(lib, "Half.lib")
-#pragma comment(lib, "AlembicAbc.lib")
-#pragma comment(lib, "AlembicAbcCoreAbstract.lib")
-#pragma comment(lib, "AlembicAbcCoreHDF5.lib")
-#pragma comment(lib, "AlembicAbcCoreOgawa.lib")
-#pragma comment(lib, "AlembicOgawa.lib")
-#pragma comment(lib, "AlembicAbcGeom.lib")
-#pragma comment(lib, "AlembicUtil.lib")
+#include <pybind11/pybind11.h>
+namespace py = pybind11;
+
 
 #include <Alembic/Abc/All.h>
 #include <Alembic/AbcGeom/All.h>
@@ -999,7 +975,7 @@ static void quatToEuler(Imath::V3d &dst, Imath::Quatd quat) {
 	dst = Imath::V3d(yaw, pitch, roll);
 }
 
-static boost::python::list get_abc_angle_axis()
+static py::list get_abc_angle_axis()
 {
 	const RenderedBuffer & renderedBuffer = BridgeParameter::instance().first_noaccessory_buffer();
 	D3DXMATRIX convertMat(
@@ -1047,7 +1023,7 @@ static boost::python::list get_abc_angle_axis()
 	Imath::Quatd quat = Imath::extractQuat(rot);
 	quat.normalize();
 
-	boost::python::list result;
+	py::list result;
 	result.append(quat.angle());
 	result.append(quat.axis()[0]);
 	result.append(quat.axis()[1]);
@@ -1234,13 +1210,14 @@ static bool execute_alembic_export(int currentframe)
 }
 
 // ---------------------------------------------------------------------------
-BOOST_PYTHON_MODULE( mmdbridge_abc )
+PYBIND11_PLUGIN( mmdbridge_abc )
 {
-	using namespace boost::python;
-	def("start_alembic_export", start_alembic_export);
-	def("end_alembic_export", end_alembic_export);
-	def("execute_alembic_export", execute_alembic_export);
-	def("get_abc_angle_axis", get_abc_angle_axis);
+    py::module m("mmdbridge_abc");
+	m.def("start_alembic_export", start_alembic_export);
+    m.def("end_alembic_export", end_alembic_export);
+    m.def("execute_alembic_export", execute_alembic_export);
+    m.def("get_abc_angle_axis", get_abc_angle_axis);
+    return m.ptr();
 }
 
 #endif //WITH_ALEMBIC

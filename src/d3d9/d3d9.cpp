@@ -3,8 +3,8 @@
 
 #include "d3d9.h"
 #include "d3dx9.h"
-#define NOMINMAX 
 #include <windows.h>
+#include <vector>
 #include <string>
 #include <sstream>
 #include <tchar.h>
@@ -12,19 +12,10 @@
 #include <algorithm>
 #include <shlwapi.h>
 
-#include <boost/python/detail/wrap_python.hpp>
-#include <boost/python.hpp>
-#include <boost/python/make_constructor.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/copy_non_const_reference.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/args.hpp>
-#include <boost/python/tuple.hpp>
-#include <boost/python/class.hpp>
-#include <boost/python/overloads.hpp>
-#include <boost/format.hpp>
+#include <pybind11/eval.h>
+//#include <pybind11/pybind11.h>
+namespace py = pybind11;
+
 #include <commctrl.h>
 #include <richedit.h>
 
@@ -148,7 +139,6 @@ static void d3d_vector3_transform(
 // python
 namespace
 {
-	using namespace boost::python;
 	std::wstring pythonName; // スクリプト名
 	int script_call_setting = 2; // スクリプト呼び出し設定
 	std::map<int, int> exportedFrames;
@@ -220,16 +210,16 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).vertecies.size();
 	}
 
-	boost::python::list get_vertex(int at, int vpos)
+	std::vector<float> get_vertex(int at, int vpos)
 	{
 		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
 		float x = buffer.vertecies[vpos].x;
 		float y = buffer.vertecies[vpos].y;
 		float z = buffer.vertecies[vpos].z;
-		boost::python::list result;
-		result.append(x);
-		result.append(y);
-		result.append(z);
+		std::vector<float> result;
+		result.push_back(x);
+		result.push_back(y);
+		result.push_back(z);
 		return result;
 	}
 
@@ -238,16 +228,16 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).normals.size();
 	}
 
-	boost::python::list get_normal(int at, int vpos)
+	std::vector<float> get_normal(int at, int vpos)
 	{
 		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
 		float x = buffer.normals[vpos].x;
 		float y = buffer.normals[vpos].y;
 		float z = buffer.normals[vpos].z;
-		boost::python::list result;
-		result.append(x);
-		result.append(y);
-		result.append(z);
+		std::vector<float> result;
+		result.push_back(x);
+		result.push_back(y);
+		result.push_back(z);
 		return result;
 	}
 
@@ -256,14 +246,14 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).uvs.size();
 	}
 
-	boost::python::list get_uv(int at, int vpos)
+	std::vector<float> get_uv(int at, int vpos)
 	{
 		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
 		float u = buffer.uvs[vpos].x;
 		float v = buffer.uvs[vpos].y;
-		boost::python::list result;
-		result.append(u);
-		result.append(v);
+		std::vector<float> result;
+		result.push_back(u);
+		result.push_back(v);
 		return result;
 	}
 
@@ -287,44 +277,44 @@ namespace
 		return ExpGetPreAcsNum();
 	}
 
-	boost::python::list get_diffuse(int at, int mpos)
+	std::vector<float> get_diffuse(int at, int mpos)
 	{
 		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		boost::python::list result;
-		result.append(mat->diffuse.x);
-		result.append(mat->diffuse.y);
-		result.append(mat->diffuse.z);
-		result.append(mat->diffuse.w);
+		std::vector<float> result;
+		result.push_back(mat->diffuse.x);
+		result.push_back(mat->diffuse.y);
+		result.push_back(mat->diffuse.z);
+		result.push_back(mat->diffuse.w);
 		return result;
 	}
 
-	boost::python::list get_ambient(int at, int mpos)
+	std::vector<float> get_ambient(int at, int mpos)
 	{
 		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		boost::python::list result;
-		result.append(mat->ambient.x);
-		result.append(mat->ambient.y);
-		result.append(mat->ambient.z);
+		std::vector<float> result;
+		result.push_back(mat->ambient.x);
+		result.push_back(mat->ambient.y);
+		result.push_back(mat->ambient.z);
 		return result;
 	}
 
-	boost::python::list get_specular(int at, int mpos)
+	std::vector<float> get_specular(int at, int mpos)
 	{
 		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		boost::python::list result;
-		result.append(mat->specular.x);
-		result.append(mat->specular.y);
-		result.append(mat->specular.z);
+		std::vector<float> result;
+		result.push_back(mat->specular.x);
+		result.push_back(mat->specular.y);
+		result.push_back(mat->specular.z);
 		return result;
 	}
 
-	boost::python::list get_emissive(int at, int mpos)
+	std::vector<float> get_emissive(int at, int mpos)
 	{
 		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		boost::python::list result;
-		result.append(mat->emissive.x);
-		result.append(mat->emissive.y);
-		result.append(mat->emissive.z);
+		std::vector<float> result;
+		result.push_back(mat->emissive.x);
+		result.push_back(mat->emissive.y);
+		result.push_back(mat->emissive.z);
 		return result;
 	}
 
@@ -352,16 +342,16 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
 	}
 
-	boost::python::list get_face(int at, int mpos, int fpos)
+	std::vector<float> get_face(int at, int mpos, int fpos)
 	{
 		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
 		int v1 = surface.faces[fpos].x;
 		int v2 = surface.faces[fpos].y;
 		int v3 = surface.faces[fpos].z;
-		boost::python::list result;
-		result.append(v1);
-		result.append(v2);
-		result.append(v3);
+		std::vector<float> result;
+		result.push_back(v1);
+		result.push_back(v2);
+		result.push_back(v3);
 		return result;
 	}
 
@@ -370,11 +360,11 @@ namespace
 		return finishTextureBuffers.size();
 	}
 
-	boost::python::list get_texture_size(int at)
+	std::vector<float> get_texture_size(int at)
 	{
-		boost::python::list result;
-		result.append(renderedTextures[finishTextureBuffers[at].first].size.x);
-		result.append(renderedTextures[finishTextureBuffers[at].first].size.y);
+		std::vector<float> result;
+		result.push_back(renderedTextures[finishTextureBuffers[at].first].size.x);
+		result.push_back(renderedTextures[finishTextureBuffers[at].first].size.y);
 		return result;
 	}
 
@@ -383,14 +373,14 @@ namespace
 		return renderedTextures[finishTextureBuffers[at].first].name;
 	}
 
-	boost::python::list get_texture_pixel(int at, int tpos)
+	std::vector<float> get_texture_pixel(int at, int tpos)
 	{
 		UMVec4f &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
-		boost::python::list result;
-		result.append(rgba.x);
-		result.append(rgba.y);
-		result.append(rgba.z);
-		result.append(rgba.w);
+		std::vector<float> result;
+		result.push_back(rgba.x);
+		result.push_back(rgba.y);
+		result.push_back(rgba.z);
+		result.push_back(rgba.w);
 		return result;
 	}
 
@@ -457,64 +447,64 @@ namespace
 		return path;
 	}
 
-	boost::python::list get_camera_up()
+	std::vector<float> get_camera_up()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraUp(&v);
 		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		boost::python::list result;
-		result.append(dst.x);
-		result.append(dst.y);
-		result.append(dst.z);
+		std::vector<float> result;
+		result.push_back(dst.x);
+		result.push_back(dst.y);
+		result.push_back(dst.z);
 		return result;
 	}
 
-	boost::python::list get_camera_up_org()
+	std::vector<float> get_camera_up_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraUp(&v);
-		boost::python::list result;
-		result.append(v.x);
-		result.append(v.y);
-		result.append(v.z);
+		std::vector<float> result;
+		result.push_back(v.x);
+		result.push_back(v.y);
+		result.push_back(v.z);
 		return result;
 	}
 	
-	boost::python::list get_camera_at()
+	std::vector<float> get_camera_at()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraAt(&v);
 		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		boost::python::list result;
-		result.append(dst.x);
-		result.append(dst.y);
-		result.append(dst.z);
+		std::vector<float> result;
+		result.push_back(dst.x);
+		result.push_back(dst.y);
+		result.push_back(dst.z);
 		return result;
 	}
 
-	boost::python::list get_camera_eye()
+	std::vector<float> get_camera_eye()
 	{
 		D3DXVECTOR3 v;
 		D3DXVECTOR3 dst;
 		UMGetCameraEye(&v);
 		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		boost::python::list result;
-		result.append(dst.x);
-		result.append(dst.y);
-		result.append(dst.z);
+		std::vector<float> result;
+		result.push_back(dst.x);
+		result.push_back(dst.y);
+		result.push_back(dst.z);
 		return result;
 	}
 
-	boost::python::list get_camera_eye_org()
+	std::vector<float> get_camera_eye_org()
 	{
 		D3DXVECTOR3 v;
 		UMGetCameraEye(&v);
-		boost::python::list result;
-		result.append(v.x);
-		result.append(v.y);
-		result.append(v.z);
+		std::vector<float> result;
+		result.push_back(v.x);
+		result.push_back(v.y);
+		result.push_back(v.z);
 		return result;
 	}
 
@@ -578,23 +568,23 @@ namespace
 		return BridgeParameter::instance().frame_height;
 	}
 
-	boost::python::list get_light(int at)
+	std::vector<float> get_light(int at)
 	{
 		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
-		boost::python::list result;
-		result.append(light.x);
-		result.append(light.y);
-		result.append(light.z);
+		std::vector<float> result;
+		result.push_back(light.x);
+		result.push_back(light.y);
+		result.push_back(light.z);
 		return result;
 	}
 
-	boost::python::list get_light_color(int at)
+	std::vector<float> get_light_color(int at)
 	{
 		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light_color;
-		boost::python::list result;
-		result.append(light.x);
-		result.append(light.y);
-		result.append(light.z);
+		std::vector<float> result;
+		result.push_back(light.x);
+		result.push_back(light.y);
+		result.push_back(light.z);
 		return result;
 	}
 
@@ -608,10 +598,10 @@ namespace
 		return ExpGetPmdBoneNum(at);
 	}
 
-	boost::python::object get_object_filename(int at)
+	std::string get_object_filename(int at)
 	{
 		const int count = get_bone_size(at);
-		if (count <= 0) return boost::python::object();
+		if (count <= 0) return "";
 		const char* sjis = ExpGetPmdFilename(at);
 		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
 		wchar_t* utf16 = new wchar_t[size];
@@ -619,16 +609,13 @@ namespace
 		std::wstring wchar(utf16);
 		delete [] utf16;
 		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-
-		boost::python::object result(boost::python::handle<>(
-			PyUnicode_FromString(utf8str.c_str())));
-		return result;
+		return utf8str;
 	}
 
-	boost::python::object get_bone_name(int at, int bone_index)
+	std::string get_bone_name(int at, int bone_index)
 	{
 		const int count = get_bone_size(at);
-		if (count <= 0) return boost::python::object();
+		if (count <= 0) return "";
 		const char* sjis = ExpGetPmdBoneName(at, bone_index);
 		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
 		wchar_t* utf16 = new wchar_t[size];
@@ -636,16 +623,13 @@ namespace
 		std::wstring wchar(utf16);
 		delete [] utf16;
 		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-
-		boost::python::object result(boost::python::handle<>(
-			PyUnicode_FromString(utf8str.c_str())));
-		return result;
+		return utf8str;
 	}
 
-	boost::python::list get_bone_matrix(int at, int bone_index)
+	std::vector<float> get_bone_matrix(int at, int bone_index)
 	{
 		const int count = get_bone_size(at);
-		boost::python::list result;
+		std::vector<float> result;
 		if (count <= 0) return result;
 
 		D3DMATRIX mat = ExpGetPmdBoneWorldMat(at, bone_index);
@@ -653,109 +637,107 @@ namespace
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				result.append(mat.m[i][k]);
+				result.push_back(mat.m[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list get_world(int at)
+	std::vector<float> get_world(int at)
 	{
 		const D3DXMATRIX& world = BridgeParameter::instance().render_buffer(at).world;
-		boost::python::list result;
+		std::vector<float> result;
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				result.append(world.m[i][k]);
+				result.push_back(world.m[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list get_world_inv(int at)
+	std::vector<float> get_world_inv(int at)
 	{
 		const D3DXMATRIX& world_inv = BridgeParameter::instance().render_buffer(at).world_inv;
-		boost::python::list result;
+		std::vector<float> result;
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				result.append(world_inv.m[i][k]);
+				result.push_back(world_inv.m[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list get_view(int at)
+	std::vector<float> get_view(int at)
 	{
 		const D3DXMATRIX& view = BridgeParameter::instance().render_buffer(at).view;
-		boost::python::list result;
+		std::vector<float> result;
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				result.append(view.m[i][k]);
+				result.push_back(view.m[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list get_projection(int at)
+	std::vector<float> get_projection(int at)
 	{
 		const D3DXMATRIX& projection = BridgeParameter::instance().render_buffer(at).projection;
-		boost::python::list result;
+		std::vector<float> result;
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int k = 0; k < 4; ++k)
 			{
-				result.append(projection.m[i][k]);
+				result.push_back(projection.m[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list invert_matrix(boost::python::object p)
+	std::vector<float> invert_matrix(const std::vector<float> &tp1)
 	{
-		const boost::python::list tp1 = extract<list>(p)();
-		if (len(tp1) < 16) {
+		if (tp1.size() < 16) {
 			PyErr_SetString(PyExc_IndexError, "index out of range");
-			throw boost::python::error_already_set();
+			throw py::error_already_set();
 		}
-		boost::python::list result;
+		std::vector<float> result;
 		UMMat44d src;
 		for (int i = 0; i < 4; ++i) {
 			for (int k = 0; k < 4; ++k) {
-				src[i][k] = extract<double>(tp1[i * 4 + k]);
+				src[i][k] = static_cast<double>(tp1[i * 4 + k]);
 			}
 		}
 		const UMMat44d dst = src.inverted();
 		for (int i = 0; i < 4; ++i) {
 			for (int k = 0; k < 4; ++k) {
-				result.append(dst[i][k]);
+				result.push_back(dst[i][k]);
 			}
 		}
 		return result;
 	}
 
-	boost::python::list extract_xyz_degree(boost::python::object p)
+	std::vector<float> extract_xyz_degree(const std::vector<float> &tp1)
 	{
-		const boost::python::list tp1 = extract<list>(p)();
-		if (len(tp1) < 16) {
+		if (tp1.size() < 16) {
 			PyErr_SetString(PyExc_IndexError, "index out of range");
-			throw boost::python::error_already_set();
+			throw py::error_already_set();
 		}
-		boost::python::list result;
+		std::vector<float> result;
 		UMMat44d src;
 		for (int i = 0; i < 4; ++i) {
 			for (int k = 0; k < 4; ++k) {
-				src[i][k] = extract<double>(tp1[i * 4 + k]);
+				src[i][k] = static_cast<double>(tp1[i * 4 + k]);
 			}
 		}
 
 		const UMVec3d euler = umbase::um_matrix_to_euler_xyz(src);
 		for (int i = 0; i < 3; ++i) {
-			result.append(umbase::um_to_degree(euler[i]));
+			result.push_back(umbase::um_to_degree(euler[i]));
 		}
 		return result;
 	}
@@ -796,146 +778,86 @@ namespace
 		return 0;
 	}
 
-	boost::python::list d3dx_vec3_normalize(float x, float y, float z)
+	std::vector<float> d3dx_vec3_normalize(float x, float y, float z)
 	{
 		D3DXVECTOR3 vec(x, y, z);
 		::D3DXVec3Normalize(&vec, &vec);
-		boost::python::list result;
-		result.append(vec.x);
-		result.append(vec.y);
-		result.append(vec.z);
+		std::vector<float> result;
+		result.push_back(vec.x);
+		result.push_back(vec.y);
+		result.push_back(vec.z);
 		return result;
-	}
-
-	object init_python()
-	{
-		object main_module = import("__main__");
-		object main_namespace = main_module.attr("__dict__");
-		return main_namespace;
-	}
-	
-	std::string parse_python_exception()
-	{
-		PyObject *type_ptr = NULL;
-		PyObject *value_ptr = NULL;
-		PyObject *traceback_ptr = NULL;
-		PyErr_Fetch(&type_ptr, &value_ptr, &traceback_ptr);
-
-		std::string ret("Fallback error");
-		if(type_ptr != NULL)
-		{
-			boost::python::handle<> h_type(type_ptr);
-			boost::python::str type_pstr(h_type);
-			boost::python::extract<std::string> e_type_pstr(type_pstr);
-			if(e_type_pstr.check())
-			{
-				ret = e_type_pstr();
-			}
-			else
-			{
-				ret = "Unknown exception";
-			}
-		}
-		if(value_ptr != NULL){
-			boost::python::handle<> h_val(value_ptr);
-			boost::python::str a(h_val);
-			boost::python::extract<std::string> returned(a);
-			if(returned.check()) 
-			{
-				ret +=  ": " + returned();
-			}
-			else
-			{
-				ret += std::string(": Unparseable Python error: ");
-			}
-		}
-		if(traceback_ptr != NULL)
-		{
-			boost::python::handle<> h_tb(traceback_ptr);
-			boost::python::object tb(boost::python::import("traceback"));
-			boost::python::object fmt_tb(tb.attr("format_tb"));
-			boost::python::object tb_list(fmt_tb(h_tb));
-			boost::python::object tb_str(boost::python::str("\n").join(tb_list));
-			boost::python::extract<std::string> returned(tb_str);
-			if(returned.check()) 
-			{
-				ret += ": " + returned();
-			}
-			else
-			{
-				ret += std::string(": Unparseable Python traceback");
-			}
-		}
-		return ret;
 	}
 }
 
 
-BOOST_PYTHON_MODULE( mmdbridge )
-{
-	using namespace boost::python;
-	def("get_vertex_buffer_size", get_vertex_buffer_size);
-	def("get_vertex_size", get_vertex_size);
-	def("get_vertex", get_vertex);
-	def("get_normal_size", get_normal_size);
-	def("get_normal", get_normal);
-	def("get_uv_size", get_uv_size);
-	def("get_uv", get_uv);
-	def("get_material_size", get_material_size);
-	def("is_accessory", is_accessory);
-	def("get_pre_accessory_count", get_pre_accessory_count);
-	def("get_ambient", get_ambient);
-	def("get_diffuse", get_diffuse);
-	def("get_specular", get_specular);
-	def("get_emissive", get_emissive);
-	def("get_power", get_power);
-	def("get_texture", get_texture);
-	def("get_exported_texture", get_exported_texture);
-	def("get_face_size", get_face_size);
-	def("get_face", get_face);
-	def("get_texture_buffer_size", get_texture_buffer_size);
-	def("get_texture_size", get_texture_size);
-	def("get_texture_name", get_texture_name);
-	def("get_texture_pixel", get_texture_pixel);
-	def("get_camera_up", get_camera_up);
-	def("get_camera_up_org", get_camera_up_org);
-	def("get_camera_at",  get_camera_at);
-	def("get_camera_eye",  get_camera_eye);
-	def("get_camera_eye_org",  get_camera_eye_org);
-	def("get_camera_fovy", get_camera_fovy);
-	def("get_camera_aspect", get_camera_aspect);
-	def("get_camera_near", get_camera_near);
-	def("get_camera_far", get_camera_far);
-	def("messagebox", message);
-	def("export_texture", export_texture);
-	def("export_textures", export_textures);
-	def("export_uncopied_textures", export_textures);
-	def("copy_textures", copy_textures);
-	def("get_frame_number", get_frame_number);
-	def("get_start_frame", get_start_frame);
-	def("get_end_frame", get_end_frame);
-	def("get_frame_width", get_frame_width);
-	def("get_frame_height", get_frame_height);
-	def("get_base_path", get_base_path);
-	def("get_light", get_light);
-	def("get_light_color", get_light_color);
-	def("get_object_size", get_object_size);
-	def("get_object_filename", get_object_filename);
-	def("get_bone_size", get_bone_size);
-	def("get_bone_name", get_bone_name);
-	def("get_bone_matrix", get_bone_matrix);
-	def("get_world", get_world);
-	def("get_world_inv", get_world_inv);
-	def("get_view", get_view);
-	def("get_projection", get_projection);
-	def("set_texture_buffer_enabled", set_texture_buffer_enabled);
-	def("set_int_value", set_int_value);
-	def("set_float_value", set_float_value);
-	def("get_int_value", get_int_value);
-	def("get_float_value", get_float_value);
-	def("extract_xyz_degree", extract_xyz_degree);
-	def("invert_matrix", invert_matrix);
-	def("d3dx_vec3_normalize", d3dx_vec3_normalize);
+PYBIND11_PLUGIN(mmdbridge) {
+	py::module m("mmdbridge");
+
+	m.def("get_vertex_buffer_size", get_vertex_buffer_size);
+	m.def("get_vertex_size", get_vertex_size);
+	m.def("get_vertex", get_vertex);
+	m.def("get_normal_size", get_normal_size);
+	m.def("get_normal", get_normal);
+	m.def("get_uv_size", get_uv_size);
+	m.def("get_uv", get_uv);
+	m.def("get_material_size", get_material_size);
+	m.def("is_accessory", is_accessory);
+	m.def("get_pre_accessory_count", get_pre_accessory_count);
+	m.def("get_ambient", get_ambient);
+	m.def("get_diffuse", get_diffuse);
+	m.def("get_specular", get_specular);
+	m.def("get_emissive", get_emissive);
+	m.def("get_power", get_power);
+	m.def("get_texture", get_texture);
+	m.def("get_exported_texture", get_exported_texture);
+	m.def("get_face_size", get_face_size);
+	m.def("get_face", get_face);
+	m.def("get_texture_buffer_size", get_texture_buffer_size);
+	m.def("get_texture_size", get_texture_size);
+	m.def("get_texture_name", get_texture_name);
+	m.def("get_texture_pixel", get_texture_pixel);
+	m.def("get_camera_up", get_camera_up);
+	m.def("get_camera_up_org", get_camera_up_org);
+	m.def("get_camera_at",  get_camera_at);
+	m.def("get_camera_eye",  get_camera_eye);
+	m.def("get_camera_eye_org",  get_camera_eye_org);
+	m.def("get_camera_fovy", get_camera_fovy);
+	m.def("get_camera_aspect", get_camera_aspect);
+	m.def("get_camera_near", get_camera_near);
+	m.def("get_camera_far", get_camera_far);
+	m.def("messagebox", message);
+	m.def("export_texture", export_texture);
+	m.def("export_textures", export_textures);
+	m.def("export_uncopied_textures", export_textures);
+	m.def("copy_textures", copy_textures);
+	m.def("get_frame_number", get_frame_number);
+	m.def("get_start_frame", get_start_frame);
+	m.def("get_end_frame", get_end_frame);
+	m.def("get_frame_width", get_frame_width);
+	m.def("get_frame_height", get_frame_height);
+	m.def("get_base_path", get_base_path);
+	m.def("get_light", get_light);
+	m.def("get_light_color", get_light_color);
+	m.def("get_object_size", get_object_size);
+	m.def("get_object_filename", get_object_filename);
+	m.def("get_bone_size", get_bone_size);
+	m.def("get_bone_name", get_bone_name);
+	m.def("get_bone_matrix", get_bone_matrix);
+	m.def("get_world", get_world);
+	m.def("get_world_inv", get_world_inv);
+	m.def("get_view", get_view);
+	m.def("get_projection", get_projection);
+	m.def("set_texture_buffer_enabled", set_texture_buffer_enabled);
+	m.def("set_int_value", set_int_value);
+	m.def("set_float_value", set_float_value);
+	m.def("get_int_value", get_int_value);
+	m.def("get_float_value", get_float_value);
+	m.def("extract_xyz_degree", extract_xyz_degree);
+	m.def("invert_matrix", invert_matrix);
+	m.def("d3dx_vec3_normalize", d3dx_vec3_normalize);
+
+	return m.ptr();
 }
 
 void run_python_script()
@@ -976,15 +898,16 @@ void run_python_script()
 	try
 	{
 		// モジュール初期化.
-		boost::python::object main_namespace = init_python();
+		auto global = py::dict(py::module::import("__main__").attr("__dict__"));
+		auto script = BridgeParameter::instance().mmdbridge_python_script;
 		// スクリプトの実行.
-		boost::python::object res = boost::python::exec(
-			BridgeParameter::instance().mmdbridge_python_script.c_str(),
-			main_namespace);
+		auto res = py::eval<py::eval_statements>(
+			script.c_str(),
+			global);
 	}
-	catch(error_already_set const& )
+	catch(py::error_already_set const &ex)
 	{
-		std::string python_error_string = parse_python_exception();
+		std::string python_error_string = ex.what();
 		::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
 	}
 }

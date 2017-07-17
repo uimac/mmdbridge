@@ -10,19 +10,8 @@
 #include "UMVector.h"
 #include "UMMatrix.h"
 
-#include <boost/python/detail/wrap_python.hpp>
-#include <boost/python.hpp>
-#include <boost/python/make_constructor.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/copy_non_const_reference.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/args.hpp>
-#include <boost/python/tuple.hpp>
-#include <boost/python/class.hpp>
-#include <boost/python/overloads.hpp>
-#include <boost/format.hpp>
+#include <pybind11/pybind11.h>
+namespace py = pybind11;
 
 #include <EncodingHelper.h>
 #include <Pmd.h>
@@ -95,28 +84,26 @@ static bool end_pmx_export()
 	oguna::EncodingConverter converter;
 
 	umstring filename = umbase::UMStringUtil::utf8_to_utf16(archive.model_name + ".pmx");
-	umstring output_filepath = umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + filename;
+	auto output_filepath = umbase::UMStringUtil::utf16_to_wstring(umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + filename);
 
 	PMXPtr pmx = archive.file_data.pmx;
 	converter.Utf8ToUtf16(archive.model_name.c_str(), archive.model_name.size(), &pmx->model_name);
-	pmx->morph_count = static_cast<int>(archive.morph_list.size());
-	pmx->morphs.resize(pmx->morph_count);
+	pmx->morphs.resize(archive.morph_list.size());
 
 	archive.file_data.vmd = std::make_unique<vmd::VmdMotion>();
 	VMDPtr vmd = archive.file_data.vmd;
 	vmd->model_name = archive.model_name;
 
 	int frame_number = parameter.start_frame;
-	for (int i = 0; i < pmx->morph_count; ++i)
+	for (int i = 0; i < pmx->morphs.size(); ++i)
 	{
 		// pmx morph
 		PmxMorphPtr mo = archive.morph_list[i];
 		pmx->morphs[i].morph_name = mo->morph_name;
 		pmx->morphs[i].morph_type = mo->morph_type;
 		pmx->morphs[i].category = mo->category;
-		pmx->morphs[i].offset_count = mo->offset_count;
-		pmx->morphs[i].vertex_offsets.resize(mo->offset_count);
-		for (int k = 0; k < mo->offset_count; ++k)
+		pmx->morphs[i].vertex_offsets.resize(mo->vertex_offsets.size());
+		for (int k = 0; k < mo->vertex_offsets.size(); ++k)
 		{
 			pmx->morphs[i].vertex_offsets[k] = mo->vertex_offsets[k];
 		}
@@ -144,11 +131,11 @@ static bool end_pmx_export()
 		++frame_number;
 	}
 	std::ofstream stream(output_filepath.c_str(), std::ios::binary);
-	archive.file_data.pmx->Write(&stream);
+	archive.file_data.pmx->Write(stream);
 	stream.close();
 	
 	umstring vmd_filename = umbase::UMStringUtil::utf8_to_utf16(archive.model_name + ".vmd");
-	umstring vmd_output_filepath = umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + vmd_filename;
+	auto vmd_output_filepath = umbase::UMStringUtil::utf16_to_wstring(umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + vmd_filename);
 	vmd->SaveToFile(vmd_output_filepath.c_str());
 
 	PMXArchive::instance().end();
@@ -189,16 +176,11 @@ static void export_pmx(int currentframe, bool isfirst)
 			}
 		}
 
-		pmx->vertex_count = vertex_count;
 		pmx->vertices.resize(vertex_count);
-		pmx->index_count = index_count;
 		pmx->indices.resize(index_count);
-		pmx->material_count = material_count;
 		pmx->materials.resize(material_count);
-		pmx->bone_count = 1;
 		pmx->bones.resize(1);
-		pmx->texture_count = texture_map.size();
-		pmx->textures.resize(pmx->texture_count);
+		pmx->textures.resize(texture_map.size());
 		int i = 0;
 		for (TextureMap::iterator it = texture_map.begin(); it != texture_map.end(); ++it, ++i)
 		{
@@ -302,7 +284,6 @@ static void export_pmx(int currentframe, bool isfirst)
 		const int vertex_count = static_cast<int>(archive.base_vertex_list.size());
 		morph->morph_type = pmx::MorphType::Vertex;
 		morph->category = pmx::MorphCategory::Other;
-		morph->offset_count = vertex_count;
 		morph->vertex_offsets.resize(vertex_count);
 
 		int vertex_offset = 0;
@@ -371,12 +352,12 @@ static bool execute_pmx_export(int currentframe)
 }
 
 // ---------------------------------------------------------------------------
-BOOST_PYTHON_MODULE( mmdbridge_pmx )
-{
-	using namespace boost::python;
-	def("start_pmx_export", start_pmx_export);
-	def("end_pmx_export", end_pmx_export);
-	def("execute_pmx_export", execute_pmx_export);
+PYBIND11_PLUGIN(mmdbridge_pmx) {
+	py::module m("mmdbridge_pmx");
+	m.def("start_pmx_export", start_pmx_export);
+	m.def("end_pmx_export", end_pmx_export);
+	m.def("execute_pmx_export", execute_pmx_export);
+	return m.ptr();
 }
 
 #endif //WITH_PMX

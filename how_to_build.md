@@ -79,3 +79,32 @@ ENDIF()
 ``cmake_vs2017_64_alembic.bat``を実行してインストールを実行。
 ``VCPKG_DIR/installed/x64-windows``にAlembicがインストールされる。
 
+## DirectX SDK
+
+インストールパスを環境変数``DXSDK_DIR``に設定してください。
+
+``C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)``
+
+参考
+
+* https://gist.github.com/t-mat/1540248#d3dx9corehを修正
+
+## MikuMikuDance_x64フォルダの準備
+64bit版のMMDをMikuMikuDance_x64フォルダに展開します。
+
+```
+mmdbridge
+    MikuMikuDance_x64
+        MikuMikuDance.exe
+        Data
+            MMDExport.h
+            MMDExport.lib
+など
+```
+
+## mmdbridgeのビルド
+``cmake_vs2017_64.bat``を実行して生成された``build_vs2017_64/mmdbridge.sln``をビルドしてください。``INSTALL``をビルドすると実行に必要なdllとpyをMikuMikuDance_x64にコピーします。
+
+## mmdbridgeのデバッグ実行
+INSTALLプロジェクトのプロパティ - Debug - Targetに``MikuMikuDance_x64/MikuMikuDance.exe``を指定して``F5``実行するとデバッガをアタッチできます。デバッグビルドには、``/Z7``コンパイルオプションでpdbを埋め込んであります。
+
