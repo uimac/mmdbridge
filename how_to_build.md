@@ -106,5 +106,5 @@ mmdbridge
 ``cmake_vs2017_64.bat``を実行して生成された``build_vs2017_64/mmdbridge.sln``をビルドしてください。``INSTALL``をビルドすると実行に必要なdllとpyをMikuMikuDance_x64にコピーします。
 
 ## mmdbridgeのデバッグ実行
-INSTALLプロジェクトのプロパティ - Debug - Targetに``MikuMikuDance_x64/MikuMikuDance.exe``を指定して``F5``実行するとデバッガをアタッチできます。デバッグビルドには、``/Z7``コンパイルオプションでpdbを埋め込んであります。
+INSTALLプロジェクトのプロパティ - デバッグ - コマンド - 参照で``MikuMikuDance_x64/MikuMikuDance.exe``を指定して``F5``実行するとデバッガをアタッチできます。デバッグビルドには、``/Z7``コンパイルオプションでpdbを埋め込んであります。
 
