@@ -5,7 +5,7 @@
 #define CINTERFACE
 #endif //CINTERFACE
 
-#pragma comment(lib, "d3d9.lib")
+//#pragma comment(lib, "d3d9.lib")
 #pragma warning(disable : 4819)
 #include <d3d9.h>
 #include <d3dx9shader.h>

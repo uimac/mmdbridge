@@ -12,22 +12,12 @@
 
 #include <map>
 #include <vector>
-#include <boost/python/detail/wrap_python.hpp>
-#include <boost/python.hpp>
-#include <boost/python/make_constructor.hpp>
-#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
-#include <boost/python/suite/indexing/map_indexing_suite.hpp>
-#include <boost/python/copy_non_const_reference.hpp>
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/args.hpp>
-#include <boost/python/tuple.hpp>
-#include <boost/python/class.hpp>
-#include <boost/python/overloads.hpp>
-#include <boost/format.hpp>
 
-#include <Imath/ImathMatrix.h>
-#include <Imath/ImathQuat.h>
+#include <pybind11/pybind11.h>
+namespace py = pybind11;
+
+#include <ImathMatrix.h>
+#include <ImathQuat.h>
 
 #include <EncodingHelper.h>
 #include <Pmd.h>
@@ -185,7 +175,7 @@ static bool end_vmd_export()
 			 umstring filename = umbase::UMPath::get_file_name(umstr);
 			const umstring extension = umbase::UMStringUtil::utf8_to_utf16(".vmd");
 			filename.replace(filename.size() - 4, 4, extension);
-			umstring output_filepath = umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + filename;
+			auto output_filepath = umbase::UMStringUtil::utf16_to_wstring(umbase::UMStringUtil::utf8_to_utf16(archive.output_path) + filename);
 			file_data.vmd->SaveToFile(output_filepath);
 		}
 	}
@@ -264,7 +254,7 @@ static void init_file_data(FileDataForVMD& data)
 	else if (data.pmx)
 	{
 		oguna::EncodingConverter converter;
-		const int bone_count = data.pmx->bone_count;
+		const int bone_count = data.pmx->bones.size();
 		for (int i = 0; i < bone_count; ++i)
 		{
 			const pmx::PmxBone& bone = data.pmx->bones[i];
@@ -283,7 +273,7 @@ static void init_file_data(FileDataForVMD& data)
 			}
 		}
 
-		const int rigid_count = data.pmx->rigid_body_count;
+		const int rigid_count = data.pmx->rigid_bodies.size();
 		std::map<int, int> bone_to_rigid_map;
 		for (int i = 0; i < rigid_count; ++i)
 		{
@@ -611,12 +601,12 @@ static bool execute_vmd_export(int currentframe)
 }
 
 // ---------------------------------------------------------------------------
-BOOST_PYTHON_MODULE( mmdbridge_vmd )
-{
-	using namespace boost::python;
-	def("start_vmd_export", start_vmd_export);
-	def("end_vmd_export", end_vmd_export);
-	def("execute_vmd_export", execute_vmd_export);
+PYBIND11_PLUGIN(mmdbridge_vmd) {
+	py::module m("mmdbridge_vmd");
+	m.def("start_vmd_export", start_vmd_export);
+	m.def("end_vmd_export", end_vmd_export);
+	m.def("execute_vmd_export", execute_vmd_export);
+	return m.ptr();
 }
 
 #endif //WITH_VMD

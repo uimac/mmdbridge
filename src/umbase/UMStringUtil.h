@@ -113,8 +113,9 @@ public:
 	static umstring utf8_to_utf16(const std::string& utf8str)
 	{
 #if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
-		std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,char16_t> convert;
-		umstring utf16str = convert.from_bytes(utf8str);
+		std::wstring_convert<std::codecvt_utf8_utf16<uint16_t>, uint16_t> convert;
+		auto uint16str = convert.from_bytes(utf8str);
+		umstring utf16str(reinterpret_cast<const char16_t*>(uint16str.c_str()));
 #else
 		// not implemented
 		umstring utf16str = utf8str;
@@ -128,8 +129,9 @@ public:
 	static std::string utf16_to_utf8(const umstring& str)
 	{
 #if defined _WIN32 && !defined (WITH_EMSCRIPTEN)
-		std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,char16_t> convert;
-		std::string stdstr = convert.to_bytes(str);
+		std::wstring_convert<std::codecvt_utf8_utf16<uint16_t>, uint16_t> convert;
+		std::basic_string<uint16_t> uint16str(reinterpret_cast<const uint16_t*>(str.c_str()));
+		std::string stdstr = convert.to_bytes(uint16str);
 #else
 		// not implemented
 		std::string stdstr = str;
