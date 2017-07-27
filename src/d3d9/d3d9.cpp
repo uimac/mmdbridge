@@ -13,7 +13,7 @@
 #include <shlwapi.h>
 
 #include <pybind11/eval.h>
-//#include <pybind11/pybind11.h>
+#include <pybind11/stl_bind.h>
 namespace py = pybind11;
 
 #include <commctrl.h>
@@ -790,6 +790,7 @@ namespace
 	}
 }
 
+PYBIND11_MAKE_OPAQUE(std::vector<float>);
 
 PYBIND11_PLUGIN(mmdbridge) {
 	py::module m("mmdbridge");
@@ -856,6 +857,8 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("extract_xyz_degree", extract_xyz_degree);
 	m.def("invert_matrix", invert_matrix);
 	m.def("d3dx_vec3_normalize", d3dx_vec3_normalize);
+
+    py::bind_vector<std::vector<float>>(m, "VectorInt");
 
 	return m.ptr();
 }
