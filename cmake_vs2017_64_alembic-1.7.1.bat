@@ -11,7 +11,7 @@ pushd %BUILD_DIR%
 %CMAKE% -D CMAKE_INSTALL_PREFIX=%VCPKG_DIR%/installed/x64-windows -D USE_HDF5=ON -D HDF5_ROOT=%VCPKG_DIR%/installed/x64-windows -G "Visual Studio 15 2017 Win64" ../alembic-1.7.1 
 
 %MSBUILD% /p:Configuration=Release /t:Build /m INSTALL.vcxproj
-%MSBUILD% /p:Configuration=Debug /t:Build /m INSTALL.vcxproj
+%rem %MSBUILD% /p:Configuration=Debug /t:Build /m INSTALL.vcxproj
 
 popd
 
