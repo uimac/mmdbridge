@@ -61,4 +61,6 @@ INSTALL(FILES ${python_sciprts}
 INSTALL(DIRECTORY Release/Win32/alembic_assign_scripts 
     DESTINATION ${MMD_DIR}
     )
+install(DIRECTORY 
+    DESTINATION ${MMD_DIR}/out)
 
