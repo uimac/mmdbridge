@@ -17,7 +17,7 @@
  * pybind11
 
 ## Licensing
-MITライセンスです. [LICENSE.txt](LICNESE.txt)をご参照ください.
+MITライセンスです. [LICENSE.txt](LICENSE.txt)をご参照ください.
 
 ## Contributors
 [MMDBridgeはオープンソースで誰でも開発に参加できます](https://github.com/uimac/mmdbridge/graphs/contributors)
