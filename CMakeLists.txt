@@ -54,6 +54,9 @@ FILE(GLOB python_sciprts Release/Win32/*.py
 INSTALL(FILES ${python_sciprts}
     DESTINATION ${MMD_DIR}
     )
+
+FILE(INSTALL ${CMAKE_INSTALL_PREFIX}/share/python3/Lib DESTINATION ${MMD_DIR})
+
 INSTALL(DIRECTORY Release/Win32/alembic_assign_scripts 
     DESTINATION ${MMD_DIR}
     )
