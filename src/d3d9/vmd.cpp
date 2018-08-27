@@ -429,7 +429,7 @@ static bool execute_vmd_export(int currentframe)
 				continue;
 			}
 
-			if (file_data.bone_name_map[k] != bone_name) {
+			if (strcmp(file_data.bone_name_map[k].c_str(), bone_name) != 0) {
 				continue;
 			}
 
