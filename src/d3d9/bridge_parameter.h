@@ -5,6 +5,12 @@
 #include <map>
 #include "d3d9.h"
 
+#include "rendered_data.h"
+#include "render_data.h"
+#include "texture_info.h"
+#include "texture_parameter.h"
+
+
 class BridgeParameter
 {
 public:

@@ -1,8 +1,12 @@
-﻿
-#define CINTERFACE
+﻿#define CINTERFACE
+
+#ifdef _DEBUG
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
 
 #include "d3d9.h"
-#include "d3dx9.h"
 #include <windows.h>
 #include <vector>
 #include <string>
@@ -12,23 +16,21 @@
 #include <algorithm>
 #include <shlwapi.h>
 
-#include <pybind11/eval.h>
-#include <pybind11/stl_bind.h>
-namespace py = pybind11;
-
 #include <commctrl.h>
 #include <richedit.h>
 
 #include <process.h>
 
 #include "bridge_parameter.h"
-#include "alembic.h"
-#include "vmd.h"
-#include "pmx.h"
 #include "resource.h"
 #include "MMDExport.h"
 #include "UMStringUtil.h"
 #include "UMPath.h"
+
+#include "rendered_data.h"
+#include "render_data.h"
+#include "texture_info.h"
+#include "texture_parameter.h"
 
 #ifdef _WIN64
 #define _LONG_PTR LONG_PTR
@@ -36,16 +38,8 @@ namespace py = pybind11;
 #define _LONG_PTR LONG
 #endif
 
-template <class T> std::string to_string(T value)
-{
-	return umbase::UMStringUtil::number_to_string(value);
-}
+using namespace umbase;
 
-//ワイド文字列からutf8文字列に変換
-static void to_string(std::string &dest, const std::wstring &src) 
-{
-	dest = umbase::UMStringUtil::wstring_to_utf8(src);
-}
 
 static void messagebox(std::string title, std::string message)
 {
@@ -60,20 +54,10 @@ static void message(std::string message)
 static void messagebox_float4(float v[4], const char *title)
 {
 	::MessageBoxA(NULL, std::string(
-		to_string(v[0]) + " "
-		+ to_string(v[1]) + " "
-		+ to_string(v[2]) + " "
-		+ to_string(v[3]) + "\n").c_str(), title, MB_OK);
-}
-
-static void messagebox_matrix(D3DXMATRIX& mat, const char *title)
-{
-	::MessageBoxA(NULL,
-		std::string(
-		to_string(mat._11)+" "+to_string(mat._12)+" "+to_string(mat._13)+" "+to_string(mat._14)+"\n"
-		+to_string(mat._21)+" "+to_string(mat._22)+" "+to_string(mat._23)+" "+to_string(mat._24)+"\n"
-		+to_string(mat._31)+" "+to_string(mat._32)+" "+to_string(mat._33)+" "+to_string(mat._34)+"\n"
-		+to_string(mat._41)+" "+to_string(mat._42)+" "+to_string(mat._43)+" "+to_string(mat._44)+"\n").c_str(), title, MB_OK);
+		std::to_string(v[0]) + " "
+		+ std::to_string(v[1]) + " "
+		+ std::to_string(v[2]) + " "
+		+ std::to_string(v[3]) + "\n").c_str(), title, MB_OK);
 }
 
 // IDirect3DDevice9のフック関数
@@ -84,836 +68,12 @@ IDirect3DDevice9 *p_device = NULL;
 
 RenderData renderData;
 
-std::vector<std::pair<IDirect3DTexture9*, bool> > finishTextureBuffers;
-
 std::map<IDirect3DTexture9*, RenderedTexture> renderedTextures;
 std::map<int, std::map<int , RenderedMaterial*> > renderedMaterials;
-//-----------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat);
+// static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
 
-static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied = false);
 
-static bool copyTextureToFiles(const std::u16string &texturePath);
-
-static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied);
-
-//------------------------------------------Python呼び出し--------------------------------------------------------
-static int pre_frame = 0;
-static int presentCount = 0;
-static int process_frame = -1;
-static int ui_frame = 0;
-
-// 行列で3Dベクトルをトランスフォームする
-// D3DXVec3Transformとほぼ同じ
-static void d3d_vector3_dir_transform(
-	D3DXVECTOR3 &dst, 
-	const D3DXVECTOR3 &src, 
-	const D3DXMATRIX &matrix)
-{
-	const float tmp[] = {
-		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0],
-		src.x*matrix.m[0][1] + src.y*matrix.m[1][1] + src.z*matrix.m[2][1],
-		src.x*matrix.m[0][2] + src.y*matrix.m[1][2] + src.z*matrix.m[2][2]
-	};
-	dst.x = tmp[0];
-	dst.y = tmp[1];
-	dst.z = tmp[2];
-}
-
-static void d3d_vector3_transform(
-	D3DXVECTOR3 &dst, 
-	const D3DXVECTOR3 &src, 
-	const D3DXMATRIX &matrix)
-{
-	const float tmp[] = {
-		src.x*matrix.m[0][0] + src.y*matrix.m[1][0] + src.z*matrix.m[2][0] + 1.0f*matrix.m[3][0],
-		src.x*matrix.m[0][1] + src.y*matrix.m[1][1] + src.z*matrix.m[2][1] + 1.0f*matrix.m[3][1],
-		src.x*matrix.m[0][2] + src.y*matrix.m[1][2] + src.z*matrix.m[2][2] + 1.0f*matrix.m[3][2]
-	};
-	dst.x = tmp[0];
-	dst.y = tmp[1];
-	dst.z = tmp[2];
-}
-
-// python
-namespace
-{
-	std::wstring pythonName; // スクリプト名
-	int script_call_setting = 2; // スクリプト呼び出し設定
-	std::map<int, int> exportedFrames;
-
-	/// スクリプトのリロード.
-	bool relaod_python_script()
-	{
-		BridgeParameter::mutable_instance().mmdbridge_python_script.clear();
-		std::ifstream ifs(BridgeParameter::instance().python_script_path.c_str());
-		if (!ifs) return false;
-		char buf[2048];
-		while (ifs.getline( buf, sizeof(buf))) {
-			BridgeParameter::mutable_instance().mmdbridge_python_script.append(buf);
-			BridgeParameter::mutable_instance().mmdbridge_python_script.append("\r\n");
-		}
-		ifs.close();
-		return true;
-	}
-
-	/// スクリプトパスのリロード.
-	void reload_python_file_paths()
-	{
-		TCHAR app_full_path[1024];	// アプリフルパス
-		
-		GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(TCHAR));
-
-		BridgeParameter& mutable_parameter = BridgeParameter::mutable_instance();
-		std::wstring searchPath = mutable_parameter.base_path;
-		std::wstring searchStr(searchPath + _T("*.py"));
-
-		// pythonファイル検索
-		WIN32_FIND_DATA find;
-		HANDLE hFind = FindFirstFile(searchStr.c_str(), &find);
-		if (hFind != INVALID_HANDLE_VALUE)
-		{
-			do
-			{
-				if(! (find.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-				{
-					std::wstring name( find.cFileName);
-					std::wstring path(searchPath + find.cFileName);
-					// ファイルだった
-					if (mutable_parameter.python_script_name.empty()) { 
-						mutable_parameter.python_script_name = name;
-						mutable_parameter.python_script_path = path;
-					}
-					mutable_parameter.python_script_name_list.push_back(name);
-					mutable_parameter.python_script_path_list.push_back(path);
-				}
-			} while(FindNextFile(hFind, &find));
-			FindClose(hFind);
-		}
-	}
-
-	// Get a reference to the main module.
-	PyObject* main_module = NULL; 
-
-	// Get the main module's dictionary
-	// and make a copy of it.
-	PyObject* main_dict = NULL;
-
-	int get_vertex_buffer_size()
-	{
-		return BridgeParameter::instance().finish_buffer_list.size();
-	}
-
-	int get_vertex_size(int at)
-	{
-		return BridgeParameter::instance().render_buffer(at).vertecies.size();
-	}
-
-	std::vector<float> get_vertex(int at, int vpos)
-	{
-		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
-		float x = buffer.vertecies[vpos].x;
-		float y = buffer.vertecies[vpos].y;
-		float z = buffer.vertecies[vpos].z;
-		std::vector<float> result;
-		result.push_back(x);
-		result.push_back(y);
-		result.push_back(z);
-		return result;
-	}
-
-	int get_normal_size(int at)
-	{
-		return BridgeParameter::instance().render_buffer(at).normals.size();
-	}
-
-	std::vector<float> get_normal(int at, int vpos)
-	{
-		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
-		float x = buffer.normals[vpos].x;
-		float y = buffer.normals[vpos].y;
-		float z = buffer.normals[vpos].z;
-		std::vector<float> result;
-		result.push_back(x);
-		result.push_back(y);
-		result.push_back(z);
-		return result;
-	}
-
-	int get_uv_size(int at)
-	{
-		return BridgeParameter::instance().render_buffer(at).uvs.size();
-	}
-
-	std::vector<float> get_uv(int at, int vpos)
-	{
-		const RenderedBuffer& buffer = BridgeParameter::instance().render_buffer(at);
-		float u = buffer.uvs[vpos].x;
-		float v = buffer.uvs[vpos].y;
-		std::vector<float> result;
-		result.push_back(u);
-		result.push_back(v);
-		return result;
-	}
-
-	int get_material_size(int at)
-	{
-		return BridgeParameter::instance().render_buffer(at).materials.size();
-	}
-
-	bool is_accessory(int at)
-	{
-		int result = 0;
-		if (BridgeParameter::instance().render_buffer(at).isAccessory)
-		{
-			return true;
-		}
-		return false;
-	}
-
-	int get_pre_accessory_count()
-	{
-		return ExpGetPreAcsNum();
-	}
-
-	std::vector<float> get_diffuse(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		std::vector<float> result;
-		result.push_back(mat->diffuse.x);
-		result.push_back(mat->diffuse.y);
-		result.push_back(mat->diffuse.z);
-		result.push_back(mat->diffuse.w);
-		return result;
-	}
-
-	std::vector<float> get_ambient(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		std::vector<float> result;
-		result.push_back(mat->ambient.x);
-		result.push_back(mat->ambient.y);
-		result.push_back(mat->ambient.z);
-		return result;
-	}
-
-	std::vector<float> get_specular(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		std::vector<float> result;
-		result.push_back(mat->specular.x);
-		result.push_back(mat->specular.y);
-		result.push_back(mat->specular.z);
-		return result;
-	}
-
-	std::vector<float> get_emissive(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		std::vector<float> result;
-		result.push_back(mat->emissive.x);
-		result.push_back(mat->emissive.y);
-		result.push_back(mat->emissive.z);
-		return result;
-	}
-
-	float get_power(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		float power = mat->power;
-		return power;
-	}
-
-	std::string get_texture(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		return mat->texture;
-	}
-
-	std::string get_exported_texture(int at, int mpos)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		return mat->memoryTexture;
-	}
-
-	int get_face_size(int at, int mpos)
-	{
-		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
-	}
-
-	std::vector<float> get_face(int at, int mpos, int fpos)
-	{
-		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
-		int v1 = surface.faces[fpos].x;
-		int v2 = surface.faces[fpos].y;
-		int v3 = surface.faces[fpos].z;
-		std::vector<float> result;
-		result.push_back(v1);
-		result.push_back(v2);
-		result.push_back(v3);
-		return result;
-	}
-
-	int get_texture_buffer_size()
-	{
-		return finishTextureBuffers.size();
-	}
-
-	std::vector<float> get_texture_size(int at)
-	{
-		std::vector<float> result;
-		result.push_back(renderedTextures[finishTextureBuffers[at].first].size.x);
-		result.push_back(renderedTextures[finishTextureBuffers[at].first].size.y);
-		return result;
-	}
-
-	std::string get_texture_name(int at)
-	{
-		return renderedTextures[finishTextureBuffers[at].first].name;
-	}
-
-	std::vector<float> get_texture_pixel(int at, int tpos)
-	{
-		UMVec4f &rgba = renderedTextures[finishTextureBuffers[at].first].texture[tpos];
-		std::vector<float> result;
-		result.push_back(rgba.x);
-		result.push_back(rgba.y);
-		result.push_back(rgba.z);
-		result.push_back(rgba.w);
-		return result;
-	}
-
-	bool export_texture(int at, int mpos, const std::string& dst)
-	{
-		RenderedMaterial* mat = BridgeParameter::instance().render_buffer(at).materials[mpos];
-		std::string path(dst);
-		std::string textureType = path.substr(path.size() - 3, 3);
-
-		D3DXIMAGE_FILEFORMAT fileFormat;
-		if (textureType == "bmp" || textureType == "BMP") { fileFormat = D3DXIFF_BMP; }
-		else if (textureType == "png" || textureType == "PNG") { fileFormat = D3DXIFF_PNG; }
-		else if (textureType == "jpg" || textureType == "JPG") { fileFormat = D3DXIFF_JPG; }
-		else if (textureType == "tga" || textureType == "TGA") { fileFormat = D3DXIFF_TGA; }
-		else if (textureType == "dds" || textureType == "DDS") { fileFormat = D3DXIFF_DDS; }
-		else if (textureType == "ppm" || textureType == "PPM") { fileFormat = D3DXIFF_PPM; }
-		else if (textureType == "dib" || textureType == "DIB") { fileFormat = D3DXIFF_DIB; }
-		else if (textureType == "hdr" || textureType == "HDR") { fileFormat = D3DXIFF_HDR; }
-		else if (textureType == "pfm" || textureType == "PFM") { fileFormat = D3DXIFF_PFM; }
-		else { return false; }
-
-		if (mat->tex)
-		{
-			return writeTextureToFile(path, mat->tex, fileFormat);
-		}
-		return false;
-	}
-
-	bool export_textures(const std::string& p, const std::string& t)
-	{
-		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
-		std::string type(t);
-		if (umbase::UMPath::exists(path))
-		{
-			return writeTextureToFiles(p, t);
-		}
-		return false;
-	}
-
-	bool export_uncopied_textures(const std::string& p, const std::string& t)
-	{
-		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(p);
-		if (umbase::UMPath::exists(path))
-		{
-			return writeTextureToFiles(p, t, true);
-		}
-		return false;
-	}
-
-	bool copy_textures(const std::string& s)
-	{
-		std::u16string path = umbase::UMStringUtil::utf8_to_utf16(s);
-		if (umbase::UMPath::exists(path))
-		{
-			std::wstring wpath = umbase::UMStringUtil::utf16_to_wstring(path);
-			return copyTextureToFiles(path);
-		}
-		return false;
-	}
-
-	std::string get_base_path()
-	{
-		std::string path = umbase::UMStringUtil::wstring_to_utf8(BridgeParameter::instance().base_path);
-		return path;
-	}
-
-	std::vector<float> get_camera_up()
-	{
-		D3DXVECTOR3 v;
-		D3DXVECTOR3 dst;
-		UMGetCameraUp(&v);
-		d3d_vector3_dir_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		std::vector<float> result;
-		result.push_back(dst.x);
-		result.push_back(dst.y);
-		result.push_back(dst.z);
-		return result;
-	}
-
-	std::vector<float> get_camera_up_org()
-	{
-		D3DXVECTOR3 v;
-		UMGetCameraUp(&v);
-		std::vector<float> result;
-		result.push_back(v.x);
-		result.push_back(v.y);
-		result.push_back(v.z);
-		return result;
-	}
-	
-	std::vector<float> get_camera_at()
-	{
-		D3DXVECTOR3 v;
-		D3DXVECTOR3 dst;
-		UMGetCameraAt(&v);
-		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		std::vector<float> result;
-		result.push_back(dst.x);
-		result.push_back(dst.y);
-		result.push_back(dst.z);
-		return result;
-	}
-
-	std::vector<float> get_camera_eye()
-	{
-		D3DXVECTOR3 v;
-		D3DXVECTOR3 dst;
-		UMGetCameraEye(&v);
-		d3d_vector3_transform(dst, v, BridgeParameter::instance().first_noaccessory_buffer().world_inv);
-		std::vector<float> result;
-		result.push_back(dst.x);
-		result.push_back(dst.y);
-		result.push_back(dst.z);
-		return result;
-	}
-
-	std::vector<float> get_camera_eye_org()
-	{
-		D3DXVECTOR3 v;
-		UMGetCameraEye(&v);
-		std::vector<float> result;
-		result.push_back(v.x);
-		result.push_back(v.y);
-		result.push_back(v.z);
-		return result;
-	}
-
-	float get_camera_fovy()
-	{
-		D3DXVECTOR4 v;
-		UMGetCameraFovLH(&v);
-		return  v.x;
-	}
-
-	float get_camera_aspect()
-	{
-		D3DXVECTOR4 v;
-		UMGetCameraFovLH(&v);
-		return v.y;
-	}
-
-	float get_camera_near()
-	{
-		D3DXVECTOR4 v;
-		UMGetCameraFovLH(&v);
-		return v.z;
-	}
-
-	float get_camera_far()
-	{
-		D3DXVECTOR4 v;
-		UMGetCameraFovLH(&v);
-		return v.w;
-	}
-	
-	int get_frame_number()
-	{
-		if (process_frame >= 0) 
-		{
-			return process_frame;
-		}
-		else
-		{
-			return ui_frame;
-		}
-	}
-
-	int get_start_frame()
-	{
-		return BridgeParameter::instance().start_frame;
-	}
-	
-	int get_end_frame()
-	{
-		return BridgeParameter::instance().end_frame;
-	}
-
-	int get_frame_width()
-	{
-		return BridgeParameter::instance().frame_width;
-	}
-
-	int get_frame_height()
-	{
-		return BridgeParameter::instance().frame_height;
-	}
-
-	std::vector<float> get_light(int at)
-	{
-		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
-		std::vector<float> result;
-		result.push_back(light.x);
-		result.push_back(light.y);
-		result.push_back(light.z);
-		return result;
-	}
-
-	std::vector<float> get_light_color(int at)
-	{
-		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light_color;
-		std::vector<float> result;
-		result.push_back(light.x);
-		result.push_back(light.y);
-		result.push_back(light.z);
-		return result;
-	}
-
-	int get_object_size()
-	{
-		return ExpGetPmdNum();
-	}
-
-	int get_bone_size(int at)
-	{
-		return ExpGetPmdBoneNum(at);
-	}
-
-	std::string get_object_filename(int at)
-	{
-		const int count = get_bone_size(at);
-		if (count <= 0) return "";
-		const char* sjis = ExpGetPmdFilename(at);
-		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
-		wchar_t* utf16 = new wchar_t[size];
-		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
-		std::wstring wchar(utf16);
-		delete [] utf16;
-		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-		return utf8str;
-	}
-
-	std::string get_bone_name(int at, int bone_index)
-	{
-		const int count = get_bone_size(at);
-		if (count <= 0) return "";
-		const char* sjis = ExpGetPmdBoneName(at, bone_index);
-		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
-		wchar_t* utf16 = new wchar_t[size];
-		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
-		std::wstring wchar(utf16);
-		delete [] utf16;
-		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
-		return utf8str;
-	}
-
-	std::vector<float> get_bone_matrix(int at, int bone_index)
-	{
-		const int count = get_bone_size(at);
-		std::vector<float> result;
-		if (count <= 0) return result;
-
-		D3DMATRIX mat = ExpGetPmdBoneWorldMat(at, bone_index);
-		for (int i = 0; i < 4; ++i)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
-				result.push_back(mat.m[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> get_world(int at)
-	{
-		const D3DXMATRIX& world = BridgeParameter::instance().render_buffer(at).world;
-		std::vector<float> result;
-		for (int i = 0; i < 4; ++i)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
-				result.push_back(world.m[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> get_world_inv(int at)
-	{
-		const D3DXMATRIX& world_inv = BridgeParameter::instance().render_buffer(at).world_inv;
-		std::vector<float> result;
-		for (int i = 0; i < 4; ++i)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
-				result.push_back(world_inv.m[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> get_view(int at)
-	{
-		const D3DXMATRIX& view = BridgeParameter::instance().render_buffer(at).view;
-		std::vector<float> result;
-		for (int i = 0; i < 4; ++i)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
-				result.push_back(view.m[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> get_projection(int at)
-	{
-		const D3DXMATRIX& projection = BridgeParameter::instance().render_buffer(at).projection;
-		std::vector<float> result;
-		for (int i = 0; i < 4; ++i)
-		{
-			for (int k = 0; k < 4; ++k)
-			{
-				result.push_back(projection.m[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> invert_matrix(const std::vector<float> &tp1)
-	{
-		if (tp1.size() < 16) {
-			PyErr_SetString(PyExc_IndexError, "index out of range");
-			throw py::error_already_set();
-		}
-		std::vector<float> result;
-		UMMat44d src;
-		for (int i = 0; i < 4; ++i) {
-			for (int k = 0; k < 4; ++k) {
-				src[i][k] = static_cast<double>(tp1[i * 4 + k]);
-			}
-		}
-		const UMMat44d dst = src.inverted();
-		for (int i = 0; i < 4; ++i) {
-			for (int k = 0; k < 4; ++k) {
-				result.push_back(dst[i][k]);
-			}
-		}
-		return result;
-	}
-
-	std::vector<float> extract_xyz_degree(const std::vector<float> &tp1)
-	{
-		if (tp1.size() < 16) {
-			PyErr_SetString(PyExc_IndexError, "index out of range");
-			throw py::error_already_set();
-		}
-		std::vector<float> result;
-		UMMat44d src;
-		for (int i = 0; i < 4; ++i) {
-			for (int k = 0; k < 4; ++k) {
-				src[i][k] = static_cast<double>(tp1[i * 4 + k]);
-			}
-		}
-
-		const UMVec3d euler = umbase::um_matrix_to_euler_xyz(src);
-		for (int i = 0; i < 3; ++i) {
-			result.push_back(umbase::um_to_degree(euler[i]));
-		}
-		return result;
-	}
-
-	bool set_texture_buffer_enabled(bool enabled)
-	{
-		BridgeParameter::mutable_instance().is_texture_buffer_enabled = enabled;
-		return true;
-	}
-
-	bool set_int_value(int pos, int value)
-	{
-		BridgeParameter::mutable_instance().py_int_map[pos] = value;
-		return true;
-	}
-
-	bool set_float_value(int pos, float value)
-	{
-		BridgeParameter::mutable_instance().py_float_map[pos] = value;
-		return true;
-	}
-
-	int get_int_value(int pos)
-	{
-		if (BridgeParameter::instance().py_int_map.find(pos) != BridgeParameter::instance().py_int_map.end())
-		{
-			return BridgeParameter::mutable_instance().py_int_map[pos];
-		}
-		return 0;
-	}
-
-	float get_float_value(int pos)
-	{
-		if (BridgeParameter::instance().py_float_map.find(pos) != BridgeParameter::instance().py_float_map.end())
-		{
-			return BridgeParameter::mutable_instance().py_float_map[pos];
-		}
-		return 0;
-	}
-
-	std::vector<float> d3dx_vec3_normalize(float x, float y, float z)
-	{
-		D3DXVECTOR3 vec(x, y, z);
-		::D3DXVec3Normalize(&vec, &vec);
-		std::vector<float> result;
-		result.push_back(vec.x);
-		result.push_back(vec.y);
-		result.push_back(vec.z);
-		return result;
-	}
-}
-
-PYBIND11_MAKE_OPAQUE(std::vector<float>);
-
-PYBIND11_PLUGIN(mmdbridge) {
-	py::module m("mmdbridge");
-
-	m.def("get_vertex_buffer_size", get_vertex_buffer_size);
-	m.def("get_vertex_size", get_vertex_size);
-	m.def("get_vertex", get_vertex);
-	m.def("get_normal_size", get_normal_size);
-	m.def("get_normal", get_normal);
-	m.def("get_uv_size", get_uv_size);
-	m.def("get_uv", get_uv);
-	m.def("get_material_size", get_material_size);
-	m.def("is_accessory", is_accessory);
-	m.def("get_pre_accessory_count", get_pre_accessory_count);
-	m.def("get_ambient", get_ambient);
-	m.def("get_diffuse", get_diffuse);
-	m.def("get_specular", get_specular);
-	m.def("get_emissive", get_emissive);
-	m.def("get_power", get_power);
-	m.def("get_texture", get_texture);
-	m.def("get_exported_texture", get_exported_texture);
-	m.def("get_face_size", get_face_size);
-	m.def("get_face", get_face);
-	m.def("get_texture_buffer_size", get_texture_buffer_size);
-	m.def("get_texture_size", get_texture_size);
-	m.def("get_texture_name", get_texture_name);
-	m.def("get_texture_pixel", get_texture_pixel);
-	m.def("get_camera_up", get_camera_up);
-	m.def("get_camera_up_org", get_camera_up_org);
-	m.def("get_camera_at",  get_camera_at);
-	m.def("get_camera_eye",  get_camera_eye);
-	m.def("get_camera_eye_org",  get_camera_eye_org);
-	m.def("get_camera_fovy", get_camera_fovy);
-	m.def("get_camera_aspect", get_camera_aspect);
-	m.def("get_camera_near", get_camera_near);
-	m.def("get_camera_far", get_camera_far);
-	m.def("messagebox", message);
-	m.def("export_texture", export_texture);
-	m.def("export_textures", export_textures);
-	m.def("export_uncopied_textures", export_textures);
-	m.def("copy_textures", copy_textures);
-	m.def("get_frame_number", get_frame_number);
-	m.def("get_start_frame", get_start_frame);
-	m.def("get_end_frame", get_end_frame);
-	m.def("get_frame_width", get_frame_width);
-	m.def("get_frame_height", get_frame_height);
-	m.def("get_base_path", get_base_path);
-	m.def("get_light", get_light);
-	m.def("get_light_color", get_light_color);
-	m.def("get_object_size", get_object_size);
-	m.def("get_object_filename", get_object_filename);
-	m.def("get_bone_size", get_bone_size);
-	m.def("get_bone_name", get_bone_name);
-	m.def("get_bone_matrix", get_bone_matrix);
-	m.def("get_world", get_world);
-	m.def("get_world_inv", get_world_inv);
-	m.def("get_view", get_view);
-	m.def("get_projection", get_projection);
-	m.def("set_texture_buffer_enabled", set_texture_buffer_enabled);
-	m.def("set_int_value", set_int_value);
-	m.def("set_float_value", set_float_value);
-	m.def("get_int_value", get_int_value);
-	m.def("get_float_value", get_float_value);
-	m.def("extract_xyz_degree", extract_xyz_degree);
-	m.def("invert_matrix", invert_matrix);
-	m.def("d3dx_vec3_normalize", d3dx_vec3_normalize);
-
-    py::bind_vector<std::vector<float>>(m, "VectorInt");
-
-	return m.ptr();
-}
-
-void run_python_script()
-{
-	relaod_python_script();
-	if (BridgeParameter::instance().mmdbridge_python_script.empty()) { return; }
-
-	if (Py_IsInitialized())
-	{
-		//
-		PyEval_InitThreads();
-		Py_InspectFlag = 0;
-		
-		if (script_call_setting > 1)
-		{
-			script_call_setting = 0;
-		}
-	}
-	else
-	{
-		InitAlembic();
-		InitVMD();
-		InitPMX();
-		PyImport_AppendInittab("mmdbridge", PyInit_mmdbridge);
-		Py_Initialize();
-			
-		// 入力引数の設定
-		{
-			int argc = 1;
-			const std::wstring wpath = BridgeParameter::instance().base_path;
-			wchar_t *path[] = {
-				const_cast<wchar_t*>(wpath.c_str())
-			};
-			PySys_SetArgv(argc, path);
-		}
-	}
-
-	try
-	{
-		// モジュール初期化.
-		auto global = py::dict(py::module::import("__main__").attr("__dict__"));
-		auto script = BridgeParameter::instance().mmdbridge_python_script;
-		// スクリプトの実行.
-		auto res = py::eval<py::eval_statements>(
-			script.c_str(),
-			global);
-	}
-	catch(py::error_already_set const &ex)
-	{
-		std::string python_error_string = ex.what();
-		::MessageBoxA(NULL, python_error_string.c_str(), "python error", MB_OK);
-	}
-}
 //-----------------------------------------------------------Hook関数ポインタ-----------------------------------------------------------
 
 // Direct3DCreate9
@@ -964,86 +124,11 @@ HRESULT (WINAPI *original_set_texture)(IDirect3DDevice9*, DWORD, IDirect3DBaseTe
 HRESULT (WINAPI *original_create_texture)(IDirect3DDevice9*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9**, HANDLE*)(NULL);
 //-----------------------------------------------------------------------------------------------------------------------------
 
-static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9 * texture, D3DXIMAGE_FILEFORMAT fileFormat)
-{
-	TextureBuffers::iterator tit = renderData.textureBuffers.find(texture);
-	if(tit != renderData.textureBuffers.end())
-	{
-		if (texture->lpVtbl) {
-			D3DXSaveTextureToFileA(texturePath.c_str(), fileFormat,(LPDIRECT3DBASETEXTURE9) texture, NULL);
-			return true;
-		}
-	}
-	return false;
-}
-
-static bool writeTextureToFiles(const std::string &texturePath, const std::string &textureType, bool uncopied)
-{
-	bool res = true;
-
-	D3DXIMAGE_FILEFORMAT fileFormat;
-	if (textureType == "bmp" || textureType == "BMP") { fileFormat = D3DXIFF_BMP; }
-	else if (textureType == "png" || textureType == "PNG") { fileFormat = D3DXIFF_PNG; }
-	else if (textureType == "jpg" || textureType == "JPG") { fileFormat = D3DXIFF_JPG; }
-	else if (textureType == "tga" || textureType == "TGA") { fileFormat = D3DXIFF_TGA; }
-	else if (textureType == "dds" || textureType == "DDS") { fileFormat = D3DXIFF_DDS; }
-	else if (textureType == "ppm" || textureType == "PPM") { fileFormat = D3DXIFF_PPM; }
-	else if (textureType == "dib" || textureType == "DIB") { fileFormat = D3DXIFF_DIB; }
-	else if (textureType == "hdr" || textureType == "HDR") { fileFormat = D3DXIFF_HDR; }
-	else if (textureType == "pfm" || textureType == "PFM") { fileFormat = D3DXIFF_PFM; }
-	else { return false; }
-
-	char dir[MAX_PATH];
-	std::strcpy(dir, texturePath.c_str());
-	PathRemoveFileSpecA(dir);
-	
-	for (size_t i = 0; i <  finishTextureBuffers.size(); ++i)
-	{
-		IDirect3DTexture9* texture = finishTextureBuffers[i].first;
-		bool copied = finishTextureBuffers[i].second;
-		if (texture) {
-			if (uncopied)
-			{
-				if (!copied)
-				{
-					char path[MAX_PATH];
-					PathCombineA(path, dir, to_string(texture).c_str());
-					if (!writeTextureToFile(std::string(path) + "." + textureType, texture, fileFormat)) { res = false; }
-				}
-			} else {
-				char path[MAX_PATH];
-				PathCombineA(path, dir, to_string(texture).c_str());
-				if (!writeTextureToFile(std::string(path) + "." + textureType, texture, fileFormat)) { res = false; }
-			}
-		}
-	}
-
-	return res;
-}
-
-static bool copyTextureToFiles(const std::u16string &texturePath)
-{
-	if (texturePath.empty()) return false;
-
-	std::wstring path = umbase::UMStringUtil::utf16_to_wstring(texturePath);
-	PathRemoveFileSpec(&path[0]);
-	PathAddBackslash(&path[0]);
-	if (!PathIsDirectory(path.c_str())) { return false; }
-	
-	bool res = true;
-	for (size_t i = 0; i <  finishTextureBuffers.size(); ++i)
-	{
-		IDirect3DTexture9* texture = finishTextureBuffers[i].first;
-		if (texture) {
-			if (!UMCopyTexture(path.c_str(), texture)) { res = false; }
-		}
-	}
-	return res;
-}
 
 static bool writeTextureToMemory(const std::string &textureName, IDirect3DTexture9 * texture, bool copied)
 {
 	// すでにfinishTexutureBufferにあるかどうか
+	/*
 	bool found = false;
 	for (size_t i = 0; i < finishTextureBuffers.size(); ++i)
 	{
@@ -1056,6 +141,7 @@ static bool writeTextureToMemory(const std::string &textureName, IDirect3DTextur
 		std::pair<IDirect3DTexture9*, bool> texturebuffer(texture, copied);
 		finishTextureBuffers.push_back(texturebuffer);
 	}
+	*/
 
 	if (BridgeParameter::instance().is_texture_buffer_enabled)
 	{
@@ -1119,7 +205,7 @@ static HRESULT WINAPI endScene(IDirect3DDevice9 *device)
 HWND g_hWnd=NULL;	//ウィンドウハンドル
 HMENU g_hMenu=NULL;	//メニュー
 HWND g_hFrame = NULL; //フレーム数
-
+static int ui_frame = 0;
 
 static void GetFrame(HWND hWnd)
 {
@@ -1257,11 +343,11 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 				// ウインドウ生成時にはじめに表示するデータを指定
 				UINT index1 = SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)parameter.python_script_name.c_str());
 				SendMessage(hCombo1, CB_SETCURSEL, index1, 0);
-				SendMessage(hCombo2, CB_SETCURSEL, script_call_setting - 1, 0);
+//				SendMessage(hCombo2, CB_SETCURSEL, script_call_setting - 1, 0);
 
-				::SetWindowTextA(hEdit1, to_string(parameter.start_frame).c_str());
-				::SetWindowTextA(hEdit2, to_string(parameter.end_frame).c_str());
-				::SetWindowTextA(hEdit5, to_string(parameter.export_fps).c_str());
+				::SetWindowTextA(hEdit1, std::to_string(parameter.start_frame).c_str());
+				::SetWindowTextA(hEdit2, std::to_string(parameter.end_frame).c_str());
+				::SetWindowTextA(hEdit5, std::to_string(parameter.export_fps).c_str());
 			}
 			return TRUE;
 		case WM_CLOSE:
@@ -1272,37 +358,6 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 			{
 				case IDOK: // ボタンが押されたとき
 					{
-						UINT num1 = (UINT)SendMessage(hCombo1, CB_GETCURSEL, 0, 0);
-						if (num1 < parameter.python_script_name_list.size())
-						{
-							if (pythonName != parameter.python_script_name_list[num1])
-							{
-								pythonName = parameter.python_script_name_list[num1];
-								mutable_parameter.python_script_path = parameter.python_script_path_list[num1];
-								relaod_python_script();
-							}
-						}
-						UINT num2 = (UINT)SendMessage(hCombo2, CB_GETCURSEL, 0, 0);
-						if (num2 <= 2)
-						{
-							script_call_setting = num2 + 1;
-						}
-
-						char text1[32];
-						char text2[32];
-						char text5[32];
-						::GetWindowTextA(hEdit1, text1, sizeof(text1)/sizeof(text1[0]));
-						::GetWindowTextA(hEdit2, text2, sizeof(text2)/sizeof(text2[0]));
-						::GetWindowTextA(hEdit5, text5, sizeof(text5)/sizeof(text5[0]));
-						mutable_parameter.start_frame = atoi(text1);
-						mutable_parameter.end_frame = atoi(text2);
-						mutable_parameter.export_fps = atof(text5);
-						
-						if (parameter.start_frame >= parameter.end_frame)
-						{
-							mutable_parameter.end_frame = parameter.start_frame + 1;
-							::SetWindowTextA(hEdit2, to_string(parameter.end_frame).c_str());
-						}
 						EndDialog(hWnd, IDOK);
 					}
 					break;
@@ -1310,8 +365,7 @@ static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 					EndDialog(hWnd, IDCANCEL);
 					break;
 				case IDC_BUTTON1: // 再検索
-					reload_python_file_paths();
-					SendMessage(hCombo1, CB_SETCURSEL, SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str()), 0);
+					//SendMessage(hCombo1, CB_SETCURSEL, SendMessage(hCombo1, CB_FINDSTRINGEXACT, -1, (LPARAM)pythonName.c_str()), 0);
 					break;
 			}
 			break;
@@ -1330,11 +384,6 @@ static void overrideGLWindow()
 		originalWndProc = GetWindowLongPtr(g_hWnd,GWLP_WNDPROC);
 		SetWindowLongPtr(g_hWnd,GWLP_WNDPROC,(_LONG_PTR)overrideWndProc);
 	}
-}
-
-
-static bool IsValidCallSetting() { 
-	return (script_call_setting == 0) || (script_call_setting == 1);
 }
 
 static bool IsValidFrame() {
@@ -1364,32 +413,8 @@ static HRESULT WINAPI present(
 	BridgeParameter::mutable_instance().is_exporting_without_mesh = false;
 	overrideGLWindow();
 	const bool validFrame = IsValidFrame();
-	const bool validCallSetting = IsValidCallSetting();
 	const bool validTechniq = IsValidTechniq();
-	if (validFrame && validCallSetting && validTechniq)
-	{
-		if (script_call_setting == 1)
-		{
-			const BridgeParameter& parameter = BridgeParameter::instance();
-			int frame = static_cast<int>(time * BridgeParameter::instance().export_fps + 0.5f);
-			if (frame >= parameter.start_frame && frame <= parameter.end_frame)
-			{
-				if (exportedFrames.find(frame) == exportedFrames.end())
-				{
-					process_frame = frame;
-					run_python_script();
-					exportedFrames[process_frame] = 1;
-					if (process_frame == parameter.end_frame)
-					{
-						exportedFrames.clear();
-					}
-					pre_frame = frame;
-				}
-			}
-		}
-		BridgeParameter::mutable_instance().finish_buffer_list.clear();
-		presentCount++;
-	}
+
 	HRESULT res = (*original_present)(device, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
 	return res;
 }
@@ -1405,6 +430,7 @@ static HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 {
 	HRESULT res = (*original_set_fvf)(device, fvf);
 
+	/*
 	if (script_call_setting != 2)
 	{
 		renderData.fvf = fvf;
@@ -1424,6 +450,7 @@ static HRESULT WINAPI setFVF(IDirect3DDevice9 *device, DWORD fvf)
 		renderData.specular	= ((fvf & D3DFVF_SPECULAR) > 0);
 		renderData.texcount	= (fvf & D3DFVF_TEXCOUNT_MASK) >> D3DFVF_TEXCOUNT_SHIFT;
 	}
+	*/
 
 	return res;
 }
@@ -1463,6 +490,7 @@ HRESULT WINAPI clear(
 	return res;
 }
 
+/*
 static void getTextureParameter(TextureParameter &param)
 {
 	TextureSamplers::iterator tit0 = renderData.textureSamplers.find(0);
@@ -1487,9 +515,10 @@ static void getTextureParameter(TextureParameter &param)
 			param.hasAlphaTexture = true;
 		}
 	}
-}
+}*/
 
 // 頂点・法線バッファ・テクスチャをメモリに書き込み
+/*
 static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 {
 	const int currentTechnic = ExpGetCurrentTechnic();
@@ -1623,7 +652,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 		}
 	}
 	return true;
-}
+}*/
 
 static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 {
@@ -1663,7 +692,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		
 		// シェーダー時
 		if (currentTechnic == 2) {
-			LPD3DXEFFECT* effect =  UMGetEffect();
+			LPD3DXEFFECT* effect = nullptr;// UMGetEffect();
 
 			if (effect) {
 				D3DXHANDLE current = (*effect)->lpVtbl->GetCurrentTechnique(*effect);
@@ -1791,6 +820,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	}
 }
 
+/*
 static void writeMatrixToMemory(IDirect3DDevice9 *device, RenderedBuffer &dst)
 {
 	::D3DXMatrixIdentity(&dst.world);
@@ -1799,7 +829,7 @@ static void writeMatrixToMemory(IDirect3DDevice9 *device, RenderedBuffer &dst)
 	device->lpVtbl->GetTransform(device ,D3DTS_WORLD, &dst.world);
 	device->lpVtbl->GetTransform(device ,D3DTS_VIEW, &dst.view);
 	device->lpVtbl->GetTransform(device ,D3DTS_PROJECTION, &dst.projection);
-}
+}*/
 
 static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &renderedBuffer)
 {
@@ -1847,21 +877,21 @@ static HRESULT WINAPI drawIndexedPrimitive(
 	const int currentMaterial = ExpGetCurrentMaterial();
 	const int currentObject = ExpGetCurrentObject();
 
-	const bool validCallSetting = IsValidCallSetting();
 	const bool validFrame = IsValidFrame();
 	const bool validTechniq = IsValidTechniq();
 	const bool validBuffer = (!BridgeParameter::instance().is_exporting_without_mesh);
 
-	if (validBuffer && validCallSetting && validFrame && validTechniq && type == D3DPT_TRIANGLELIST)
+	if (validBuffer && validFrame && validTechniq && type == D3DPT_TRIANGLELIST)
 	{
 		// レンダリング開始
 		if (renderData.pIndexData && renderData.pStreamData && renderData.pos_xyz)
 		{
 			// テクスチャ情報取得
 			TextureParameter textureParameter;
-			getTextureParameter(textureParameter);
+			//getTextureParameter(textureParameter);
 
 			// テクスチャをメモリに保存
+			/*
 			if (textureParameter.texture)
 			{
 				if (!textureParameter.textureName.empty())
@@ -1873,8 +903,9 @@ static HRESULT WINAPI drawIndexedPrimitive(
 					writeTextureToMemory(textureParameter.textureName, textureParameter.texture, false);
 				}
 			}
-
+			*/
 			// 頂点バッファ・法線バッファ・テクスチャバッファをメモリに書き込み
+			/*
 			if (!writeBuffersToMemory(device))
 			{
 				return (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
@@ -1885,7 +916,6 @@ static HRESULT WINAPI drawIndexedPrimitive(
 			{
 				return  (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
 			}
-
 			// インデックスバッファをメモリに書き込み
 			// 法線がない場合法線を計算
 			IDirect3DVertexBuffer9 *pStreamData = renderData.pStreamData;
@@ -1903,7 +933,7 @@ static HRESULT WINAPI drawIndexedPrimitive(
 					renderedSurface.faces.clear();
 
 					// 変換行列をメモリに書き込み
-					writeMatrixToMemory(device, renderedBuffer);
+					//writeMatrixToMemory(device, renderedBuffer);
 
 					// ライトをメモリに書き込み
 					writeLightToMemory(device, renderedBuffer);
@@ -1965,13 +995,13 @@ static HRESULT WINAPI drawIndexedPrimitive(
 				}
 			}
 			pIndexData->lpVtbl->Unlock(pIndexData);
+			*/
 		}
 	}
 
 	
 	HRESULT res = (*original_draw_indexed_primitive)(device, type, baseVertexIndex, minIndex, numVertices, startIndex, primitiveCount);
 
-	UMSync();
 	return res;
 }
 
@@ -2021,7 +1051,8 @@ static HRESULT WINAPI setTexture(
 	DWORD sampler,	
 	IDirect3DBaseTexture9 * pTexture)
 {
-	if (presentCount == 0) {
+	//if (presentCount == 0)
+	{
 		IDirect3DTexture9* texture = reinterpret_cast<IDirect3DTexture9*>(pTexture);
 		renderData.textureSamplers[sampler] = texture;
 	}
@@ -2042,11 +1073,10 @@ static HRESULT WINAPI setStreamSource(
 	
 	int currentTechnic = ExpGetCurrentTechnic();
 
-	const bool validCallSetting = IsValidCallSetting();
 	const bool validFrame = IsValidFrame();
 	const bool validTechniq = IsValidTechniq() || currentTechnic == 5;
 
-	if (validCallSetting && validFrame && validTechniq) 
+	if (validFrame && validTechniq) 
 	{
 		if (pStreamData) {
 			renderData.streamNumber = streamNumber;
@@ -2066,10 +1096,9 @@ static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9
 			
 	int currentTechnic = ExpGetCurrentTechnic();
 
-	const bool validCallSetting = IsValidCallSetting();
 	const bool validFrame = IsValidFrame();
 	const bool validTechniq =  IsValidTechniq() || currentTechnic == 5;
-	if (validCallSetting && validFrame && validTechniq) 
+	if (validFrame && validTechniq) 
 	{
 		renderData.pIndexData = pIndexData;
 	}
@@ -2274,8 +1303,16 @@ extern "C" {
 
 } // extern "C"
 
-bool d3d9_initialize()
+bool d3d9_initialize(HINSTANCE hInst, DWORD reason, LPVOID)
 {
+#ifdef _DEBUG
+	//_CrtSetBreakAlloc(123456);
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	_CrtDumpMemoryLeaks();
+#endif
+
+	hInstance = hInst;
+
 	// MMDフルパスの取得.
 	{
 		wchar_t app_full_path[1024];
@@ -2283,9 +1320,6 @@ bool d3d9_initialize()
 		std::wstring path(app_full_path);
 		BridgeParameter::mutable_instance().base_path = path.substr(0, path.rfind(_T("MikuMikuDance.exe")));
 	}
-
-	reload_python_file_paths();
-	relaod_python_script();
 
 	// システムパス保存用
 	TCHAR system_path_buffer[1024];
@@ -2312,27 +1346,8 @@ bool d3d9_initialize()
 	return TRUE;
 }
 	
-void d3d9_dispose() 
+bool d3d9_dispose()
 {
 	renderData.dispose();
-	DisposePMX();
-	DisposeVMD();
-	DisposeAlembic();
+	return true;
 }
-
-// DLLエントリポイント
-BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
-{
-	switch (reason) 
-	{
-		case DLL_PROCESS_ATTACH:
-			hInstance=hinst;
-			d3d9_initialize();
-			break;
-		case DLL_PROCESS_DETACH:
-			d3d9_dispose();
-			break;
-	}
-	return TRUE;
-}
-
