@@ -25,8 +25,8 @@ struct RenderedMaterial {
 
 struct RenderedBuffer {
 	typedef std::vector<umbase::UMVec2f>		UVList;
-	typedef std::vector<D3DXVECTOR3>	VertexList;
-	typedef std::vector<D3DXVECTOR3>	NormalList;
+	typedef std::vector<umbase::UMVec3f>	VertexList;
+	typedef std::vector<umbase::UMVec3f>	NormalList;
 	typedef	std::vector<DWORD>			DiffuseList;
 	typedef std::vector<RenderedMaterial* >		MaterialList;
 	typedef std::map<int, RenderedMaterial* >	MaterialMap;
@@ -49,10 +49,10 @@ struct RenderedBuffer {
 	}
 	umbase::UMVec3f light;
 	umbase::UMVec3f light_color;
-	D3DXMATRIX world;
-	D3DXMATRIX view;
-	D3DXMATRIX projection;
-	D3DXMATRIX world_inv;
+	umbase::UMMat44f world;
+	umbase::UMMat44f view;
+	umbase::UMMat44f projection;
+	umbase::UMMat44f world_inv;
 };
 
 struct RenderedTexture {

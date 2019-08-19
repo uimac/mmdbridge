@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "/EHsc /wd4267"
     )
 # embeded pdb 
 set(CMAKE_CXX_FLAGS_DEBUG
-    "/Od /Z7"
+    "/MDd /Od /ZI"
     )
 
 # path settings
@@ -26,3 +26,4 @@ install(FILES
 install(DIRECTORY 
     DESTINATION ${MMD_DIR}/out)
 
+set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)

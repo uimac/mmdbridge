@@ -49,3 +49,8 @@ install(TARGETS d3d9
     RUNTIME DESTINATION ${MMD_DIR}
     )
 
+
+set_target_properties(
+    d3d9 PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY 
+    ${MMD_DIR}
+    )
