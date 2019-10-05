@@ -29,11 +29,6 @@ namespace umbase
 #endif
 
 /**
- * for directx com release
- */
-#define SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=NULL; } }
-
-/**
  * PI
  */
 #ifndef M_PI

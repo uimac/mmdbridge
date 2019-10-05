@@ -1,4 +1,3 @@
-
 ##############################################################################
 # d3d9
 ##############################################################################
@@ -13,9 +12,9 @@ source_group("src" FILES ${d3d9_sources})
 include_directories(
     ../umbase
     ../MikuMikuFormats
+    ../dx12
     ${MMD_DIR}/Data
     $ENV{DXSDK_DIR}/include
-    ${DXSDK_INCLUDE_DIRS}
     )
 link_directories(
     ${MMD_DIR}/Data
@@ -30,9 +29,7 @@ target_link_libraries(d3d9 PRIVATE WinMM)
 target_link_libraries(d3d9 PRIVATE MMDExport)
 target_link_libraries(d3d9 PRIVATE MikuMikuFormats)
 target_link_libraries(d3d9 PRIVATE umbase)
-target_link_libraries(d3d9 PRIVATE ${DXSDK_LIBRARIES}/d3d12.lib)
-target_link_libraries(d3d9 PRIVATE ${DXSDK_LIBRARIES}/dxgi.lib)
-target_link_libraries(d3d9 PRIVATE ${DXSDK_LIBRARIES}/D3DCompiler.lib)
+target_link_libraries(d3d9 PRIVATE dx12)
 
 install(TARGETS d3d9
     RUNTIME DESTINATION ${MMD_DIR}

@@ -45,6 +45,8 @@
 #define _LONG_PTR LONG
 #endif
 
+#include "dx12.h"
+
 using namespace umbase;
 
 
@@ -1228,6 +1230,10 @@ static HRESULT WINAPI createDevice(
 
 		hookDevice();
 	}
+
+	std::unique_ptr<dx12::DX12> dx12_instance = std::make_unique<dx12::DX12>();
+	dx12_instance->Init();
+
 	return res;
 }
 
