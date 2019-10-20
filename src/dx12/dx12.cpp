@@ -20,6 +20,11 @@
 #include "UMMathTypes.h"
 #include "UMMath.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+
+#include "stb_image.h"
+#include "stb_image_write.h"
+
 namespace dx12
 {
 	template<typename T>
@@ -31,10 +36,35 @@ namespace dx12
 	const DXGI_FORMAT RenderTargetFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	const DXGI_FORMAT BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
-	struct ConstantBuffer
+	struct Constants
 	{
-		UMMat44f view;
-		UMMat44f projection;
+		UMMat44f wvp;
+	};
+
+	struct Mesh
+	{
+		std::vector<uint32_t> indices;
+		std::vector<umbase::UMVec3f> vertices;
+		std::vector<umbase::UMVec3f> normals;
+		std::vector<umbase::UMVec2f> uvs;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE index_cpu_handle;
+		D3D12_GPU_DESCRIPTOR_HANDLE index_gpu_handle;
+		D3D12_CPU_DESCRIPTOR_HANDLE vertex_cpu_handle;
+		D3D12_GPU_DESCRIPTOR_HANDLE vertex_gpu_handle;
+		D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
+		D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+		ComPtr<ID3D12Resource> index_buffer_resource;
+		ComPtr<ID3D12Resource> vertex_buffer_resource;
+	};
+
+	struct Image
+	{
+		std::vector<uint8_t> data;
+		uint32_t width;
+		uint32_t height;
+		uint32_t bpp;
+		uint32_t channels;
 	};
 
 	void GetHardwareAdapter(IDXGIFactory2* factory, IDXGIAdapter1** dst_adapter, std::wstring& dst_adapter_desc)
@@ -104,12 +134,46 @@ namespace dx12
 		return tex;
 	}
 
-	ComPtr<ID3D12Resource> CreateConstantResource(
+	ComPtr<ID3D12Resource> CreateReadBackResource(
+		ComPtr<ID3D12Device5> device,
+		uint32_t width, 
+		D3D12_RESOURCE_STATES resource_state)
+	{
+		D3D12_HEAP_PROPERTIES  heap_prop;
+		heap_prop.Type = D3D12_HEAP_TYPE_READBACK;
+		heap_prop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		heap_prop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		heap_prop.CreationNodeMask = 1;
+		heap_prop.VisibleNodeMask = 1;
+
+		D3D12_RESOURCE_DESC  resource_desc;
+		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		resource_desc.Alignment = 0;
+		resource_desc.Width = width;
+		resource_desc.Height = 1;
+		resource_desc.DepthOrArraySize = 1;
+		resource_desc.MipLevels = 1;
+		resource_desc.SampleDesc.Count = 1;
+		resource_desc.SampleDesc.Quality = 0;
+		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
+
+		ComPtr<ID3D12Resource> resource;
+		device->CreateCommittedResource(
+			&heap_prop, D3D12_HEAP_FLAG_NONE,
+			&resource_desc, resource_state,
+			nullptr, IID_PPV_ARGS(&resource));
+
+		return resource;
+	}
+
+	ComPtr<ID3D12Resource> CreateUploadResource(
 		ComPtr<ID3D12Device5> device,
 		uint32_t byte_size)
 	{
 		D3D12_HEAP_PROPERTIES  heap_prop;
-		heap_prop.Type = D3D12_HEAP_TYPE_DEFAULT;
+		heap_prop.Type = D3D12_HEAP_TYPE_UPLOAD;
 		heap_prop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		heap_prop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 		heap_prop.CreationNodeMask = 1;
@@ -126,6 +190,7 @@ namespace dx12
 		resource_desc.SampleDesc.Quality = 0;
 		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
 
 		ComPtr<ID3D12Resource> resource;
 		device->CreateCommittedResource(
@@ -148,7 +213,7 @@ namespace dx12
 	private:
 		uint32_t width_ = 800;
 		uint32_t height_ = 600;
-		umbase::UMVec4f clear_color_ = { 0.3, 0.3, 0.3, 1.0 };
+		umbase::UMVec4f clear_color_ = { 1.0, 0.3, 0.3, 1.0 };
 		D3D12_CLEAR_VALUE clear_value_;
 
 		ComPtr<IDXGIAdapter1> hardware_adapter_;
@@ -176,13 +241,16 @@ namespace dx12
 		std::vector< D3D12_GPU_DESCRIPTOR_HANDLE > depth_stencil_gpu_handles_;
 
 		// constant resource
-		ComPtr < ID3D12Resource > constant_resource_;
+		Constants constants_;
+		uint32_t constant_handle_index_ = 0;
+		ComPtr< ID3D12Resource > constant_resource_;
 
 		// uav resources
 		std::vector< ComPtr<ID3D12Resource> > uav_resources_;
 
 		// cbv srv uav heaps
 		ComPtr<ID3D12DescriptorHeap> cbv_srv_uav_heap_;
+		uint32_t cbv_srv_uav_index_ = 0;
 		std::vector< D3D12_CPU_DESCRIPTOR_HANDLE > cbv_srv_uav_cpu_handles_;
 		std::vector< D3D12_GPU_DESCRIPTOR_HANDLE > cbv_srv_uav_gpu_handles_;
 
@@ -204,17 +272,25 @@ namespace dx12
 			{ "psmain", "ps_5_1", ComPtr<ID3DBlob>() },
 		};
 
+		// plane
+		Mesh plane_;
+
 		void InitDescriptorHeaps();
 		void InitBackBuffers();
+		void InitConstants();
 		void WaitForGPU();
 		void ResetCommands();
 		void ExecuteCommands();
+		void InitPlane();
 		void LoadVertexBuffer();
+		void LoadMesh(Mesh& mesh);
 		uint32_t LoadShader(const std::string& file_path);
 		void CreatePipeline(uint32_t);
 		void Resize(uint32_t width, uint32_t height);
 		void Update();
 		void Render();
+		void GoToNextFrame();
+		void GetRenderImage(Image& image);
 	};
 
 	void DX12::Impl::InitDescriptorHeaps()
@@ -272,6 +348,11 @@ namespace dx12
 				cbv_srv_uav_gpu_handles_[i] = gpu_handle.Offset(i, increment_size);
 			}
 		}
+	}
+
+	void DX12::Impl::InitConstants()
+	{
+		constants_.wvp = umbase::UMMat44f();
 	}
 
 	void DX12::Impl::InitBackBuffers()
@@ -361,24 +442,48 @@ namespace dx12
 		InitBackBuffers();
 
 		// CBV resource, view
-		uint32_t cbv_srv_uav_index = 0;
 		{
-			uint32_t constant_buffer_size_ = sizeof(ConstantBuffer);
+			uint32_t constant_buffer_size_ = sizeof(Constants);
 			constant_buffer_size_ = Align(constant_buffer_size_, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-			constant_resource_ = CreateConstantResource(device_, constant_buffer_size_);
+			constant_resource_ = CreateUploadResource(device_, constant_buffer_size_);
 
 			D3D12_CONSTANT_BUFFER_VIEW_DESC view = {};
 			view.SizeInBytes = constant_buffer_size_;
 			view.BufferLocation = constant_resource_->GetGPUVirtualAddress();
-			device_->CreateConstantBufferView(&view, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index++]);
+			constant_handle_index_ = cbv_srv_uav_index_++;
+			device_->CreateConstantBufferView(&view, cbv_srv_uav_cpu_handles_[constant_handle_index_]);
 		}
 		// UAV resouce, view
 		{
-			uav_resources_.resize(2);
+			uav_resources_.resize(3);
+
+			// readback buffer
+			{
+				ComPtr<ID3D12Resource> resource = render_target_resources_[0];
+				D3D12_RESOURCE_DESC desc = resource->GetDesc();
+				D3D12_PLACED_SUBRESOURCE_FOOTPRINT foot_print;
+				uint32_t nrow;
+				uint64_t rowsize;
+				uint64_t size;
+				device_->GetCopyableFootprints(&desc, 0, 1, 0, &foot_print, &nrow, &rowsize, &size);
+
+
+				const uint32_t index = 0;
+				uav_resources_[index] = CreateReadBackResource(
+					device_, size, 
+					D3D12_RESOURCE_STATE_COPY_DEST);
+
+				/*
+				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+				device_->CreateUnorderedAccessView(
+					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
+					*/
+			}
 
 			// raytracing result buffer
 			{
-				const uint32_t index = 0;
+				const uint32_t index = 1;
 				uav_resources_[index] = CreateTextureResource(
 					device_, width_, height_, DXGI_FORMAT_R8G8B8A8_UNORM,
 					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
@@ -388,12 +493,12 @@ namespace dx12
 				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
 				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 				device_->CreateUnorderedAccessView(
-					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index++]);
+					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
 			}
 
 			// raytracing accumulation buffer
 			{
-				const uint32_t index = 1;
+				const uint32_t index = 2;
 				uav_resources_[index] = CreateTextureResource(
 					device_, width_, height_, DXGI_FORMAT_R32G32B32A32_FLOAT,
 					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
@@ -403,7 +508,7 @@ namespace dx12
 				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
 				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 				device_->CreateUnorderedAccessView(
-					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index++]);
+					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
 			}
 		}
 
@@ -422,9 +527,31 @@ namespace dx12
 		ExecuteCommands();
 		WaitForGPU();
 
+		InitConstants();
+		InitPlane();
+
 		LoadShader("shader/rasterize.hlsl");
 
+		Update();
 		Render();
+
+		Image image;
+		image.width = width_;
+		image.height = height_;
+		image.channels = 4;
+		image.bpp = image.channels * 8;
+		const size_t image_data_size = image.width * image.height * image.channels;
+		image.data.resize(image_data_size);
+
+		GoToNextFrame();
+		Update();
+		Render();
+
+		GetRenderImage(image);
+		stbi_write_png("out.png",
+			image.width,
+			image.height, STBI_rgb_alpha, &(*image.data.begin()), 0);
+
 	}
 
 	void DX12::Impl::WaitForGPU()
@@ -436,9 +563,28 @@ namespace dx12
 			if (SUCCEEDED(fence_->SetEventOnCompletion(fence_value, fence_event_)))
 			{
 				WaitForSingleObjectEx(fence_event_, INFINITE, FALSE);
-				fence_value_list_[current_back_buffer_]++;
+				//fence_value_list_[current_back_buffer_]++;
 			}
 		}
+	}
+
+	void DX12::Impl::GoToNextFrame()
+	{
+		const uint64_t fence_value = fence_value_list_[current_back_buffer_];
+		ThrowIfFailed(command_queue_->Signal(fence_.Get(), fence_value));
+
+		// wait for renderable
+		if (fence_->GetCompletedValue() < fence_value)
+		{
+			ThrowIfFailed(fence_->SetEventOnCompletion(fence_value, fence_event_));
+			WaitForSingleObjectEx(fence_event_, INFINITE, FALSE);
+		}
+
+
+		current_back_buffer_ = (current_back_buffer_ + 1) % 2;
+
+		// next frame fence value
+		fence_value_list_[current_back_buffer_] = fence_value + 1;
 	}
 
 	void DX12::Impl::ResetCommands()
@@ -454,9 +600,98 @@ namespace dx12
 		command_queue_->ExecuteCommandLists(1, ppLists);
 	}
 
-	void DX12::Impl::LoadVertexBuffer()
+	void DX12::Impl::InitPlane()
+	{
+		plane_.vertices = {
+			-1.0f, -1.0f, 0.0f,
+			-1.0f,  1.0f, 0.0f,
+			1.0f, -1.0f, 0.0f,
+			1.0f, -1.0f, 0.0f,
+			-1.0f,  1.0f, 0.0f,
+			1.0f,  1.0f, 0.0f,
+		};
+		plane_.indices = {
+			0, 1, 2, 3, 4, 5
+		};
+		plane_.normals = {
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, 1.0,
+			0.0, 0.0, 1.0,
+			0.0, 0.0, 1.0,
+		};
+		plane_.uvs = {
+			0.0, 0.0,
+			1.0, 0.0,
+			0.0, 1.0,
+			0.0, 1.0,
+			1.0, 0.0,
+			1.0, 1.0
+		};
+
+		LoadMesh(plane_);
+	}
+
+	void DX12::Impl::LoadMesh(Mesh& mesh)
 	{
 
+		// create shader resource view for mesh
+		{
+			const uint32_t index_size = sizeof(uint32_t);
+			mesh.index_buffer_resource = CreateUploadResource(device_, index_size * mesh.indices.size());
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC srv_dsc = {};
+			srv_dsc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+			srv_dsc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srv_dsc.Buffer.NumElements = mesh.indices.size();
+			srv_dsc.Format = DXGI_FORMAT_R32_TYPELESS;
+			srv_dsc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+			srv_dsc.Buffer.StructureByteStride = 0;
+
+			const uint32_t index = cbv_srv_uav_index_++;
+			mesh.index_cpu_handle = cbv_srv_uav_cpu_handles_[index];
+			device_->CreateShaderResourceView(
+				mesh.index_buffer_resource.Get(), &srv_dsc, mesh.index_cpu_handle);
+			mesh.index_gpu_handle = cbv_srv_uav_gpu_handles_[index];
+
+			// index buffer view
+			mesh.index_buffer_view = {};
+			mesh.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+			mesh.index_buffer_view.SizeInBytes = mesh.indices.size() * sizeof(UINT32);
+			mesh.index_buffer_view.BufferLocation = mesh.index_buffer_resource->GetGPUVirtualAddress();
+		}
+
+		// create shader resource view for mesh
+		{
+			const uint32_t vertex_element_size = sizeof(umbase::UMVec3f) * 2 + sizeof(umbase::UMVec2f);
+			mesh.vertex_buffer_resource = CreateUploadResource(device_, vertex_element_size * mesh.vertices.size());
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC srv_dsc = {};
+			srv_dsc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+			srv_dsc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srv_dsc.Buffer.NumElements = mesh.vertices.size();
+			srv_dsc.Format = DXGI_FORMAT_UNKNOWN;
+			srv_dsc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+			srv_dsc.Buffer.StructureByteStride = vertex_element_size;
+
+			const uint32_t index = cbv_srv_uav_index_++;
+			mesh.vertex_cpu_handle = cbv_srv_uav_cpu_handles_[index];
+			device_->CreateShaderResourceView(
+				mesh.vertex_buffer_resource.Get(), &srv_dsc, mesh.vertex_cpu_handle);
+			mesh.vertex_gpu_handle = cbv_srv_uav_gpu_handles_[index];
+
+			// vertex buffer view
+			mesh.vertex_buffer_view = {};
+			mesh.vertex_buffer_view.StrideInBytes = vertex_element_size;
+			mesh.vertex_buffer_view.SizeInBytes = mesh.vertices.size() * mesh.vertex_buffer_view.StrideInBytes;
+			mesh.vertex_buffer_view.BufferLocation = mesh.vertex_buffer_resource->GetGPUVirtualAddress();
+		}
+	}
+
+
+	void DX12::Impl::LoadVertexBuffer()
+	{
 	}
 
 	uint32_t DX12::Impl::LoadShader(const std::string& file_path)
@@ -575,7 +810,21 @@ namespace dx12
 
 	void DX12::Impl::Update()
 	{
-
+		const void *data = &constants_;
+		const uint32_t size = sizeof(Constants);
+		uint8_t *mapped_data = nullptr;
+		D3D12_RANGE range;
+		range.Begin = 0;
+		range.End = 0;
+		constant_resource_->Map(0, &range, reinterpret_cast<void**>(&mapped_data));
+		if (mapped_data)
+		{
+			mapped_data = reinterpret_cast<uint8_t*>(
+				Align(reinterpret_cast<SIZE_T>(mapped_data),
+					D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT));
+			memcpy(mapped_data, data, size);
+		}
+		constant_resource_->Unmap(0, nullptr);
 	}
 
 	void DX12::Impl::Render()
@@ -612,8 +861,6 @@ namespace dx12
 
 		command_list_->ClearDepthStencilView(ds_handle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0, 0, 0, nullptr);
 
-		command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
 		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(width_), static_cast<float>(height_), 0.0f, 1.0f };
 		D3D12_RECT rect = { 0, 0, static_cast<uint16_t>(width_), static_cast<uint16_t>(height_) };
 		command_list_->RSSetViewports(1, &viewport);
@@ -622,11 +869,24 @@ namespace dx12
 		// D3D12_DISPATCH_RAYS_DESC desc;
 		// command_list_->DispatchRays(&desc);
 
+		// Shader
+		command_list_->SetPipelineState(pipeline_state_[1].Get());
+
+		command_list_->SetGraphicsRootDescriptorTable(
+			0, cbv_srv_uav_gpu_handles_[constant_handle_index_]);
+
+		// Draw
+		command_list_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		command_list_->IASetIndexBuffer(&plane_.index_buffer_view);
+		command_list_->IASetVertexBuffers(0, 1, &plane_.vertex_buffer_view);
+		command_list_->DrawIndexedInstanced(plane_.indices.size(), 1, 0, 0, 0);
+
 		ExecuteCommands();
 		WaitForGPU();
 
 
-		// readback render result
+		// readback raytracing result
+		/*
 		ResetCommands();
 		{
 			std::vector<D3D12_RESOURCE_BARRIER> barrier_list = {
@@ -637,13 +897,13 @@ namespace dx12
 					D3D12_RESOURCE_STATE_COPY_DEST),
 				// uav for render target in raytracing -> copy source
 				CD3DX12_RESOURCE_BARRIER::Transition(
-					uav_resources_[0].Get(),
+					uav_resources_[1].Get(),
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 					D3D12_RESOURCE_STATE_COPY_SOURCE),
 			};
 			command_list_->ResourceBarrier(barrier_list.size(), barrier_list.data());
 
-			command_list_->CopyResource(back_buffer.Get(), uav_resources_[0].Get());
+			command_list_->CopyResource(back_buffer.Get(), uav_resources_[1].Get());
 
 		}
 
@@ -655,7 +915,7 @@ namespace dx12
 					D3D12_RESOURCE_STATE_COPY_DEST,
 					D3D12_RESOURCE_STATE_PRESENT),
 				CD3DX12_RESOURCE_BARRIER::Transition(
-					uav_resources_[0].Get(),
+					uav_resources_[1].Get(),
 					D3D12_RESOURCE_STATE_COPY_SOURCE,
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			};
@@ -664,8 +924,82 @@ namespace dx12
 
 		ExecuteCommands();
 		WaitForGPU();
+		*/
 	}
 
+
+	void DX12::Impl::GetRenderImage(Image& image)
+	{
+		if (current_back_buffer_ <= 0) return;
+
+		ResetCommands();
+
+		ComPtr<ID3D12Resource> back_buffer = render_target_resources_[current_back_buffer_ - 1];
+
+		D3D12_RESOURCE_DESC desc = back_buffer->GetDesc();
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT foot_print;
+		uint32_t nrow;
+		uint64_t rowsize;
+		uint64_t size;
+		device_->GetCopyableFootprints(&desc, 0, 1, 0, &foot_print, &nrow, &rowsize, &size);
+
+		{
+			std::vector<D3D12_RESOURCE_BARRIER> barrier_list = {
+				// backbuffer -> copy dest
+				CD3DX12_RESOURCE_BARRIER::Transition(
+					back_buffer.Get(),
+					D3D12_RESOURCE_STATE_RENDER_TARGET,
+					D3D12_RESOURCE_STATE_COPY_SOURCE)
+			};
+			command_list_->ResourceBarrier(barrier_list.size(), barrier_list.data());
+
+
+			D3D12_TEXTURE_COPY_LOCATION dst_loction;
+			D3D12_TEXTURE_COPY_LOCATION src_location;
+			dst_loction.pResource = uav_resources_[0].Get();
+			dst_loction.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			dst_loction.PlacedFootprint = foot_print;
+			src_location.pResource = back_buffer.Get();
+			src_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			src_location.SubresourceIndex = 0;
+
+			command_list_->CopyTextureRegion(&dst_loction, 0, 0, 0, &src_location, nullptr);
+		}
+
+		{
+			std::vector<D3D12_RESOURCE_BARRIER> barrier_list = {
+				// backbuffer -> present
+				CD3DX12_RESOURCE_BARRIER::Transition(
+					back_buffer.Get(),
+					D3D12_RESOURCE_STATE_COPY_SOURCE,
+					D3D12_RESOURCE_STATE_PRESENT)
+			};
+			command_list_->ResourceBarrier(barrier_list.size(), barrier_list.data());
+		}
+
+		ExecuteCommands();
+		WaitForGPU();
+
+
+		ComPtr< ID3D12Resource > readback_resouce = uav_resources_[0];
+		if (readback_resouce)
+		{
+			uint8_t * data = nullptr;
+			D3D12_RANGE range;
+			range.Begin = 0;
+			range.End = 0;
+			readback_resouce->Map(0, &range, reinterpret_cast<void**>(&data));
+
+			if (data)
+			{
+
+				const size_t image_data_size = image.width * image.height * image.channels;
+				memcpy(&image.data[0], data, image_data_size);
+
+				readback_resouce->Unmap(0, NULL);
+			}
+		}
+	}
 
 	//----------------------------------------------------------------
 

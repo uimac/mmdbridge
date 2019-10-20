@@ -11,6 +11,12 @@
 	"           addressV = TEXTURE_ADDRESS_WRAP,"\
 	"           addressW = TEXTURE_ADDRESS_WRAP )," /* texsampler */ \
 
+
+cbuffer Constants : register(b0)
+{
+	row_major matrix wvp : packoffset(c4);
+};
+
 struct VSInput
 {
 	float4 position : POSITION;
@@ -29,7 +35,7 @@ struct PSInput
 PSInput vsmain(VSInput input)
 {
 	PSInput result;
-	result.position = input.position;
+	result.position = mul(input.position, wvp);
 	result.normal = input.normal.xyz;
 	result.uv = input.uv.xy;
 	return result;
