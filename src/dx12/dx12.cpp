@@ -261,6 +261,7 @@ namespace dx12
 			D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
 			heap_desc.NumDescriptors = CBVSRVUAVCount;
 			heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 			ThrowIfFailed(device_->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&cbv_srv_uav_heap_)));
 			const uint32_t increment_size = device_->GetDescriptorHandleIncrementSize(heap_desc.Type);
 			for (uint32_t i = 0; i < CBVSRVUAVCount; ++i)
@@ -278,7 +279,7 @@ namespace dx12
 		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
 		rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-		rtv_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
 
@@ -306,9 +307,9 @@ namespace dx12
 
 			// Back Buffer Views
 			device_->CreateRenderTargetView(
-				render_target_resources_.back().Get(), &rtv_desc, render_target_cpu_handles_[i]);
+				render_target_resources_[i].Get(), &rtv_desc, render_target_cpu_handles_[i]);
 			device_->CreateDepthStencilView(
-				depth_stencil_resources_.back().Get(), &dsv_desc, depth_stencil_cpu_handles_[i]);
+				depth_stencil_resources_[i].Get(), &dsv_desc, depth_stencil_cpu_handles_[i]);
 
 		}
 	}
@@ -373,8 +374,37 @@ namespace dx12
 		}
 		// UAV resouce, view
 		{
-			//uav_resources_
+			uav_resources_.resize(2);
 
+			// raytracing result buffer
+			{
+				const uint32_t index = 0;
+				uav_resources_[index] = CreateTextureResource(
+					device_, width_, height_, DXGI_FORMAT_R8G8B8A8_UNORM,
+					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+					nullptr);
+
+				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+				device_->CreateUnorderedAccessView(
+					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index++]);
+			}
+
+			// raytracing accumulation buffer
+			{
+				const uint32_t index = 1;
+				uav_resources_[index] = CreateTextureResource(
+					device_, width_, height_, DXGI_FORMAT_R32G32B32A32_FLOAT,
+					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+					nullptr);
+
+				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+				device_->CreateUnorderedAccessView(
+					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index++]);
+			}
 		}
 
 		// Fence
@@ -391,6 +421,8 @@ namespace dx12
 
 		ExecuteCommands();
 		WaitForGPU();
+
+		LoadShader("shader/rasterize.hlsl");
 
 		Render();
 	}
@@ -436,11 +468,11 @@ namespace dx12
 		const std::wstring shader_filename = converter.from_bytes(file_path);
 		const uint32_t flag = D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES;
 
-		for (auto entry : shader_blobs_)
+		for (auto& entry : shader_blobs_)
 		{
 			ID3DBlob *blob_signature = nullptr;
 			ID3DBlob *blob_error = nullptr;
-			ComPtr<ID3DBlob> blob = std::get<2>(entry);
+			ComPtr<ID3DBlob>& blob = std::get<2>(entry);
 			D3DCompileFromFile(
 				shader_filename.c_str(),
 				NULL,
@@ -451,10 +483,10 @@ namespace dx12
 				0,
 				&blob,
 				&blob_error);
-
+			
 			if (blob_error)
 			{
-				std::cout << reinterpret_cast<const char*>(blob_error->GetBufferPointer()) << std::endl;
+				OutputDebugStringA(reinterpret_cast<const char*>(blob_error->GetBufferPointer()));
 			}
 
 			if (blob)
@@ -493,7 +525,7 @@ namespace dx12
 		input_layout.pInputElementDescs = element_desc;
 		input_layout.NumElements = static_cast<UINT>(std::size(element_desc));
 
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC desc;
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
 		desc.InputLayout = input_layout;
 		desc.pRootSignature = rasterize_root_signature_.Get();
 		desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -505,7 +537,7 @@ namespace dx12
 		desc.SampleDesc.Count = 1;
 		desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 
-		for (auto entry : shader_blobs_)
+		for (auto& entry : shader_blobs_)
 		{
 			std::string entry_point = std::get<0>(entry);
 			std::string profile = std::get<1>(entry);
@@ -623,7 +655,7 @@ namespace dx12
 					D3D12_RESOURCE_STATE_COPY_DEST,
 					D3D12_RESOURCE_STATE_PRESENT),
 				CD3DX12_RESOURCE_BARRIER::Transition(
-					back_buffer.Get(),
+					uav_resources_[0].Get(),
 					D3D12_RESOURCE_STATE_COPY_SOURCE,
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 			};

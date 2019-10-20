@@ -25,3 +25,5 @@ target_link_libraries(dx12 PRIVATE ${DXSDK_LIBRARIES}/D3DCompiler.lib)
 install(TARGETS dx12
     RUNTIME DESTINATION ${MMD_DIR}
     )
+
+add_subdirectory(shader)
