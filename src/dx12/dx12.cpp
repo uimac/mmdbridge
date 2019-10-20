@@ -41,12 +41,17 @@ namespace dx12
 		UMMat44f wvp;
 	};
 
+	struct VertexElement
+	{
+		umbase::UMVec3f v;
+		umbase::UMVec3f n;
+		umbase::UMVec2f uv;
+	};
+
 	struct Mesh
 	{
 		std::vector<uint32_t> indices;
-		std::vector<umbase::UMVec3f> vertices;
-		std::vector<umbase::UMVec3f> normals;
-		std::vector<umbase::UMVec2f> uvs;
+		std::vector<VertexElement> vertices;
 
 		D3D12_CPU_DESCRIPTOR_HANDLE index_cpu_handle;
 		D3D12_GPU_DESCRIPTOR_HANDLE index_gpu_handle;
@@ -136,7 +141,7 @@ namespace dx12
 
 	ComPtr<ID3D12Resource> CreateReadBackResource(
 		ComPtr<ID3D12Device5> device,
-		uint32_t width, 
+		uint32_t byte_size,
 		D3D12_RESOURCE_STATES resource_state)
 	{
 		D3D12_HEAP_PROPERTIES  heap_prop;
@@ -146,23 +151,10 @@ namespace dx12
 		heap_prop.CreationNodeMask = 1;
 		heap_prop.VisibleNodeMask = 1;
 
-		D3D12_RESOURCE_DESC  resource_desc;
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_desc.Alignment = 0;
-		resource_desc.Width = width;
-		resource_desc.Height = 1;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.SampleDesc.Quality = 0;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-
 		ComPtr<ID3D12Resource> resource;
 		device->CreateCommittedResource(
 			&heap_prop, D3D12_HEAP_FLAG_NONE,
-			&resource_desc, resource_state,
+			&CD3DX12_RESOURCE_DESC::Buffer(byte_size), resource_state,
 			nullptr, IID_PPV_ARGS(&resource));
 
 		return resource;
@@ -213,7 +205,7 @@ namespace dx12
 	private:
 		uint32_t width_ = 800;
 		uint32_t height_ = 600;
-		umbase::UMVec4f clear_color_ = { 1.0, 0.3, 0.3, 1.0 };
+		umbase::UMVec4f clear_color_ = { 0.3, 0.3, 0.3, 1.0 };
 		D3D12_CLEAR_VALUE clear_value_;
 
 		ComPtr<IDXGIAdapter1> hardware_adapter_;
@@ -535,6 +527,10 @@ namespace dx12
 		Update();
 		Render();
 
+		GoToNextFrame();
+		Update();
+		Render();
+
 		Image image;
 		image.width = width_;
 		image.height = height_;
@@ -543,14 +539,10 @@ namespace dx12
 		const size_t image_data_size = image.width * image.height * image.channels;
 		image.data.resize(image_data_size);
 
-		GoToNextFrame();
-		Update();
-		Render();
-
 		GetRenderImage(image);
 		stbi_write_png("out.png",
 			image.width,
-			image.height, STBI_rgb_alpha, &(*image.data.begin()), 0);
+			image.height, STBI_rgb_alpha, &image.data[0], image.width * 4);
 
 	}
 
@@ -563,7 +555,7 @@ namespace dx12
 			if (SUCCEEDED(fence_->SetEventOnCompletion(fence_value, fence_event_)))
 			{
 				WaitForSingleObjectEx(fence_event_, INFINITE, FALSE);
-				//fence_value_list_[current_back_buffer_]++;
+				fence_value_list_[current_back_buffer_]++;
 			}
 		}
 	}
@@ -602,26 +594,26 @@ namespace dx12
 
 	void DX12::Impl::InitPlane()
 	{
-		plane_.vertices = {
-			-1.0f, -1.0f, 0.0f,
-			-1.0f,  1.0f, 0.0f,
-			1.0f, -1.0f, 0.0f,
-			1.0f, -1.0f, 0.0f,
-			-1.0f,  1.0f, 0.0f,
-			1.0f,  1.0f, 0.0f,
-		};
 		plane_.indices = {
 			0, 1, 2, 3, 4, 5
 		};
-		plane_.normals = {
-			0.0, 0.0, -1.0,
-			0.0, 0.0, -1.0,
-			0.0, 0.0, -1.0,
-			0.0, 0.0, 1.0,
-			0.0, 0.0, 1.0,
-			0.0, 0.0, 1.0,
+		float verts[] = {
+			-0.5f, -0.5f, 0.5f,
+			-0.5f,  0.5f, 0.5f,
+			0.5f, -0.5f, 0.5f,
+			0.5f, -0.5f, 0.5f,
+			-0.5f,  0.5f, 0.5f,
+			0.5f,  0.5f, 0.5f,
 		};
-		plane_.uvs = {
+		float normals[] = {
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+			0.0, 0.0, -1.0,
+		};
+		float uvs[] = {
 			0.0, 0.0,
 			1.0, 0.0,
 			0.0, 1.0,
@@ -629,6 +621,26 @@ namespace dx12
 			1.0, 0.0,
 			1.0, 1.0
 		};
+
+		plane_.vertices.resize(6);
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			VertexElement& ve = plane_.vertices[i];
+			ve.v = umbase::UMVec3f(
+				verts[i * 3 + 0],
+				verts[i * 3 + 1],
+				verts[i * 3 + 2]
+			);
+			ve.n = umbase::UMVec3f(
+				normals[i * 3 + 0],
+				normals[i * 3 + 1],
+				normals[i * 3 + 2]
+			);
+			ve.uv = umbase::UMVec2f(
+				uvs[i * 2 + 0],
+				uvs[i * 2 + 1]
+			);
+		}
 
 		LoadMesh(plane_);
 	}
@@ -639,8 +651,16 @@ namespace dx12
 		// create shader resource view for mesh
 		{
 			const uint32_t index_size = sizeof(uint32_t);
-			mesh.index_buffer_resource = CreateUploadResource(device_, index_size * mesh.indices.size());
+			const uint32_t full_size = index_size * mesh.indices.size();
+			mesh.index_buffer_resource = CreateUploadResource(device_, full_size);
 
+			// upload
+			void *mapped_data;
+			mesh.index_buffer_resource->Map(0, nullptr, &mapped_data);
+			memcpy(mapped_data, &mesh.indices[0], full_size);
+			mesh.index_buffer_resource->Unmap(0, nullptr);
+
+			// srv
 			D3D12_SHADER_RESOURCE_VIEW_DESC srv_dsc = {};
 			srv_dsc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 			srv_dsc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -658,15 +678,23 @@ namespace dx12
 			// index buffer view
 			mesh.index_buffer_view = {};
 			mesh.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-			mesh.index_buffer_view.SizeInBytes = mesh.indices.size() * sizeof(UINT32);
+			mesh.index_buffer_view.SizeInBytes = full_size;
 			mesh.index_buffer_view.BufferLocation = mesh.index_buffer_resource->GetGPUVirtualAddress();
 		}
 
 		// create shader resource view for mesh
 		{
-			const uint32_t vertex_element_size = sizeof(umbase::UMVec3f) * 2 + sizeof(umbase::UMVec2f);
-			mesh.vertex_buffer_resource = CreateUploadResource(device_, vertex_element_size * mesh.vertices.size());
+			const uint32_t vertex_element_size = sizeof(VertexElement);
+			const uint32_t full_size = vertex_element_size * mesh.vertices.size();
+			mesh.vertex_buffer_resource = CreateUploadResource(device_, full_size);
 
+			// upload
+			void *mapped_data;
+			mesh.vertex_buffer_resource->Map(0, nullptr, &mapped_data);
+			memcpy(mapped_data, &mesh.vertices[0], full_size);
+			mesh.vertex_buffer_resource->Unmap(0, nullptr);
+
+			// srv
 			D3D12_SHADER_RESOURCE_VIEW_DESC srv_dsc = {};
 			srv_dsc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 			srv_dsc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -684,7 +712,7 @@ namespace dx12
 			// vertex buffer view
 			mesh.vertex_buffer_view = {};
 			mesh.vertex_buffer_view.StrideInBytes = vertex_element_size;
-			mesh.vertex_buffer_view.SizeInBytes = mesh.vertices.size() * mesh.vertex_buffer_view.StrideInBytes;
+			mesh.vertex_buffer_view.SizeInBytes = full_size;
 			mesh.vertex_buffer_view.BufferLocation = mesh.vertex_buffer_resource->GetGPUVirtualAddress();
 		}
 	}
@@ -837,6 +865,9 @@ namespace dx12
 			cbv_srv_uav_heap_.Get()
 		};
 		command_list_->SetDescriptorHeaps(std::size(heaps), heaps);
+
+		// Shader
+		command_list_->SetPipelineState(pipeline_state_[1].Get());
 		command_list_->SetGraphicsRootSignature(rasterize_root_signature_.Get());
 
 		ComPtr<ID3D12Resource> back_buffer = render_target_resources_[current_back_buffer_];
@@ -869,8 +900,6 @@ namespace dx12
 		// D3D12_DISPATCH_RAYS_DESC desc;
 		// command_list_->DispatchRays(&desc);
 
-		// Shader
-		command_list_->SetPipelineState(pipeline_state_[1].Get());
 
 		command_list_->SetGraphicsRootDescriptorTable(
 			0, cbv_srv_uav_gpu_handles_[constant_handle_index_]);
@@ -880,6 +909,18 @@ namespace dx12
 		command_list_->IASetIndexBuffer(&plane_.index_buffer_view);
 		command_list_->IASetVertexBuffers(0, 1, &plane_.vertex_buffer_view);
 		command_list_->DrawIndexedInstanced(plane_.indices.size(), 1, 0, 0, 0);
+
+		{
+			std::vector<D3D12_RESOURCE_BARRIER> barrier_list = {
+				// backbuffer -> copy source
+				CD3DX12_RESOURCE_BARRIER::Transition(
+					back_buffer.Get(),
+					D3D12_RESOURCE_STATE_RENDER_TARGET,
+					D3D12_RESOURCE_STATE_PRESENT)
+			};
+			command_list_->ResourceBarrier(barrier_list.size(), barrier_list.data());
+
+		}
 
 		ExecuteCommands();
 		WaitForGPU();
@@ -943,12 +984,13 @@ namespace dx12
 		uint64_t size;
 		device_->GetCopyableFootprints(&desc, 0, 1, 0, &foot_print, &nrow, &rowsize, &size);
 
+		
 		{
 			std::vector<D3D12_RESOURCE_BARRIER> barrier_list = {
-				// backbuffer -> copy dest
+				// backbuffer -> copy source
 				CD3DX12_RESOURCE_BARRIER::Transition(
 					back_buffer.Get(),
-					D3D12_RESOURCE_STATE_RENDER_TARGET,
+					D3D12_RESOURCE_STATE_PRESENT,
 					D3D12_RESOURCE_STATE_COPY_SOURCE)
 			};
 			command_list_->ResourceBarrier(barrier_list.size(), barrier_list.data());
@@ -992,10 +1034,14 @@ namespace dx12
 
 			if (data)
 			{
+				for (uint32_t y = 0; y < image.height; ++y)
+				{
+					memcpy(
+						&image.data[ y * image.width * image.channels ], 
+						&data[foot_print.Footprint.RowPitch * y],
+						rowsize);
 
-				const size_t image_data_size = image.width * image.height * image.channels;
-				memcpy(&image.data[0], data, image_data_size);
-
+				}
 				readback_resouce->Unmap(0, NULL);
 			}
 		}

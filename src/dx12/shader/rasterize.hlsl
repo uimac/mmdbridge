@@ -35,7 +35,7 @@ struct PSInput
 PSInput vsmain(VSInput input)
 {
 	PSInput result;
-	result.position = mul(input.position, wvp);
+	result.position = input.position;// mul(input.position, wvp);
 	result.normal = input.normal.xyz;
 	result.uv = input.uv.xy;
 	return result;
@@ -43,7 +43,7 @@ PSInput vsmain(VSInput input)
 
 float4 psmain(PSInput input) : SV_TARGET0
 {
-	float4 output = float4(1, 0, 0, 1);
+	float4 output = float4(1, 1, 0, 1);
 
 	return output;
 }
