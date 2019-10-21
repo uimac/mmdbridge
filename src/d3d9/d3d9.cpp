@@ -69,6 +69,9 @@ static void messagebox_float4(float v[4], const char *title)
 		+ std::to_string(v[3]) + "\n").c_str(), title, MB_OK);
 }
 
+static std::unique_ptr<dx12::DX12> dx12_instance;
+
+
 // IDirect3DDevice9のフック関数
 void hookDevice(void);
 void originalDevice(void);
@@ -95,6 +98,9 @@ HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWO
 HRESULT(WINAPI *original_create_deviceex)(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**)(NULL);
 // IDirect3DDevice9::BeginScene
 HRESULT (WINAPI *original_begin_scene)(IDirect3DDevice9*)(NULL);
+
+ULONG(WINAPI *original_release)(IDirect3DDevice9*)(NULL);
+ULONG(WINAPI *original_addref)(IDirect3DDevice9*)(NULL);
 // IDirect3DDevice9::EndScene
 HRESULT(WINAPI *original_end_scene)(IDirect3DDevice9*)(NULL);
 // IDirect3DDevice9::SetFVF
@@ -1141,6 +1147,23 @@ static HRESULT WINAPI endStateBlock(IDirect3DDevice9 *device, IDirect3DStateBloc
 	return res;
 }
 
+ULONG counter = 0;
+
+static ULONG WINAPI addref(IDirect3DDevice9 *device)
+{
+	++counter;
+	return original_addref(device);
+}
+
+static ULONG WINAPI release(IDirect3DDevice9 *device)
+{
+	--counter;
+	if (counter == 0) {
+		d3d9_dispose();
+	}
+	return original_release(device);
+}
+
 static void hookDevice()
 {
 	if (p_device) 
@@ -1151,6 +1174,8 @@ static void hookDevice()
 		
 		p_device->lpVtbl->BeginScene = beginScene;
 		p_device->lpVtbl->EndScene = endScene;
+		p_device->lpVtbl->Release = release;
+		p_device->lpVtbl->AddRef = addref;
 		//p_device->lpVtbl->Clear = clear;
 		p_device->lpVtbl->Present = present;
 		//p_device->lpVtbl->Reset = reset;
@@ -1212,6 +1237,8 @@ static HRESULT WINAPI createDevice(
 	p_device = (*device);
 	
 	if (p_device) {
+		original_release = p_device->lpVtbl->Release;
+		original_addref = p_device->lpVtbl->AddRef;
 		original_begin_scene = p_device->lpVtbl->BeginScene;
 		original_end_scene = p_device->lpVtbl->EndScene;
 		//original_clear = p_device->lpVtbl->Clear;
@@ -1231,7 +1258,7 @@ static HRESULT WINAPI createDevice(
 		hookDevice();
 	}
 
-	std::unique_ptr<dx12::DX12> dx12_instance = std::make_unique<dx12::DX12>();
+	dx12_instance = std::make_unique<dx12::DX12>();
 	dx12_instance->Init();
 
 	return res;
@@ -1361,6 +1388,7 @@ bool d3d9_initialize(HINSTANCE hInst, DWORD reason, LPVOID)
 	
 bool d3d9_dispose()
 {
+	dx12_instance.reset();
 	renderData.dispose();
 	return true;
 }

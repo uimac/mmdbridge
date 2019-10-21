@@ -13,7 +13,6 @@ BOOL APIENTRY DllMain(HINSTANCE hinst, DWORD reason, LPVOID)
 		d3d9_initialize(hinst, reason, nullptr);
 		break;
 	case DLL_PROCESS_DETACH:
-		d3d9_dispose();
 		break;
 	}
 	return TRUE;
