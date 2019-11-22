@@ -202,6 +202,12 @@ namespace dx12
 
 		void Init();
 
+		void ShareVertexBuffer(IDirect3DVertexBuffer9* v);
+
+		IUnknown* GetDevice() { return device_.Get(); }
+		IUnknown* GetCommandQueue() { return command_queue_.Get(); }
+		
+		void OutputImage();
 	private:
 		uint32_t width_ = 800;
 		uint32_t height_ = 600;
@@ -524,13 +530,18 @@ namespace dx12
 
 		LoadShader("shader/rasterize.hlsl");
 
+		/*
 		Update();
 		Render();
 
 		GoToNextFrame();
 		Update();
 		Render();
+		*/
+	}
 
+	void DX12::Impl::OutputImage()
+	{
 		Image image;
 		image.width = width_;
 		image.height = height_;
@@ -543,7 +554,6 @@ namespace dx12
 		stbi_write_png("out.png",
 			image.width,
 			image.height, STBI_rgb_alpha, &image.data[0], image.width * 4);
-
 	}
 
 	void DX12::Impl::WaitForGPU()
@@ -1047,6 +1057,11 @@ namespace dx12
 		}
 	}
 
+	void DX12::Impl::ShareVertexBuffer(IDirect3DVertexBuffer9* v)
+	{
+
+	}
+
 	//----------------------------------------------------------------
 
 	DX12::DX12() : impl_(std::make_unique<DX12::Impl>()) {}
@@ -1055,4 +1070,20 @@ namespace dx12
 
 	void DX12::Init() { impl_->Init(); }
 
+	void DX12::ShareVertexBuffer(IDirect3DVertexBuffer9* v) { impl_->ShareVertexBuffer(v); }
+
+	IUnknown* DX12::GetDevice() 
+	{
+		return impl_->GetDevice();
+	}
+
+	IUnknown* DX12::GetCommandQueue()
+	{
+		return impl_->GetCommandQueue();
+	}
+	
+	void DX12::OutputImage()
+	{
+		impl_->OutputImage();
+	}
 } // namespace dx12

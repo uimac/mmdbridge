@@ -11,6 +11,8 @@
 #include <d3dx9shader.h>
 #include <d3d9types.h>
 #include <d3dx9tex.h>
+#include <d3d9.h>
+#include <d3d9on12.h>
 #pragma warning(default : 4819)
 
 #include "d3d9.h"
@@ -48,7 +50,6 @@
 #include "dx12.h"
 
 using namespace umbase;
-
 
 static void messagebox(std::string title, std::string message)
 {
@@ -94,6 +95,11 @@ IDirect3D9 *(WINAPI *original_direct3d_create)(UINT)(NULL);
 HRESULT (WINAPI *original_direct3d9ex_create)(UINT, IDirect3D9Ex**)(NULL);
 // IDirect3D9::CreateDevice
 HRESULT (WINAPI *original_create_device)(IDirect3D9*,UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, IDirect3DDevice9**)(NULL);
+
+// Direct3DCreate9On12
+IDirect3D9 *(WINAPI *original_direct3d9on12_create)(UINT, D3D9ON12_ARGS *, UINT);
+// Direct3DCreate9On12Ex
+HRESULT (WINAPI *original_direct3d9on12ex_create)(UINT, D3D9ON12_ARGS *, UINT, IDirect3D9Ex**);
 
 HRESULT(WINAPI *original_create_deviceex)(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**)(NULL);
 // IDirect3DDevice9::BeginScene
@@ -431,6 +437,7 @@ static HRESULT WINAPI present(
 	const bool validTechniq = IsValidTechniq();
 
 	HRESULT res = (*original_present)(device, pSourceRect, pDestRect, hDestWindowOverride, pDirtyRegion);
+
 	return res;
 }
 
@@ -1055,7 +1062,21 @@ static HRESULT WINAPI createVertexBuffer(
 	HANDLE* pHandle)
 {
 	HRESULT res = (*original_create_vertex_buffer)(device, length, usage, fvf, pool, ppVertexBuffer, pHandle);
-	
+
+	/*
+	void* queryResult = NULL;
+	device->lpVtbl->QueryInterface(device, __uuidof(IDirect3DDevice9On12), &queryResult);
+	if (queryResult)
+	{
+		IDirect3DDevice9On12* device9on12 = reinterpret_cast<IDirect3DDevice9On12*>(queryResult);
+		IDirect3DResource9* resource = reinterpret_cast<IDirect3DResource9*>(ppVertexBuffer);
+		ID3D12CommandQueue * queue = reinterpret_cast<ID3D12CommandQueue*>(dx12_instance->GetCommandQueue());
+
+		Microsoft::WRL::ComPtr<ID3D12Resource> resource;
+		device9on12->lpVtbl->UnwrapUnderlyingResource(
+			device9on12, resource, queue, IID_PPV_ARGS(&resource));
+	}
+	*/
 	renderData.vertexBuffers[*ppVertexBuffer] = length;
 
 	return res;
@@ -1205,6 +1226,8 @@ static void originalDevice()
 		
 		p_device->lpVtbl->BeginScene = original_begin_scene;
 		p_device->lpVtbl->EndScene = original_end_scene;
+		p_device->lpVtbl->Release = original_release;
+		p_device->lpVtbl->AddRef = original_addref;
 		//p_device->lpVtbl->Clear = clear;
 		p_device->lpVtbl->Present = original_present;
 		//p_device->lpVtbl->Reset = reset;
@@ -1258,9 +1281,6 @@ static HRESULT WINAPI createDevice(
 		hookDevice();
 	}
 
-	dx12_instance = std::make_unique<dx12::DX12>();
-	dx12_instance->Init();
-
 	return res;
 }
 
@@ -1278,7 +1298,10 @@ static HRESULT WINAPI createDeviceEx(
 	p_device = reinterpret_cast<IDirect3DDevice9*>(*device);
 
 	if (p_device) {
+		original_release = p_device->lpVtbl->Release;
+		original_addref = p_device->lpVtbl->AddRef;
 		original_begin_scene = p_device->lpVtbl->BeginScene;
+		original_end_scene = p_device->lpVtbl->EndScene;
 		//original_clear = p_device->lpVtbl->Clear;
 		original_present = p_device->lpVtbl->Present;
 		//original_reset = p_device->lpVtbl->Reset;
@@ -1299,9 +1322,20 @@ static HRESULT WINAPI createDeviceEx(
 }
 
 extern "C" {
+
 	// 偽Direct3DCreate9
 	IDirect3D9 * WINAPI Direct3DCreate9(UINT SDKVersion) {
-		IDirect3D9 *direct3d((*original_direct3d_create)(SDKVersion));
+		dx12_instance = std::make_unique<dx12::DX12>();
+		dx12_instance->Init();
+
+		D3D9ON12_ARGS args;
+		args.Enable9On12 = TRUE;
+		args.pD3D12Device = dx12_instance->GetDevice();
+		args.NumQueues = 0;
+		args.NodeMask = 0;
+		IDirect3D9 *direct3d = (*original_direct3d9on12_create)(SDKVersion, &args, 1);
+		//IDirect3D9 *direct3d = (*original_direct3d_create)(SDKVersion);
+
 		original_create_device = direct3d->lpVtbl->CreateDevice;
 
 		// 書き込み属性付与
@@ -1313,14 +1347,17 @@ extern "C" {
 		// 書き込み属性元に戻す
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
 
+
 		return direct3d;
 	}
 
 	HRESULT WINAPI Direct3DCreate9Ex(UINT SDKVersion, IDirect3D9Ex **ppD3D) {
-		IDirect3D9Ex *direct3d9ex = NULL;
-		(*original_direct3d9ex_create)(SDKVersion, &direct3d9ex);
 
-		if (direct3d9ex) 
+		D3D9ON12_ARGS args;
+		IDirect3D9Ex *direct3d9ex = NULL;
+		HRESULT res = (*original_direct3d9on12ex_create)(SDKVersion, &args, 0, &direct3d9ex);
+	
+		if (res == S_OK && direct3d9ex)
 		{
 			original_create_deviceex = direct3d9ex->lpVtbl->CreateDeviceEx;
 			if (original_create_deviceex)
@@ -1339,6 +1376,18 @@ extern "C" {
 			}
 		}
 		return E_ABORT;
+	}
+
+	// Direct3DCreate9On12
+	IDirect3D9 * WINAPI Direct3DCreate9On12(UINT SDKVersion, D3D9ON12_ARGS * args, UINT num)
+	{
+		return (*original_direct3d9on12_create)(SDKVersion, args, num);
+	}
+
+	// Direct3DCreate9On12Ex
+	HRESULT WINAPI Direct3DCreate9On12Ex(UINT SDKVersion, D3D9ON12_ARGS * args, UINT num, IDirect3D9Ex** ppOutputInterface)
+	{
+		return (*original_direct3d9on12ex_create)(SDKVersion, args, num, ppOutputInterface);
 	}
 
 } // extern "C"
@@ -1370,6 +1419,18 @@ bool d3d9_initialize(HINSTANCE hInst, DWORD reason, LPVOID)
 	HMODULE d3d9_module(LoadLibrary(d3d9_path.c_str()));
 
 	if (!d3d9_module) {
+		return FALSE;
+	}
+
+	// Direct3DCreate9On12
+	original_direct3d9on12_create = reinterpret_cast<IDirect3D9 *(WINAPI*)(UINT, D3D9ON12_ARGS *, UINT)>(GetProcAddress(d3d9_module, "Direct3DCreate9On12"));
+	if (!original_direct3d9on12_create) {
+		return FALSE;
+	}
+
+	// Direct3DCreate9On12
+	original_direct3d9on12ex_create = reinterpret_cast<HRESULT(WINAPI*)(UINT, D3D9ON12_ARGS *, UINT, IDirect3D9Ex**)>(GetProcAddress(d3d9_module, "Direct3DCreate9On12Ex"));
+	if (!original_direct3d9on12ex_create) {
 		return FALSE;
 	}
 
