@@ -603,6 +603,24 @@ namespace
 		return ExpGetPmdBoneNum(at);
 	}
 
+
+	int get_accessory_size()
+	{
+		return ExpGetAcsNum();
+	}
+
+	std::string get_accessory_filename(int at)
+	{
+		const char* sjis = ExpGetAcsFilename(at);
+		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		wchar_t* utf16 = new wchar_t[size];
+		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		std::wstring wchar(utf16);
+		delete[] utf16;
+		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
+		return utf8str;
+	}
+
 	std::string get_object_filename(int at)
 	{
 		const int count = get_bone_size(at);
@@ -615,6 +633,19 @@ namespace
 		delete [] utf16;
 		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
 		return utf8str;
+	}
+
+	std::string get_buffer_filename(int at)
+	{
+		auto& buffer = BridgeParameter::instance().render_buffer(at);
+		if (buffer.isAccessory)
+		{
+			return get_accessory_filename(buffer.order);
+		}
+		else
+		{
+			return get_object_filename(buffer.order);
+		}
 	}
 
 	std::string get_bone_name(int at, int bone_index)
@@ -847,6 +878,9 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("get_base_path", get_base_path);
 	m.def("get_light", get_light);
 	m.def("get_light_color", get_light_color);
+	m.def("get_buffer_filename", get_buffer_filename);
+	m.def("get_accessory_size", get_accessory_size);
+	m.def("get_accessory_filename", get_accessory_filename);
 	m.def("get_object_size", get_object_size);
 	m.def("get_object_filename", get_object_filename);
 	m.def("get_bone_size", get_bone_size);
@@ -1552,7 +1586,21 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				{
 					renderedBuffer.isAccessory = true;
 					renderedBuffer.accessory = i;
+					renderedBuffer.order = i;
 					accesosoryMat = ExpGetAcsWorldMat(i);
+				}
+			}
+
+			if (!renderedBuffer.isAccessory)
+			{
+				for (int i = 0; i < ExpGetPmdNum(); ++i)
+				{
+					int order = ExpGetPmdOrder(i);
+					if (order == currentObject)
+					{
+						renderedBuffer.order = i;
+						break;
+					}
 				}
 			}
 
