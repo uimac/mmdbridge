@@ -1817,13 +1817,25 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 		D3DXVECTOR3 v(light.Direction.x, light.Direction.y, light.Direction.z);
 		D3DXVECTOR4 dst;
 		//D3DXVec3Transform(&dst, &v, &renderedBuffer.world);
-		umlight.x = v.x;
-		umlight.y = v.y;
-		umlight.z = v.z;
+		// NOTE: 平行移動成分を潰さなくても、回転するだけの関数がありそうな気がする。
+		D3DXMATRIX m = renderedBuffer.world_inv;
+		// ugly hack.
+		m._41 = m._42 = m._43 = 0; m._14 = m._24 = m._34 = m._44 = 0;
+		D3DXVec3Transform(&dst, &v, &m);
+
+		umlight.x = dst.x;
+		umlight.y = dst.y;
+		umlight.z = dst.z;
+
 		
-		renderedBuffer.light_color.x = light.Ambient.r;
-		renderedBuffer.light_color.y = light.Ambient.g;
-		renderedBuffer.light_color.z = light.Ambient.b;
+		// SpecularがMMDのUIで設定した値に一番近い。
+		// ただし col * 256.0 / 255.0しないと0～1の範囲にならない。
+		// see: http://ch.nicovideo.jp/sovoro_mmd/blomaga/ar319862
+		FLOAT s = 256.0f / 255.0f;
+		renderedBuffer.light_color.x = light.Specular.r * s;
+		renderedBuffer.light_color.y = light.Specular.g * s;
+		renderedBuffer.light_color.z = light.Specular.b * s;
+
 		//renderedBuffer.light_diffuse.x = light.Diffuse.r;
 		//renderedBuffer.light_diffuse.y = light.Diffuse.g;
 		//renderedBuffer.light_diffuse.z = light.Diffuse.b;
