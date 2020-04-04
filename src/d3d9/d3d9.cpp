@@ -568,6 +568,11 @@ namespace
 		return BridgeParameter::instance().frame_height;
 	}
 
+	int get_export_fps()
+	{
+		return BridgeParameter::instance().export_fps;
+	}
+
 	std::vector<float> get_light(int at)
 	{
 		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
@@ -838,6 +843,7 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("get_end_frame", get_end_frame);
 	m.def("get_frame_width", get_frame_width);
 	m.def("get_frame_height", get_frame_height);
+	m.def("get_export_fps", get_export_fps);
 	m.def("get_base_path", get_base_path);
 	m.def("get_light", get_light);
 	m.def("get_light_color", get_light_color);
