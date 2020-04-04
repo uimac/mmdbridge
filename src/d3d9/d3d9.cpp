@@ -342,13 +342,13 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
 	}
 
-	std::vector<float> get_face(int at, int mpos, int fpos)
+	std::vector<int> get_face(int at, int mpos, int fpos)
 	{
 		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
 		int v1 = surface.faces[fpos].x;
 		int v2 = surface.faces[fpos].y;
 		int v3 = surface.faces[fpos].z;
-		std::vector<float> result;
+		std::vector<int> result;
 		result.push_back(v1);
 		result.push_back(v2);
 		result.push_back(v3);
@@ -791,6 +791,7 @@ namespace
 }
 
 PYBIND11_MAKE_OPAQUE(std::vector<float>);
+PYBIND11_MAKE_OPAQUE(std::vector<int>);
 
 PYBIND11_PLUGIN(mmdbridge) {
 	py::module m("mmdbridge");
@@ -858,7 +859,8 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("invert_matrix", invert_matrix);
 	m.def("d3dx_vec3_normalize", d3dx_vec3_normalize);
 
-    py::bind_vector<std::vector<float>>(m, "VectorInt");
+	py::bind_vector<std::vector<float>>(m, "VectorFloat");
+	py::bind_vector<std::vector<int>>(m, "VectorInt");
 
 	return m.ptr();
 }
