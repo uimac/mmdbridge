@@ -1673,6 +1673,8 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				D3DXHANDLE texHandle2 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "DiffuseBSTextureTec");
 				D3DXHANDLE texHandle3 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "BShadowSphiaTextureTec");
 				D3DXHANDLE texHandle4 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "BShadowTextureTec");
+
+				textureParameter.hasTextureSampler2 = false;
 				if (current == texHandle1) {
 					//::MessageBoxA(NULL, "1", "transp", MB_OK);
 					textureParameter.hasTextureSampler2 = true;
