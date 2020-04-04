@@ -1693,7 +1693,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				}
 
 				D3DXHANDLE hEdge = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "EgColor");
-				D3DXHANDLE hDiffuse = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "DifColor");
+				D3DXHANDLE hDiffuse = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "MatDifColor");
 				D3DXHANDLE hToon = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "ToonColor");
 				D3DXHANDLE hSpecular = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "SpcColor");
 				D3DXHANDLE hTransp = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "transp");
@@ -1708,13 +1708,11 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				(*effect)->lpVtbl->GetFloatArray(*effect, hDiffuse, diffuse, 4);
 				(*effect)->lpVtbl->GetFloatArray(*effect, hSpecular, specular, 4);
 				(*effect)->lpVtbl->GetBool(*effect, hTransp, &transp);
-				mat->diffuse.x = edge[0] + specular[0];
-				if (mat->diffuse.x > 1) { mat->diffuse.x = 1.0f; }
-				mat->diffuse.y = edge[1] + specular[1];
-				if (mat->diffuse.y > 1) { mat->diffuse.y = 1.0f; }
-				mat->diffuse.z = edge[2] + specular[2];
-				if (mat->diffuse.z > 1) { mat->diffuse.z = 1.0f; }
-				mat->diffuse.w = edge[3];
+				mat->diffuse.x = diffuse[0];
+				mat->diffuse.y = diffuse[1];
+				mat->diffuse.z = diffuse[2];
+				mat->diffuse.w = diffuse[3];
+				mat->power = specular[3];
 
 				if (specular[0] != 0 || specular[1] != 0 || specular[2] != 0)
 				{
@@ -1761,16 +1759,17 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		if (renderedBuffer.isAccessory)
 		{
 			D3DMATERIAL9 accessoryMat = ExpGetAcsMaterial(renderedBuffer.accessory, currentMaterial);
-			mat->diffuse.x = accessoryMat.Diffuse.r;
-			mat->diffuse.y = accessoryMat.Diffuse.g;
-			mat->diffuse.z = accessoryMat.Diffuse.b;
-			mat->specular.x = accessoryMat.Specular.r;
-			mat->specular.y = accessoryMat.Specular.g;
-			mat->specular.z = accessoryMat.Specular.b;
+			mat->diffuse.x = accessoryMat.Diffuse.r * 10.0f;
+			mat->diffuse.y = accessoryMat.Diffuse.g * 10.0f;
+			mat->diffuse.z = accessoryMat.Diffuse.b * 10.0f;
+			mat->specular.x = accessoryMat.Specular.r * 10.0f;
+			mat->specular.y = accessoryMat.Specular.g * 10.0f;
+			mat->specular.z = accessoryMat.Specular.b * 10.0f;
 			mat->ambient.x = accessoryMat.Ambient.r;
 			mat->ambient.y = accessoryMat.Ambient.g;
 			mat->ambient.z = accessoryMat.Ambient.b;
-			mat->diffuse.w = ::ExpGetAcsTr(renderedBuffer.accessory);
+			mat->diffuse.w = accessoryMat.Diffuse.a;
+			mat->diffuse.w *= ::ExpGetAcsTr(renderedBuffer.accessory);
 		}
 
 		renderedBuffer.materials.push_back(mat);
