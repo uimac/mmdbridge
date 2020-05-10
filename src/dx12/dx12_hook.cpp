@@ -1,5 +1,6 @@
 #define CINTERFACE
 
+#include "dx12_hook.h"
 #include <d3d12.h>
 #include <dxgi1_5.h>
 
