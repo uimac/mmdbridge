@@ -23,14 +23,15 @@ namespace dx12
 
 		void Init();
 
-		void ShareVertexBuffer(IDirect3DVertexBuffer9* v);
-
 		IUnknown* GetDevice();
 
 		IUnknown* GetCommandQueue();
 
 		void OutputImage();
 
+		void WaitForGPU();
+
+		void Test();
 	private:
 		class Impl;
 		std::unique_ptr<Impl> impl_;

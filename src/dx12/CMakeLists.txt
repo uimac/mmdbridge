@@ -18,6 +18,7 @@ add_library(dx12 SHARED
 
 target_compile_definitions(dx12 PRIVATE DLL_EXPORTS=1)
 
+target_link_libraries(dx12 PRIVATE ${DXSDK_LIBRARIES}/d3d9.lib)
 target_link_libraries(dx12 PRIVATE ${DXSDK_LIBRARIES}/d3d12.lib)
 target_link_libraries(dx12 PRIVATE ${DXSDK_LIBRARIES}/dxgi.lib)
 target_link_libraries(dx12 PRIVATE ${DXSDK_LIBRARIES}/D3DCompiler.lib)

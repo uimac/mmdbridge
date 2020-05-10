@@ -74,10 +74,8 @@ static std::unique_ptr<dx12::DX12> dx12_instance;
 
 
 // IDirect3DDevice9のフック関数
-void hookDevice(void);
-void originalDevice(void);
-// フックしたデバイス
-IDirect3DDevice9 *p_device = NULL;
+void hookDevice(IDirect3DDevice9 *device);
+void originalDevice(IDirect3DDevice9 *device);
 
 RenderData renderData;
 
@@ -137,6 +135,9 @@ HRESULT (WINAPI *original_set_indices)(IDirect3DDevice9*, IDirect3DIndexBuffer9*
 
 // IDirect3DDevice9::CreateVertexBuffer
 HRESULT (WINAPI *original_create_vertex_buffer)(IDirect3DDevice9*, UINT, DWORD, DWORD, D3DPOOL, IDirect3DVertexBuffer9**, HANDLE*)(NULL);
+
+// IDirect3DDevice9::CreateIndexBuffer
+HRESULT(WINAPI *original_create_index_buffer)(IDirect3DDevice9*, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DIndexBuffer9**, HANDLE*)(NULL);
 
 // IDirect3DDevice9::SetTexture
 HRESULT (WINAPI *original_set_texture)(IDirect3DDevice9*, DWORD, IDirect3DBaseTexture9 *)(NULL);
@@ -676,7 +677,7 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 	return true;
 }*/
 
-static bool writeMaterialsToMemory(TextureParameter & textureParameter)
+static bool writeMaterialsToMemory(IDirect3DDevice9 *device, TextureParameter & textureParameter)
 {
 	const int currentTechnic = ExpGetCurrentTechnic();
 	const int currentMaterial = ExpGetCurrentMaterial();
@@ -694,7 +695,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 	{
 		// D3DMATERIAL9 取得
 		D3DMATERIAL9 material = ExpGetPmdMaterial(currentObject, currentMaterial);
-		//p_device->lpVtbl->GetMaterial(p_device, &material);
+		//device->lpVtbl->GetMaterial(device, &material);
 		
 		RenderedMaterial *mat = new RenderedMaterial();
 		mat->diffuse.x = material.Diffuse.r;
@@ -777,8 +778,8 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 			DWORD colorRop0;
 			DWORD colorRop1;
 
-			p_device->lpVtbl->GetTextureStageState(p_device, 0, D3DTSS_COLOROP, &colorRop0);
-			p_device->lpVtbl->GetTextureStageState(p_device, 1, D3DTSS_COLOROP, &colorRop1);
+			device->lpVtbl->GetTextureStageState(device, 0, D3DTSS_COLOROP, &colorRop0);
+			device->lpVtbl->GetTextureStageState(device, 1, D3DTSS_COLOROP, &colorRop1);
 
 			if (textureParameter.hasTextureSampler2) {
 
@@ -857,11 +858,11 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 {
 	BOOL isLight;
 	int lightNumber = 0;			
-	 p_device->lpVtbl->GetLightEnable(p_device, lightNumber, &isLight);
+	 device->lpVtbl->GetLightEnable(device, lightNumber, &isLight);
 	 if (isLight)
 	 {
 		D3DLIGHT9  light;
-		p_device->lpVtbl->GetLight(p_device, lightNumber, &light);
+		device->lpVtbl->GetLight(device, lightNumber, &light);
 		UMVec3f& umlight = renderedBuffer.light;
 		D3DXVECTOR3 v(light.Direction.x, light.Direction.y, light.Direction.z);
 		D3DXVECTOR4 dst;
@@ -1038,7 +1039,20 @@ static HRESULT WINAPI createTexture(
 	IDirect3DTexture9** ppTexture,
 	HANDLE* pSharedHandle)
 {
-	HRESULT res = (*original_create_texture)(device, width, height, levels, usage, format, pool, ppTexture, pSharedHandle);
+	HRESULT res;
+	/*
+	if (pool == D3DPOOL_DEFAULT || pool == D3DPOOL_MANAGED)
+	{
+		res = (*original_create_texture)(device, width, height, levels, usage, format, D3DPOOL_DEFAULT, ppTexture, pSharedHandle);
+
+		dx12_instance->ShareVertexBuffer(device, pSharedHandle, reinterpret_cast<IDirect3DResource9*>(*ppTexture));
+		
+	}
+	else
+	{
+	*/
+	res = (*original_create_texture)(device, width, height, levels, usage, format, pool, ppTexture, pSharedHandle);
+	
 
 	TextureInfo info;
 	info.wh.x = width;
@@ -1047,7 +1061,6 @@ static HRESULT WINAPI createTexture(
 
 	renderData.textureBuffers[*ppTexture] = info;
 
-	
 	return res;
 
 }
@@ -1061,23 +1074,24 @@ static HRESULT WINAPI createVertexBuffer(
 	IDirect3DVertexBuffer9** ppVertexBuffer,
 	HANDLE* pHandle)
 {
-	HRESULT res = (*original_create_vertex_buffer)(device, length, usage, fvf, pool, ppVertexBuffer, pHandle);
+	HRESULT res = (*original_create_vertex_buffer)(device, length, usage, fvf, D3DPOOL_DEFAULT, ppVertexBuffer, pHandle);
 
-	/*
-	void* queryResult = NULL;
-	device->lpVtbl->QueryInterface(device, __uuidof(IDirect3DDevice9On12), &queryResult);
-	if (queryResult)
-	{
-		IDirect3DDevice9On12* device9on12 = reinterpret_cast<IDirect3DDevice9On12*>(queryResult);
-		IDirect3DResource9* resource = reinterpret_cast<IDirect3DResource9*>(ppVertexBuffer);
-		ID3D12CommandQueue * queue = reinterpret_cast<ID3D12CommandQueue*>(dx12_instance->GetCommandQueue());
-
-		Microsoft::WRL::ComPtr<ID3D12Resource> resource;
-		device9on12->lpVtbl->UnwrapUnderlyingResource(
-			device9on12, resource, queue, IID_PPV_ARGS(&resource));
-	}
-	*/
 	renderData.vertexBuffers[*ppVertexBuffer] = length;
+
+	return res;
+}
+
+static HRESULT WINAPI createIndexBuffer(
+	IDirect3DDevice9* device,
+	UINT length,
+	DWORD usage,
+	D3DFORMAT format,
+	D3DPOOL pool,
+	IDirect3DIndexBuffer9 **ppIndexBuffer,
+	HANDLE                *pSharedHandle)
+{
+	HRESULT res = (*original_create_index_buffer)(
+		device, length, usage, format, pool, ppIndexBuffer, pSharedHandle);
 
 	return res;
 }
@@ -1105,6 +1119,7 @@ static HRESULT WINAPI setStreamSource(
 	UINT offsetInBytes,
 	UINT stride)
 {
+
 	HRESULT res = (*original_set_stream_source)(device, streamNumber, pStreamData, offsetInBytes, stride);
 	
 	int currentTechnic = ExpGetCurrentTechnic();
@@ -1146,11 +1161,10 @@ static HRESULT WINAPI setIndices(IDirect3DDevice9 *device, IDirect3DIndexBuffer9
 // この関数で、lpVtblが修正されるので、lpVtbl書き換えなおす
 static HRESULT WINAPI beginStateBlock(IDirect3DDevice9 *device)
 {
-	originalDevice();
+	originalDevice(device);
 	HRESULT res = (*original_begin_state_block)(device);
 	
-	p_device = device;
-	hookDevice();
+	hookDevice(device);
 
 	return res;
 }
@@ -1159,11 +1173,10 @@ static HRESULT WINAPI beginStateBlock(IDirect3DDevice9 *device)
 // この関数で、lpVtblが修正されるので、lpVtbl書き換えなおす
 static HRESULT WINAPI endStateBlock(IDirect3DDevice9 *device, IDirect3DStateBlock9 **ppSB)
 {
-	originalDevice();
+	originalDevice(device);
 	HRESULT res = (*original_end_state_block)(device, ppSB);
 
-	p_device = device;
-	hookDevice();
+	hookDevice(device);
 
 	return res;
 }
@@ -1185,65 +1198,67 @@ static ULONG WINAPI release(IDirect3DDevice9 *device)
 	return original_release(device);
 }
 
-static void hookDevice()
+static void hookDevice(IDirect3DDevice9 *device)
 {
-	if (p_device) 
+	if (device) 
 	{
 		// 書き込み属性付与
 		DWORD old_protect;
-		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
+		VirtualProtect(reinterpret_cast<void *>(device->lpVtbl), sizeof(device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
-		p_device->lpVtbl->BeginScene = beginScene;
-		p_device->lpVtbl->EndScene = endScene;
-		p_device->lpVtbl->Release = release;
-		p_device->lpVtbl->AddRef = addref;
-		//p_device->lpVtbl->Clear = clear;
-		p_device->lpVtbl->Present = present;
-		//p_device->lpVtbl->Reset = reset;
-		p_device->lpVtbl->BeginStateBlock = beginStateBlock;
-		p_device->lpVtbl->EndStateBlock = endStateBlock;		
-		p_device->lpVtbl->SetFVF = setFVF;
-		p_device->lpVtbl->DrawIndexedPrimitive = drawIndexedPrimitive;
-		p_device->lpVtbl->SetStreamSource = setStreamSource;
-		p_device->lpVtbl->SetIndices = setIndices;
-		p_device->lpVtbl->CreateVertexBuffer = createVertexBuffer;
-		p_device->lpVtbl->SetTexture = setTexture;
-		p_device->lpVtbl->CreateTexture = createTexture;
-		//p_device->lpVtbl->SetTextureStageState = setTextureStageState;
+		device->lpVtbl->BeginScene = beginScene;
+		device->lpVtbl->EndScene = endScene;
+		device->lpVtbl->Release = release;
+		device->lpVtbl->AddRef = addref;
+		//device->lpVtbl->Clear = clear;
+		device->lpVtbl->Present = present;
+		//device->lpVtbl->Reset = reset;
+		device->lpVtbl->BeginStateBlock = beginStateBlock;
+		device->lpVtbl->EndStateBlock = endStateBlock;		
+		device->lpVtbl->SetFVF = setFVF;
+		device->lpVtbl->DrawIndexedPrimitive = drawIndexedPrimitive;
+		device->lpVtbl->SetStreamSource = setStreamSource;
+		device->lpVtbl->SetIndices = setIndices;
+		device->lpVtbl->CreateVertexBuffer = createVertexBuffer;
+		device->lpVtbl->CreateIndexBuffer = createIndexBuffer;
+		device->lpVtbl->SetTexture = setTexture;
+		device->lpVtbl->CreateTexture = createTexture;
+		//device->lpVtbl->SetTextureStageState = setTextureStageState;
 
 		// 書き込み属性元に戻す
-		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), old_protect, &old_protect);
+		VirtualProtect(reinterpret_cast<void *>(device->lpVtbl), sizeof(device->lpVtbl), old_protect, &old_protect);
 	}
 }
 
-static void originalDevice()
+static void originalDevice(IDirect3DDevice9 *device)
 {
-	if (p_device) 
+	if (device) 
 	{
 		// 書き込み属性付与
 		DWORD old_protect;
-		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
+		VirtualProtect(reinterpret_cast<void *>(device->lpVtbl), sizeof(device->lpVtbl), PAGE_EXECUTE_READWRITE, &old_protect);
 		
-		p_device->lpVtbl->BeginScene = original_begin_scene;
-		p_device->lpVtbl->EndScene = original_end_scene;
-		p_device->lpVtbl->Release = original_release;
-		p_device->lpVtbl->AddRef = original_addref;
-		//p_device->lpVtbl->Clear = clear;
-		p_device->lpVtbl->Present = original_present;
-		//p_device->lpVtbl->Reset = reset;
-		p_device->lpVtbl->BeginStateBlock = original_begin_state_block;
-		p_device->lpVtbl->EndStateBlock = original_end_state_block;		
-		p_device->lpVtbl->SetFVF = original_set_fvf;
-		p_device->lpVtbl->DrawIndexedPrimitive = original_draw_indexed_primitive;
-		p_device->lpVtbl->SetStreamSource = original_set_stream_source;
-		p_device->lpVtbl->SetIndices = original_set_indices;
-		p_device->lpVtbl->CreateVertexBuffer = original_create_vertex_buffer;
-		p_device->lpVtbl->SetTexture = original_set_texture;
-		p_device->lpVtbl->CreateTexture = original_create_texture;
-		//p_device->lpVtbl->SetTextureStageState = setTextureStageState;
+		device->lpVtbl->BeginScene = original_begin_scene;
+		device->lpVtbl->EndScene = original_end_scene;
+		device->lpVtbl->Release = original_release;
+		device->lpVtbl->AddRef = original_addref;
+		//device->lpVtbl->Clear = clear;
+		device->lpVtbl->Present = original_present;
+		//device->lpVtbl->Reset = reset;
+		device->lpVtbl->BeginStateBlock = original_begin_state_block;
+		device->lpVtbl->EndStateBlock = original_end_state_block;		
+		device->lpVtbl->SetFVF = original_set_fvf;
+		device->lpVtbl->DrawIndexedPrimitive = original_draw_indexed_primitive;
+		device->lpVtbl->SetStreamSource = original_set_stream_source;
+		device->lpVtbl->SetIndices = original_set_indices;
+		device->lpVtbl->CreateVertexBuffer = original_create_vertex_buffer;
+		device->lpVtbl->CreateIndexBuffer = original_create_index_buffer;
+		device->lpVtbl->SetTexture = original_set_texture;
+		device->lpVtbl->CreateTexture = original_create_texture;
+		//device->lpVtbl->SetTextureStageState = setTextureStageState;
 
 		// 書き込み属性元に戻す
-		VirtualProtect(reinterpret_cast<void *>(p_device->lpVtbl), sizeof(p_device->lpVtbl), old_protect, &old_protect);
+		VirtualProtect(reinterpret_cast<void *>(device->lpVtbl), sizeof(device->lpVtbl), old_protect, &old_protect);
 	}
 }
 
@@ -1254,31 +1269,34 @@ static HRESULT WINAPI createDevice(
 	HWND window,
 	DWORD flag,
 	D3DPRESENT_PARAMETERS *param,
-	IDirect3DDevice9 **device) 
+	IDirect3DDevice9 **ppdevice)
 {
-	HRESULT res = (*original_create_device)(direct3d, adapter, type, window, flag, param, device);
-	p_device = (*device);
-	
-	if (p_device) {
-		original_release = p_device->lpVtbl->Release;
-		original_addref = p_device->lpVtbl->AddRef;
-		original_begin_scene = p_device->lpVtbl->BeginScene;
-		original_end_scene = p_device->lpVtbl->EndScene;
-		//original_clear = p_device->lpVtbl->Clear;
-		original_present = p_device->lpVtbl->Present;
-		//original_reset = p_device->lpVtbl->Reset;
-		original_begin_state_block = p_device->lpVtbl->BeginStateBlock;
-		original_end_state_block = p_device->lpVtbl->EndStateBlock;
-		original_set_fvf = p_device->lpVtbl->SetFVF;
-		original_draw_indexed_primitive = p_device->lpVtbl->DrawIndexedPrimitive;
-		original_set_stream_source = p_device->lpVtbl->SetStreamSource;
-		original_set_indices = p_device->lpVtbl->SetIndices;
-		original_create_vertex_buffer = p_device->lpVtbl->CreateVertexBuffer;
-		original_set_texture = p_device->lpVtbl->SetTexture;
-		original_create_texture = p_device->lpVtbl->CreateTexture;
-		//original_set_texture_stage_state = p_device->lpVtbl->SetTextureStageState;
+	HRESULT res = (*original_create_device)(direct3d, adapter, type, window, flag, param, ppdevice);
 
-		hookDevice();
+	if (res == S_OK && ppdevice) {
+		IDirect3DDevice9* device = (*ppdevice);
+
+		original_release = device->lpVtbl->Release;
+		original_addref = device->lpVtbl->AddRef;
+		original_begin_scene = device->lpVtbl->BeginScene;
+		original_end_scene = device->lpVtbl->EndScene;
+		//original_clear = device->lpVtbl->Clear;
+		original_present = device->lpVtbl->Present;
+		//original_reset = device->lpVtbl->Reset;
+		original_begin_state_block = device->lpVtbl->BeginStateBlock;
+		original_end_state_block = device->lpVtbl->EndStateBlock;
+		original_set_fvf = device->lpVtbl->SetFVF;
+		original_draw_indexed_primitive = device->lpVtbl->DrawIndexedPrimitive;
+		original_set_stream_source = device->lpVtbl->SetStreamSource;
+		original_set_indices = device->lpVtbl->SetIndices;
+		original_create_vertex_buffer = device->lpVtbl->CreateVertexBuffer;
+		original_create_index_buffer = device->lpVtbl->CreateIndexBuffer;
+		original_set_texture = device->lpVtbl->SetTexture;
+		original_create_texture = device->lpVtbl->CreateTexture;
+		//original_set_texture_stage_state = device->lpVtbl->SetTextureStageState;
+
+		hookDevice(device);
+
 	}
 
 	return res;
@@ -1292,31 +1310,33 @@ static HRESULT WINAPI createDeviceEx(
 	DWORD flag,
 	D3DPRESENT_PARAMETERS *param,
 	D3DDISPLAYMODEEX* displayMode,
-	IDirect3DDevice9Ex **device)
+	IDirect3DDevice9Ex **ppdevice)
 {
-	HRESULT res = (*original_create_deviceex)(direct3dex, adapter, type, window, flag, param, displayMode, device);
-	p_device = reinterpret_cast<IDirect3DDevice9*>(*device);
+	HRESULT res = (*original_create_deviceex)(direct3dex, adapter, type, window, flag, param, displayMode, ppdevice);
 
-	if (p_device) {
-		original_release = p_device->lpVtbl->Release;
-		original_addref = p_device->lpVtbl->AddRef;
-		original_begin_scene = p_device->lpVtbl->BeginScene;
-		original_end_scene = p_device->lpVtbl->EndScene;
-		//original_clear = p_device->lpVtbl->Clear;
-		original_present = p_device->lpVtbl->Present;
-		//original_reset = p_device->lpVtbl->Reset;
-		original_begin_state_block = p_device->lpVtbl->BeginStateBlock;
-		original_end_state_block = p_device->lpVtbl->EndStateBlock;
-		original_set_fvf = p_device->lpVtbl->SetFVF;
-		original_draw_indexed_primitive = p_device->lpVtbl->DrawIndexedPrimitive;
-		original_set_stream_source = p_device->lpVtbl->SetStreamSource;
-		original_set_indices = p_device->lpVtbl->SetIndices;
-		original_create_vertex_buffer = p_device->lpVtbl->CreateVertexBuffer;
-		original_set_texture = p_device->lpVtbl->SetTexture;
-		original_create_texture = p_device->lpVtbl->CreateTexture;
-		//original_set_texture_stage_state = p_device->lpVtbl->SetTextureStageState;
+	if (res == S_OK && ppdevice) {
+		IDirect3DDevice9* device = reinterpret_cast<IDirect3DDevice9*>(*ppdevice);
 
-		hookDevice();
+		original_release = device->lpVtbl->Release;
+		original_addref = device->lpVtbl->AddRef;
+		original_begin_scene = device->lpVtbl->BeginScene;
+		original_end_scene = device->lpVtbl->EndScene;
+		//original_clear = device->lpVtbl->Clear;
+		original_present = device->lpVtbl->Present;
+		//original_reset = device->lpVtbl->Reset;
+		original_begin_state_block = device->lpVtbl->BeginStateBlock;
+		original_end_state_block = device->lpVtbl->EndStateBlock;
+		original_set_fvf = device->lpVtbl->SetFVF;
+		original_draw_indexed_primitive = device->lpVtbl->DrawIndexedPrimitive;
+		original_set_stream_source = device->lpVtbl->SetStreamSource;
+		original_set_indices = device->lpVtbl->SetIndices;
+		original_create_vertex_buffer = device->lpVtbl->CreateVertexBuffer;
+		original_create_index_buffer = device->lpVtbl->CreateIndexBuffer;
+		original_set_texture = device->lpVtbl->SetTexture;
+		original_create_texture = device->lpVtbl->CreateTexture;
+		//original_set_texture_stage_state = device->lpVtbl->SetTextureStageState;
+
+		hookDevice(device);
 	}
 	return res;
 }
@@ -1325,17 +1345,24 @@ extern "C" {
 
 	// 偽Direct3DCreate9
 	IDirect3D9 * WINAPI Direct3DCreate9(UINT SDKVersion) {
+
 		dx12_instance = std::make_unique<dx12::DX12>();
 		dx12_instance->Init();
 
 		D3D9ON12_ARGS args;
 		args.Enable9On12 = TRUE;
+		args.ppD3D12Queues[0] = dx12_instance->GetCommandQueue();
+		args.ppD3D12Queues[1] = NULL;
 		args.pD3D12Device = dx12_instance->GetDevice();
-		args.NumQueues = 0;
+		args.NumQueues = 1;
 		args.NodeMask = 0;
+
 		IDirect3D9 *direct3d = (*original_direct3d9on12_create)(SDKVersion, &args, 1);
 		//IDirect3D9 *direct3d = (*original_direct3d_create)(SDKVersion);
 
+		//dx12_instance->Test();
+
+		/*
 		original_create_device = direct3d->lpVtbl->CreateDevice;
 
 		// 書き込み属性付与
@@ -1346,7 +1373,7 @@ extern "C" {
 
 		// 書き込み属性元に戻す
 		VirtualProtect(reinterpret_cast<void *>(direct3d->lpVtbl), sizeof(direct3d->lpVtbl), old_protect, &old_protect);
-
+		*/
 
 		return direct3d;
 	}

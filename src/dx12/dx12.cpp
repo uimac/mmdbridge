@@ -13,9 +13,13 @@
 #include <iostream>
 #include <D3Dcompiler.h>
 
+
+#include <d3d9on12.h>
+
 #include "d3dx12.h"
 #include "DXSampleHelper.h"
 #include "dx12.h"
+#include "dx12_hook.h"
 
 #include "UMMathTypes.h"
 #include "UMMath.h"
@@ -24,6 +28,7 @@
 
 #include "stb_image.h"
 #include "stb_image_write.h"
+
 
 namespace dx12
 {
@@ -202,12 +207,18 @@ namespace dx12
 
 		void Init();
 
-		void ShareVertexBuffer(IDirect3DVertexBuffer9* v);
+		void ShareVertexBuffer(IDirect3DDevice9* device, HANDLE* pShareHandle, IDirect3DResource9* v);
 
 		IUnknown* GetDevice() { return device_.Get(); }
 		IUnknown* GetCommandQueue() { return command_queue_.Get(); }
 		
 		void OutputImage();
+		void WaitForGPU();
+
+		void Test()
+		{
+		}
+
 	private:
 		uint32_t width_ = 800;
 		uint32_t height_ = 600;
@@ -276,7 +287,6 @@ namespace dx12
 		void InitDescriptorHeaps();
 		void InitBackBuffers();
 		void InitConstants();
-		void WaitForGPU();
 		void ResetCommands();
 		void ExecuteCommands();
 		void InitPlane();
@@ -418,119 +428,121 @@ namespace dx12
 		ThrowIfFailed(D3D12CreateDevice(hardware_adapter_.Get(),
 			D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device_)));
 
-		// Command Allocator
-		ThrowIfFailed(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_)));
+		D3D12_Hook_Inject(device_.Get());
 
-		// Command Queue
+		//// Command Allocator
+		//ThrowIfFailed(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&command_allocator_)));
+
+		//// Command Queue
 		D3D12_COMMAND_QUEUE_DESC queue_desc = {};
 		ThrowIfFailed(device_->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue_)));
 
-		// Command List
-		ThrowIfFailed(device_->CreateCommandList(
-			0,
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			command_allocator_.Get(),
-			nullptr,
-			IID_PPV_ARGS(&command_list_)));
+		//// Command List
+		//ThrowIfFailed(device_->CreateCommandList(
+		//	0,
+		//	D3D12_COMMAND_LIST_TYPE_DIRECT,
+		//	command_allocator_.Get(),
+		//	nullptr,
+		//	IID_PPV_ARGS(&command_list_)));
 
-		// Descriptor Heaps
-		InitDescriptorHeaps();
+		//// Descriptor Heaps
+		//InitDescriptorHeaps();
 
-		// Back Buffer (rtv, dsv) resources, views
-		InitBackBuffers();
+		//// Back Buffer (rtv, dsv) resources, views
+		//InitBackBuffers();
 
-		// CBV resource, view
-		{
-			uint32_t constant_buffer_size_ = sizeof(Constants);
-			constant_buffer_size_ = Align(constant_buffer_size_, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-			constant_resource_ = CreateUploadResource(device_, constant_buffer_size_);
+		//// CBV resource, view
+		//{
+		//	uint32_t constant_buffer_size_ = sizeof(Constants);
+		//	constant_buffer_size_ = Align(constant_buffer_size_, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+		//	constant_resource_ = CreateUploadResource(device_, constant_buffer_size_);
 
-			D3D12_CONSTANT_BUFFER_VIEW_DESC view = {};
-			view.SizeInBytes = constant_buffer_size_;
-			view.BufferLocation = constant_resource_->GetGPUVirtualAddress();
-			constant_handle_index_ = cbv_srv_uav_index_++;
-			device_->CreateConstantBufferView(&view, cbv_srv_uav_cpu_handles_[constant_handle_index_]);
-		}
-		// UAV resouce, view
-		{
-			uav_resources_.resize(3);
+		//	D3D12_CONSTANT_BUFFER_VIEW_DESC view = {};
+		//	view.SizeInBytes = constant_buffer_size_;
+		//	view.BufferLocation = constant_resource_->GetGPUVirtualAddress();
+		//	constant_handle_index_ = cbv_srv_uav_index_++;
+		//	device_->CreateConstantBufferView(&view, cbv_srv_uav_cpu_handles_[constant_handle_index_]);
+		//}
+		//// UAV resouce, view
+		//{
+		//	uav_resources_.resize(3);
 
-			// readback buffer
-			{
-				ComPtr<ID3D12Resource> resource = render_target_resources_[0];
-				D3D12_RESOURCE_DESC desc = resource->GetDesc();
-				D3D12_PLACED_SUBRESOURCE_FOOTPRINT foot_print;
-				uint32_t nrow;
-				uint64_t rowsize;
-				uint64_t size;
-				device_->GetCopyableFootprints(&desc, 0, 1, 0, &foot_print, &nrow, &rowsize, &size);
+		//	// readback buffer
+		//	{
+		//		ComPtr<ID3D12Resource> resource = render_target_resources_[0];
+		//		D3D12_RESOURCE_DESC desc = resource->GetDesc();
+		//		D3D12_PLACED_SUBRESOURCE_FOOTPRINT foot_print;
+		//		uint32_t nrow;
+		//		uint64_t rowsize;
+		//		uint64_t size;
+		//		device_->GetCopyableFootprints(&desc, 0, 1, 0, &foot_print, &nrow, &rowsize, &size);
 
 
-				const uint32_t index = 0;
-				uav_resources_[index] = CreateReadBackResource(
-					device_, size, 
-					D3D12_RESOURCE_STATE_COPY_DEST);
+		//		const uint32_t index = 0;
+		//		uav_resources_[index] = CreateReadBackResource(
+		//			device_, size, 
+		//			D3D12_RESOURCE_STATE_COPY_DEST);
 
-				/*
-				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-				device_->CreateUnorderedAccessView(
-					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
-					*/
-			}
+		//		/*
+		//		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+		//		uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		//		device_->CreateUnorderedAccessView(
+		//			uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
+		//			*/
+		//	}
 
-			// raytracing result buffer
-			{
-				const uint32_t index = 1;
-				uav_resources_[index] = CreateTextureResource(
-					device_, width_, height_, DXGI_FORMAT_R8G8B8A8_UNORM,
-					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-					nullptr);
+		//	// raytracing result buffer
+		//	{
+		//		const uint32_t index = 1;
+		//		uav_resources_[index] = CreateTextureResource(
+		//			device_, width_, height_, DXGI_FORMAT_R8G8B8A8_UNORM,
+		//			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		//			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		//			nullptr);
 
-				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-				device_->CreateUnorderedAccessView(
-					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
-			}
+		//		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+		//		uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		//		device_->CreateUnorderedAccessView(
+		//			uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
+		//	}
 
-			// raytracing accumulation buffer
-			{
-				const uint32_t index = 2;
-				uav_resources_[index] = CreateTextureResource(
-					device_, width_, height_, DXGI_FORMAT_R32G32B32A32_FLOAT,
-					D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-					nullptr);
+		//	// raytracing accumulation buffer
+		//	{
+		//		const uint32_t index = 2;
+		//		uav_resources_[index] = CreateTextureResource(
+		//			device_, width_, height_, DXGI_FORMAT_R32G32B32A32_FLOAT,
+		//			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		//			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		//			nullptr);
 
-				D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-				uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-				device_->CreateUnorderedAccessView(
-					uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
-			}
-		}
+		//		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+		//		uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		//		device_->CreateUnorderedAccessView(
+		//			uav_resources_[index].Get(), nullptr, &uav_desc, cbv_srv_uav_cpu_handles_[cbv_srv_uav_index_++]);
+		//	}
+		//}
 
-		// Fence
-		ThrowIfFailed(device_->CreateFence(
-			fence_value_list_[current_back_buffer_], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)));
+		//// Fence
+		//ThrowIfFailed(device_->CreateFence(
+		//	fence_value_list_[current_back_buffer_], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)));
 
-		fence_value_list_[current_back_buffer_]++;
-		fence_event_ = CreateEvent(nullptr, false, false, nullptr);
+		//fence_value_list_[current_back_buffer_]++;
+		//fence_event_ = CreateEvent(nullptr, false, false, nullptr);
 
-		for (uint32_t i = 0; i < BackBufferCount; ++i)
-		{
-			fence_value_list_[i] = fence_value_list_[current_back_buffer_];
-		}
+		//for (uint32_t i = 0; i < BackBufferCount; ++i)
+		//{
+		//	fence_value_list_[i] = fence_value_list_[current_back_buffer_];
+		//}
 
-		ExecuteCommands();
-		WaitForGPU();
+		//ExecuteCommands();
+		//WaitForGPU();
 
+		/*
 		InitConstants();
 		InitPlane();
 
 		LoadShader("shader/rasterize.hlsl");
 
-		/*
 		Update();
 		Render();
 
@@ -1057,10 +1069,30 @@ namespace dx12
 		}
 	}
 
-	void DX12::Impl::ShareVertexBuffer(IDirect3DVertexBuffer9* v)
+	/*
+	void DX12::Impl::ShareVertexBuffer(IDirect3DDevice9* device, HANDLE* pShareHandle, IDirect3DResource9* v)
 	{
+		void* queryResult = NULL;
+		device->QueryInterface(__uuidof(IDirect3DDevice9On12), &queryResult);
+		if (queryResult)
+		{
+			IDirect3DDevice9On12* device9on12 = reinterpret_cast<IDirect3DDevice9On12*>(queryResult);
 
-	}
+			ComPtr<ID3D12Resource> resource;
+
+			HRESULT res = device9on12->UnwrapUnderlyingResource(v, command_queue_.Get(), IID_PPV_ARGS(&resource));
+
+			if (resource)
+			{
+				std::cout << "success" << std::endl;
+				UINT64 signal = 0;
+				res = device9on12->ReturnUnderlyingResource(v, 0, nullptr, nullptr);
+			}
+			WaitForGPU();
+
+		}
+
+	}*/
 
 	//----------------------------------------------------------------
 
@@ -1070,7 +1102,11 @@ namespace dx12
 
 	void DX12::Init() { impl_->Init(); }
 
-	void DX12::ShareVertexBuffer(IDirect3DVertexBuffer9* v) { impl_->ShareVertexBuffer(v); }
+	/*
+	void DX12::ShareVertexBuffer(IDirect3DDevice9* device, HANDLE* pShareHandle, IDirect3DResource9* v) 
+	{
+		impl_->ShareVertexBuffer(device, pShareHandle, v);
+	}*/
 
 	IUnknown* DX12::GetDevice() 
 	{
@@ -1085,5 +1121,15 @@ namespace dx12
 	void DX12::OutputImage()
 	{
 		impl_->OutputImage();
+	}
+
+	void DX12::WaitForGPU()
+	{
+		impl_->WaitForGPU();
+	}
+
+	void DX12::Test()
+	{
+		impl_->Test();
 	}
 } // namespace dx12
