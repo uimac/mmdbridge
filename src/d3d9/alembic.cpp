@@ -594,13 +594,20 @@ static void export_alembic_xform_by_material_fix_vindex(AlembicArchive &archive,
 		Alembic::AbcGeom::P3fArraySample positions( (const Imath::V3f *) &vertexListByMaterial.front(), vertexListByMaterial.size());
 		sample.setPositions(positions);
 
-		// face index
 		if (isFirstMesh)
 		{
+			// face index
 			Alembic::Abc::Int32ArraySample faceIndices(faceList);
 			Alembic::Abc::Int32ArraySample faceCounts(faceCountList);
 			sample.setFaceIndices(faceIndices);
 			sample.setFaceCounts(faceCounts);
+
+			// faceSet
+			Alembic::AbcGeom::OFaceSet faceSet = meshSchema.createFaceSet("mesh_" + to_string(renderedBufferIndex) + "_material_" + to_string(k));
+			Alembic::AbcGeom::OFaceSetSchema& faceSetSchema = faceSet.getSchema();
+			Alembic::AbcGeom::OFaceSetSchema::Sample faceSetSample;
+			faceSetSample.setFaces(faceList);
+			faceSetSchema.set(faceSetSample);
 		}
 
 		// UVs
