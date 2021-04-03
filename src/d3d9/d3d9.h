@@ -127,6 +127,7 @@ typedef struct RenderedBuffer {
 
 	bool isAccessory;
 	int accessory;
+	int order;
 	
 	virtual ~RenderedBuffer()
 	{

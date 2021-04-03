@@ -342,13 +342,13 @@ namespace
 		return BridgeParameter::instance().render_buffer(at).materials[mpos]->surface.faces.size();
 	}
 
-	std::vector<float> get_face(int at, int mpos, int fpos)
+	std::vector<int> get_face(int at, int mpos, int fpos)
 	{
 		RenderedSurface &surface = BridgeParameter::instance().render_buffer(at).materials[mpos]->surface;
 		int v1 = surface.faces[fpos].x;
 		int v2 = surface.faces[fpos].y;
 		int v3 = surface.faces[fpos].z;
-		std::vector<float> result;
+		std::vector<int> result;
 		result.push_back(v1);
 		result.push_back(v2);
 		result.push_back(v3);
@@ -568,6 +568,11 @@ namespace
 		return BridgeParameter::instance().frame_height;
 	}
 
+	int get_export_fps()
+	{
+		return BridgeParameter::instance().export_fps;
+	}
+
 	std::vector<float> get_light(int at)
 	{
 		const UMVec3f &light = BridgeParameter::instance().render_buffer(at).light;
@@ -598,6 +603,24 @@ namespace
 		return ExpGetPmdBoneNum(at);
 	}
 
+
+	int get_accessory_size()
+	{
+		return ExpGetAcsNum();
+	}
+
+	std::string get_accessory_filename(int at)
+	{
+		const char* sjis = ExpGetAcsFilename(at);
+		const int size = ::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, NULL, 0);
+		wchar_t* utf16 = new wchar_t[size];
+		::MultiByteToWideChar(CP_ACP, 0, (LPCSTR)sjis, -1, (LPWSTR)utf16, size);
+		std::wstring wchar(utf16);
+		delete[] utf16;
+		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
+		return utf8str;
+	}
+
 	std::string get_object_filename(int at)
 	{
 		const int count = get_bone_size(at);
@@ -610,6 +633,19 @@ namespace
 		delete [] utf16;
 		std::string utf8str = umbase::UMStringUtil::wstring_to_utf8(wchar);
 		return utf8str;
+	}
+
+	std::string get_buffer_filename(int at)
+	{
+		auto& buffer = BridgeParameter::instance().render_buffer(at);
+		if (buffer.isAccessory)
+		{
+			return get_accessory_filename(buffer.order);
+		}
+		else
+		{
+			return get_object_filename(buffer.order);
+		}
 	}
 
 	std::string get_bone_name(int at, int bone_index)
@@ -791,6 +827,7 @@ namespace
 }
 
 PYBIND11_MAKE_OPAQUE(std::vector<float>);
+PYBIND11_MAKE_OPAQUE(std::vector<int>);
 
 PYBIND11_PLUGIN(mmdbridge) {
 	py::module m("mmdbridge");
@@ -837,9 +874,13 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("get_end_frame", get_end_frame);
 	m.def("get_frame_width", get_frame_width);
 	m.def("get_frame_height", get_frame_height);
+	m.def("get_export_fps", get_export_fps);
 	m.def("get_base_path", get_base_path);
 	m.def("get_light", get_light);
 	m.def("get_light_color", get_light_color);
+	m.def("get_buffer_filename", get_buffer_filename);
+	m.def("get_accessory_size", get_accessory_size);
+	m.def("get_accessory_filename", get_accessory_filename);
 	m.def("get_object_size", get_object_size);
 	m.def("get_object_filename", get_object_filename);
 	m.def("get_bone_size", get_bone_size);
@@ -858,7 +899,8 @@ PYBIND11_PLUGIN(mmdbridge) {
 	m.def("invert_matrix", invert_matrix);
 	m.def("d3dx_vec3_normalize", d3dx_vec3_normalize);
 
-    py::bind_vector<std::vector<float>>(m, "VectorInt");
+	py::bind_vector<std::vector<float>>(m, "VectorFloat");
+	py::bind_vector<std::vector<int>>(m, "VectorInt");
 
 	return m.ptr();
 }
@@ -1544,7 +1586,21 @@ static bool writeBuffersToMemory(IDirect3DDevice9 *device)
 				{
 					renderedBuffer.isAccessory = true;
 					renderedBuffer.accessory = i;
+					renderedBuffer.order = i;
 					accesosoryMat = ExpGetAcsWorldMat(i);
+				}
+			}
+
+			if (!renderedBuffer.isAccessory)
+			{
+				for (int i = 0; i < ExpGetPmdNum(); ++i)
+				{
+					int order = ExpGetPmdOrder(i);
+					if (order == currentObject)
+					{
+						renderedBuffer.order = i;
+						break;
+					}
 				}
 			}
 
@@ -1671,6 +1727,8 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				D3DXHANDLE texHandle2 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "DiffuseBSTextureTec");
 				D3DXHANDLE texHandle3 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "BShadowSphiaTextureTec");
 				D3DXHANDLE texHandle4 = (*effect)->lpVtbl->GetTechniqueByName(*effect, "BShadowTextureTec");
+
+				textureParameter.hasTextureSampler2 = false;
 				if (current == texHandle1) {
 					//::MessageBoxA(NULL, "1", "transp", MB_OK);
 					textureParameter.hasTextureSampler2 = true;
@@ -1689,7 +1747,7 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				}
 
 				D3DXHANDLE hEdge = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "EgColor");
-				D3DXHANDLE hDiffuse = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "DifColor");
+				D3DXHANDLE hDiffuse = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "MatDifColor");
 				D3DXHANDLE hToon = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "ToonColor");
 				D3DXHANDLE hSpecular = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "SpcColor");
 				D3DXHANDLE hTransp = (*effect)->lpVtbl->GetParameterByName(*effect, NULL, "transp");
@@ -1704,13 +1762,11 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 				(*effect)->lpVtbl->GetFloatArray(*effect, hDiffuse, diffuse, 4);
 				(*effect)->lpVtbl->GetFloatArray(*effect, hSpecular, specular, 4);
 				(*effect)->lpVtbl->GetBool(*effect, hTransp, &transp);
-				mat->diffuse.x = edge[0] + specular[0];
-				if (mat->diffuse.x > 1) { mat->diffuse.x = 1.0f; }
-				mat->diffuse.y = edge[1] + specular[1];
-				if (mat->diffuse.y > 1) { mat->diffuse.y = 1.0f; }
-				mat->diffuse.z = edge[2] + specular[2];
-				if (mat->diffuse.z > 1) { mat->diffuse.z = 1.0f; }
-				mat->diffuse.w = edge[3];
+				mat->diffuse.x = diffuse[0];
+				mat->diffuse.y = diffuse[1];
+				mat->diffuse.z = diffuse[2];
+				mat->diffuse.w = diffuse[3];
+				mat->power = specular[3];
 
 				if (specular[0] != 0 || specular[1] != 0 || specular[2] != 0)
 				{
@@ -1757,16 +1813,17 @@ static bool writeMaterialsToMemory(TextureParameter & textureParameter)
 		if (renderedBuffer.isAccessory)
 		{
 			D3DMATERIAL9 accessoryMat = ExpGetAcsMaterial(renderedBuffer.accessory, currentMaterial);
-			mat->diffuse.x = accessoryMat.Diffuse.r;
-			mat->diffuse.y = accessoryMat.Diffuse.g;
-			mat->diffuse.z = accessoryMat.Diffuse.b;
-			mat->specular.x = accessoryMat.Specular.r;
-			mat->specular.y = accessoryMat.Specular.g;
-			mat->specular.z = accessoryMat.Specular.b;
+			mat->diffuse.x = accessoryMat.Diffuse.r * 10.0f;
+			mat->diffuse.y = accessoryMat.Diffuse.g * 10.0f;
+			mat->diffuse.z = accessoryMat.Diffuse.b * 10.0f;
+			mat->specular.x = accessoryMat.Specular.r * 10.0f;
+			mat->specular.y = accessoryMat.Specular.g * 10.0f;
+			mat->specular.z = accessoryMat.Specular.b * 10.0f;
 			mat->ambient.x = accessoryMat.Ambient.r;
 			mat->ambient.y = accessoryMat.Ambient.g;
 			mat->ambient.z = accessoryMat.Ambient.b;
-			mat->diffuse.w = ::ExpGetAcsTr(renderedBuffer.accessory);
+			mat->diffuse.w = accessoryMat.Diffuse.a;
+			mat->diffuse.w *= ::ExpGetAcsTr(renderedBuffer.accessory);
 		}
 
 		renderedBuffer.materials.push_back(mat);
@@ -1814,13 +1871,25 @@ static void writeLightToMemory(IDirect3DDevice9 *device, RenderedBuffer &rendere
 		D3DXVECTOR3 v(light.Direction.x, light.Direction.y, light.Direction.z);
 		D3DXVECTOR4 dst;
 		//D3DXVec3Transform(&dst, &v, &renderedBuffer.world);
-		umlight.x = v.x;
-		umlight.y = v.y;
-		umlight.z = v.z;
+		// NOTE: 平行移動成分を潰さなくても、回転するだけの関数がありそうな気がする。
+		D3DXMATRIX m = renderedBuffer.world_inv;
+		// ugly hack.
+		m._41 = m._42 = m._43 = 0; m._14 = m._24 = m._34 = m._44 = 0;
+		D3DXVec3Transform(&dst, &v, &m);
+
+		umlight.x = dst.x;
+		umlight.y = dst.y;
+		umlight.z = dst.z;
+
 		
-		renderedBuffer.light_color.x = light.Ambient.r;
-		renderedBuffer.light_color.y = light.Ambient.g;
-		renderedBuffer.light_color.z = light.Ambient.b;
+		// SpecularがMMDのUIで設定した値に一番近い。
+		// ただし col * 256.0 / 255.0しないと0～1の範囲にならない。
+		// see: http://ch.nicovideo.jp/sovoro_mmd/blomaga/ar319862
+		FLOAT s = 256.0f / 255.0f;
+		renderedBuffer.light_color.x = light.Specular.r * s;
+		renderedBuffer.light_color.y = light.Specular.g * s;
+		renderedBuffer.light_color.z = light.Specular.b * s;
+
 		//renderedBuffer.light_diffuse.x = light.Diffuse.r;
 		//renderedBuffer.light_diffuse.y = light.Diffuse.g;
 		//renderedBuffer.light_diffuse.z = light.Diffuse.b;
