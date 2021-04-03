@@ -75,6 +75,10 @@ def export_mtl(mtlpath, export_mode):
 			mtlfile.write("lum 1\n")
 			if len(texture) > 0:
 				texname, ext = os.path.splitext(texture)
+				if '/' in texname:
+					texname = texname.split('/')[-1]
+				if '\\' in texname:
+					texname = texname.split('\\')[-1]
 				if (ext is not ".bmp") and (ext is not ".png") and (ext is not ".tif") and \
 						(ext is not ".BMP") and (ext is not ".PNG") and (ext is not ".TIF"):
 					if '/' in texname:
