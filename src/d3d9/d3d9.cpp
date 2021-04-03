@@ -970,8 +970,12 @@ static bool writeTextureToFile(const std::string &texturePath, IDirect3DTexture9
 	if(tit != renderData.textureBuffers.end())
 	{
 		if (texture->lpVtbl) {
-			D3DXSaveTextureToFileA(texturePath.c_str(), fileFormat,(LPDIRECT3DBASETEXTURE9) texture, NULL);
-			return true;
+			std::wstring wstr = umbase::UMStringUtil::utf16_to_wstring(umbase::UMStringUtil::utf8_to_utf16(texturePath));
+			HRESULT res = D3DXSaveTextureToFileW(wstr.c_str(), fileFormat,(LPDIRECT3DBASETEXTURE9) texture, NULL);
+			if (res == S_OK)
+			{
+				return true;
+			}
 		}
 	}
 	return false;
