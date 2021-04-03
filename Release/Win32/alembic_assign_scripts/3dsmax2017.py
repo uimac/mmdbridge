@@ -22,7 +22,7 @@ def import_mtl(path, result, relation):
     
     export_mode = 0
     
-    mtl = open(path, 'r')
+    mtl = open(path, 'r', encoding = "utf-8")
     for line in mtl.readlines():
         words = line.split()
         if len(words) < 2:

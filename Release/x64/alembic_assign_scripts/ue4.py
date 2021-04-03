@@ -19,7 +19,7 @@ def import_mtl(path, result):
 	
 	current = None
 	
-	mtl = open(path, 'r')
+	mtl = open(path, 'r', encoding="utf-8")
 	for line in mtl.readlines():
 		words = line.split()
 		if len(words) < 2:

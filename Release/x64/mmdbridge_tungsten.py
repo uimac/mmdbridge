@@ -11,7 +11,7 @@ def export_mtl(mtlpath):
 	if os.path.isfile(mtlpath):
 		os.remove(mtlpath)
 
-	mtlfile = open(mtlpath, 'a')
+	mtlfile = open(mtlpath, 'a', encoding = "utf-8")
 
 	for buf in range(get_vertex_buffer_size()):
 		for mat in range(get_material_size(buf)):

@@ -23,7 +23,7 @@ def export_mtl(mtlpath, export_mode):
 	if os.path.isfile(mtlpath):
 		os.remove(mtlpath)
 
-	mtlfile = open(mtlpath, 'a')
+	mtlfile = open(mtlpath, 'a', encoding = "utf-8")
 
 	mtlfile.write("# mode "+str(export_mode)+"\n")
 

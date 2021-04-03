@@ -134,7 +134,7 @@ def export_mtl(mtlpath, export_mode):
 		os.remove(mtlpath)
 
 	win_command_flag='start /b /normal /WAIT \"\" '
-	mtlfile = open(mtlpath, 'a')
+	mtlfile = open(mtlpath, 'a', encoding = "utf-8")
 
 	mtlfile.write("# mode "+str(export_mode)+"\n")
 
