@@ -62,7 +62,8 @@ def import_mtl(path, result):
 
 
 # get selected abc asset
-actors = unreal.EditorLevelLibrary.get_selected_level_actors()
+actorSub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+actors = actorSub.get_selected_level_actors()
 abcActors = unreal.EditorFilterLibrary.by_class(actors, unreal.GeometryCacheAbcFileActor)
 
 if len(abcActors) > 0:
