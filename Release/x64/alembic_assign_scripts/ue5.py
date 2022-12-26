@@ -124,14 +124,18 @@ if len(abcActors) > 0:
 				texturePath = os.path.join(abc, mtlData.textureMap)
 				texturePathList.append(texturePath)
 
-	importedTexList = []
 	if len(texturePathList) > 0:
 		importData = unreal.AutomatedAssetImportData()
 		importData.set_editor_property('destination_path', texPath)
 		importData.set_editor_property('filenames', texturePathList)
 		importData.set_editor_property('replace_existing', True)
-		importedTexList = assetTool.import_assets_automated(importData)
-
+		assetTool.import_assets_automated(importData)
+		
+		importedTexArray = registory.get_assets_by_path(texPath)
+		importedTexDict = {}
+		for texAssetData in importedTexArray:
+			importedTexDict[str(texAssetData.asset_name)] = texAssetData
+		
 
 	for asset in assets:
 		materialName = str(asset.asset_name)
@@ -142,21 +146,19 @@ if len(abcActors) > 0:
 			mtlData = mtlDict[materialKey]
 			if len(mtlData.textureMap) > 0:
 
+				texKey = mtlData.textureMap.replace('.png', '')
+				importedTex = importedTexDict[texKey].get_asset()
 				texturePath = os.path.join(abc, mtlData.textureMap)
-				if texturePath in texturePathList:
-					texIndex = texturePathList.index(texturePath)
-					importedTex = importedTexList[texIndex]
-					colorTexNode = ME.get_material_property_input_node(matInstance, unreal.MaterialProperty.MP_BASE_COLOR)
-					print(materialName, colorTexNode)
-					if importedTex and colorTexNode == None:
-						colorTexNode = ME.create_material_expression(matInstance, unreal.MaterialExpressionTextureSample, -350, -200)
-						ME.connect_material_property(colorTexNode, "RGBA", unreal.MaterialProperty.MP_BASE_COLOR)
+				colorTexNode = ME.get_material_property_input_node(matInstance, unreal.MaterialProperty.MP_BASE_COLOR)
+				if importedTex and colorTexNode == None:
+					colorTexNode = ME.create_material_expression(matInstance, unreal.MaterialExpressionTextureSample, -350, -200)
+					ME.connect_material_property(colorTexNode, "RGBA", unreal.MaterialProperty.MP_BASE_COLOR)
 
-					colorTexNode.texture = importedTex
+				colorTexNode.texture = importedTex
 
-					if len(mtlData.alphaMap) > 0:
-						ME.connect_material_property(colorTexNode, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
-						matInstance.set_editor_property('blend_mode', unreal.BlendMode.BLEND_MASKED)
+				if len(mtlData.alphaMap) > 0:
+					ME.connect_material_property(colorTexNode, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+					matInstance.set_editor_property('blend_mode', unreal.BlendMode.BLEND_MASKED)
 			else:
 				colorNode = ME.create_material_expression(matInstance, unreal.MaterialExpressionConstant4Vector, -350, -200)
 				col = unreal.LinearColor()
