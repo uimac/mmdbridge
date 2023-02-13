@@ -152,7 +152,11 @@ if len(abcActors) > 0:
 				colorTexNode = ME.get_material_property_input_node(matInstance, unreal.MaterialProperty.MP_BASE_COLOR)
 				if importedTex and colorTexNode == None:
 					colorTexNode = ME.create_material_expression(matInstance, unreal.MaterialExpressionTextureSample, -350, -200)
-					ME.connect_material_property(colorTexNode, "RGBA", unreal.MaterialProperty.MP_BASE_COLOR)
+					ME.connect_material_property(colorTexNode, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+					ME.connect_material_property(colorTexNode, "A", unreal.MaterialProperty.MP_OPACITY)
+					matInstance.set_editor_property('blend_mode', unreal.BlendMode.BLEND_OPAQUE)
+					matInstance.set_editor_property('shading_model', unreal.MaterialShadingModel.MSM_SUBSURFACE_PROFILE)
+					matInstance.set_editor_property('two_sided', True)
 
 				colorTexNode.texture = importedTex
 
