@@ -1,6 +1,10 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(mmdbridge) # .sln
 
+# for UTF8 source codes
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 # shared compiler options
 SET(CMAKE_CXX_FLAGS "/EHsc /wd4267"
     )
@@ -12,9 +16,9 @@ SET(CMAKE_CXX_FLAGS_DEBUG
 # path settings
 #FIND_PACKAGE(PythonLibs REQUIRED)
 SET(PYTHON_INCLUDE_DIRS
-    ${CMAKE_INSTALL_PREFIX}/include/python3.6)
+    ${CMAKE_INSTALL_PREFIX}/include/python3.11)
 SET(PYTHON_LIBRARIES
-    ${CMAKE_INSTALL_PREFIX}/lib/python36.lib)
+    ${CMAKE_INSTALL_PREFIX}/lib/python311.lib)
 
 #FIND_PACKAGE(pybind11 REQUIRED)
 SET(pybind11_INCLUDE_DIRS
@@ -27,24 +31,28 @@ GET_FILENAME_COMPONENT(MMD_DIR
     )
 #FIND_PACKAGE(ilmbase REQUIRED)
 SET(ilmbase_INCLUDE_DIRS 
-    ${CMAKE_INSTALL_PREFIX}/include/OpenEXR)
+    ${CMAKE_INSTALL_PREFIX}/include/Imath)
 #FIND_PACKAGE(Alembic REQUIRED)
 SET(ALEMBIC_INCLUDE_DIRS
     ${CMAKE_INSTALL_PREFIX}/include)
 SET(ALEMBIC_LIBRARIES
-    ${CMAKE_INSTALL_PREFIX}/lib/Alembic.lib)
+    ${CMAKE_INSTALL_PREFIX}/lib/Alembic.lib
+    ${CMAKE_INSTALL_PREFIX}/lib/hdf5.lib
+    ${CMAKE_INSTALL_PREFIX}/lib/hdf5_hl.lib
+    ${CMAKE_INSTALL_PREFIX}/lib/Imath-3_1.lib
+    ${CMAKE_INSTALL_PREFIX}/lib/zlib.lib
+    ${CMAKE_INSTALL_PREFIX}/lib/szip.lib)
 
 # projects
 ADD_SUBDIRECTORY(src)
 
 # additional install files
 INSTALL(FILES 
-    ${CMAKE_INSTALL_PREFIX}/bin/python36.dll
+    ${CMAKE_INSTALL_PREFIX}/bin/python311.dll
     ${CMAKE_INSTALL_PREFIX}/bin/Alembic.dll
     ${CMAKE_INSTALL_PREFIX}/bin/hdf5.dll
-    ${CMAKE_INSTALL_PREFIX}/bin/imath-2_2.dll
-    ${CMAKE_INSTALL_PREFIX}/bin/iex-2_2.dll
-    ${CMAKE_INSTALL_PREFIX}/bin/half.dll
+    ${CMAKE_INSTALL_PREFIX}/bin/hdf5_hl.dll
+    ${CMAKE_INSTALL_PREFIX}/bin/imath-3_1.dll
     ${CMAKE_INSTALL_PREFIX}/bin/zlib1.dll
     ${CMAKE_INSTALL_PREFIX}/bin/szip.dll
     DESTINATION ${MMD_DIR}
@@ -55,7 +63,7 @@ INSTALL(FILES ${python_sciprts}
     DESTINATION ${MMD_DIR}
     )
 
-FILE(INSTALL ${CMAKE_INSTALL_PREFIX}/share/python3/Lib DESTINATION ${MMD_DIR})
+FILE(INSTALL ${CMAKE_INSTALL_PREFIX}/tools/python3/Lib DESTINATION ${MMD_DIR})
 
 INSTALL(DIRECTORY Release/Win32/alembic_assign_scripts 
     DESTINATION ${MMD_DIR}

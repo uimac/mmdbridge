@@ -1,4 +1,4 @@
-// ‚±‚Ìƒtƒ@ƒCƒ‹‚Ípython‚Å“K“–‚Éì‚Á‚½ƒtƒ@ƒCƒ‹‚ğ“K“–‚É‘‚«Š·‚¦‚½‚à‚Ì‚Å‚·
+// ã“ã®ãƒ•ã‚¡ã‚¤ãƒ«ã¯pythonã§é©å½“ã«ä½œã£ãŸãƒ•ã‚¡ã‚¤ãƒ«ã‚’é©å½“ã«æ›¸ãæ›ãˆãŸã‚‚ã®ã§ã™
 
 #define CINTERFACE
 
@@ -3512,7 +3512,7 @@ extern "C" {
 		//original_SetTexture = (*ppEffect)->lpVtbl->SetTexture;
 		//original_GetParameter = 	(*ppEffect)->lpVtbl->GetParameter;
 
-		// ‘‚«‚İ‘®«•t—^
+		// æ›¸ãè¾¼ã¿å±æ€§ä»˜ä¸
 		DWORD old_protect;
 		VirtualProtect(reinterpret_cast<void *>((*ppEffect)->lpVtbl), sizeof((*ppEffect)->lpVtbl), PAGE_EXECUTE_WRITECOPY, &old_protect);
 
@@ -3520,7 +3520,7 @@ extern "C" {
 		//(*ppEffect)->lpVtbl->SetTexture = setTexture;
 		//(*ppEffect)->lpVtbl->GetParameter = getParameter;
 
-		// ‘‚«‚İ‘®«Œ³‚É–ß‚·
+		// æ›¸ãè¾¼ã¿å±æ€§å…ƒã«æˆ»ã™
 		VirtualProtect(reinterpret_cast<void *>((*ppEffect)->lpVtbl), sizeof((*ppEffect)->lpVtbl), old_protect, &old_protect);
 
 		return res;
@@ -6427,7 +6427,7 @@ extern "C" {
 BOOL init()
 {
 
-	TCHAR app_full_path[1024];	// ƒAƒvƒŠƒtƒ‹ƒpƒX
+	TCHAR app_full_path[1024];	// ã‚¢ãƒ—ãƒªãƒ•ãƒ«ãƒ‘ã‚¹
 
 	GetModuleFileName(NULL, app_full_path, sizeof(app_full_path) / sizeof(TCHAR));
 
@@ -6443,20 +6443,20 @@ BOOL init()
 	//	mmdbridge_python_script.append("\r\n");
 	//}
 
-	//::MessageBoxA(NULL, "d3dx9_32.dll“Ç‚İ‚İ‚Ü‚·", "hoge",MB_OK);
-	TCHAR system_path_buffer[1024]; // ƒVƒXƒeƒ€ƒpƒX•Û‘¶—p
+	//::MessageBoxA(NULL, "d3dx9_32.dllèª­ã¿è¾¼ã¿ã¾ã™", "hoge",MB_OK);
+	TCHAR system_path_buffer[1024]; // ã‚·ã‚¹ãƒ†ãƒ ãƒ‘ã‚¹ä¿å­˜ç”¨
 	GetSystemDirectory(system_path_buffer, MAX_PATH );
 	std::wstring d3d9x_path(system_path_buffer);
 	d3d9x_path.append(_T("\\D3DX9_32.DLL"));
-	HMODULE d3d9x_module(LoadLibrary(d3d9x_path.c_str())); // ƒIƒŠƒWƒiƒ‹‚ÌD3D9X_32.DLL‚Ìƒ‚ƒWƒ…[ƒ‹
+	HMODULE d3d9x_module(LoadLibrary(d3d9x_path.c_str())); // ã‚ªãƒªã‚¸ãƒŠãƒ«ã®D3D9X_32.DLLã®ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«
 
 	if (!d3d9x_module) {
-		::MessageBoxA(NULL, "d3dx9_32.dll“Ç‚İ‚İ¸”s", "hoge",MB_OK);
+		::MessageBoxA(NULL, "d3dx9_32.dllèª­ã¿è¾¼ã¿å¤±æ•—", "hoge",MB_OK);
 		return FALSE;
 	}
 
-	//::MessageBoxA(NULL, "d3dx9_32.dll“Ç‚İ‚İ‚Ü‚µ‚½", "hoge",MB_OK);
-	//// ƒIƒŠƒWƒiƒ‹‚ÌŠÖ”ƒ|ƒCƒ“ƒ^‚ğæ“¾
+	//::MessageBoxA(NULL, "d3dx9_32.dllèª­ã¿è¾¼ã¿ã¾ã—ãŸ", "hoge",MB_OK);
+	//// ã‚ªãƒªã‚¸ãƒŠãƒ«ã®é–¢æ•°ãƒã‚¤ãƒ³ã‚¿ã‚’å–å¾—
 	original_D3DXAssembleShader = reinterpret_cast<HRESULT  (WINAPI*)(        LPCSTR                          pSrcData,         UINT                            SrcDataLen,         CONST D3DXMACRO*                pDefines,         LPD3DXINCLUDE                   pInclude,         DWORD                           Flags,         LPD3DXBUFFER*                   ppShader,         LPD3DXBUFFER*                   ppErrorMsgs)>(GetProcAddress(d3d9x_module, "D3DXAssembleShader"));
 	original_D3DXAssembleShaderFromFileA = reinterpret_cast<HRESULT  (WINAPI*)(        LPCSTR                          pSrcFile,         CONST D3DXMACRO*                pDefines,         LPD3DXINCLUDE                   pInclude,         DWORD                           Flags,         LPD3DXBUFFER*                   ppShader,         LPD3DXBUFFER*                   ppErrorMsgs)>(GetProcAddress(d3d9x_module, "D3DXAssembleShaderFromFileA"));
 	original_D3DXAssembleShaderFromFileW = reinterpret_cast<HRESULT  (WINAPI*)(        LPCWSTR                         pSrcFile,         CONST D3DXMACRO*                pDefines,         LPD3DXINCLUDE                   pInclude,         DWORD                           Flags,         LPD3DXBUFFER*                   ppShader,         LPD3DXBUFFER*                   ppErrorMsgs)>(GetProcAddress(d3d9x_module, "D3DXAssembleShaderFromFileW"));
@@ -6798,7 +6798,7 @@ void dispose()
 {
 }
 
-// DLLƒGƒ“ƒgƒŠƒ|ƒCƒ“ƒg
+// DLLã‚¨ãƒ³ãƒˆãƒªãƒã‚¤ãƒ³ãƒˆ
 BOOL APIENTRY DllMain(HINSTANCE, DWORD reason, LPVOID)
 {
 	switch (reason) {

@@ -1,4 +1,4 @@
-﻿#ifdef WITH_VMD
+#ifdef WITH_VMD
 
 #include "d3d9.h"
 #include "d3dx9.h"

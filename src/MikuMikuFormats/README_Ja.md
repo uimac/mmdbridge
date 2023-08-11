@@ -1,4 +1,4 @@
-﻿# MikuMikuFormats
+# MikuMikuFormats
 
 ## 概要
 
