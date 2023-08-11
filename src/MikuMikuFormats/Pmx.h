@@ -13,7 +13,7 @@ namespace pmx
 #else
 #define utfstring std::string
 #endif
-	/// ƒCƒ“ƒfƒbƒNƒXİ’è
+	/// ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹è¨­å®š
 	class PmxSetting
 	{
 	public:
@@ -28,26 +28,26 @@ namespace pmx
 			, rigidbody_index_size(0)
 		{}
 
-		/// ƒGƒ“ƒR[ƒh•û®
+		/// ã‚¨ãƒ³ã‚³ãƒ¼ãƒ‰æ–¹å¼
 		uint8_t encoding;
-		/// ’Ç‰ÁUV”
+		/// è¿½åŠ UVæ•°
 		uint8_t uv;
-		/// ’¸“_ƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// é ‚ç‚¹ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t vertex_index_size;
-		/// ƒeƒNƒXƒ`ƒƒƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t texture_index_size;
-		/// ƒ}ƒeƒŠƒAƒ‹ƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// ãƒãƒ†ãƒªã‚¢ãƒ«ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t material_index_size;
-		/// ƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// ãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t bone_index_size;
-		/// ƒ‚[ƒtƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// ãƒ¢ãƒ¼ãƒ•ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t morph_index_size;
-		/// „‘ÌƒCƒ“ƒfƒbƒNƒXƒTƒCƒY
+		/// å‰›ä½“ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚µã‚¤ã‚º
 		uint8_t rigidbody_index_size;
 		void Read(std::istream *stream);
 	};
 
-	/// ’¸“_ƒXƒLƒjƒ“ƒOƒ^ƒCƒv
+	/// é ‚ç‚¹ã‚¹ã‚­ãƒ‹ãƒ³ã‚°ã‚¿ã‚¤ãƒ—
 	enum class PmxVertexSkinningType : uint8_t
 	{
 		BDEF1 = 0,
@@ -57,7 +57,7 @@ namespace pmx
 		QDEF = 4,
 	};
 
-	/// ’¸“_ƒXƒLƒjƒ“ƒO
+	/// é ‚ç‚¹ã‚¹ã‚­ãƒ‹ãƒ³ã‚°
 	class PmxVertexSkinning
 	{
 	public:
@@ -164,7 +164,7 @@ namespace pmx
 		void Read(std::istream *stresam, PmxSetting *setting);
 	};
 
-	/// ’¸“_
+	/// é ‚ç‚¹
 	class PmxVertex
 	{
 	public:
@@ -183,24 +183,24 @@ namespace pmx
 			}
 		}
 
-		/// ˆÊ’u
+		/// ä½ç½®
 		float position[3];
-		/// –@ü
+		/// æ³•ç·š
 		float normal[3];
-		/// ƒeƒNƒXƒ`ƒƒÀ•W
+		/// ãƒ†ã‚¯ã‚¹ãƒãƒ£åº§æ¨™
 		float uv[2];
-		/// ’Ç‰ÁƒeƒNƒXƒ`ƒƒÀ•W
+		/// è¿½åŠ ãƒ†ã‚¯ã‚¹ãƒãƒ£åº§æ¨™
 		float uva[4][4];
-		/// ƒXƒLƒjƒ“ƒOƒ^ƒCƒv
+		/// ã‚¹ã‚­ãƒ‹ãƒ³ã‚°ã‚¿ã‚¤ãƒ—
 		PmxVertexSkinningType skinning_type;
-		/// ƒXƒLƒjƒ“ƒO
+		/// ã‚¹ã‚­ãƒ‹ãƒ³ã‚°
 		std::unique_ptr<PmxVertexSkinning> skinning;
-		/// ƒGƒbƒW”{—¦
+		/// ã‚¨ãƒƒã‚¸å€ç‡
 		float edge;
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
 
-	/// ƒ}ƒeƒŠƒAƒ‹
+	/// ãƒãƒ†ãƒªã‚¢ãƒ«
 	class PmxMaterial
 	{
 	public:
@@ -225,42 +225,42 @@ namespace pmx
 			}
 		}
 
-		/// ƒ‚ƒfƒ‹–¼
+		/// ãƒ¢ãƒ‡ãƒ«å
 		utfstring material_name;
-		/// ƒ‚ƒfƒ‹‰p–¼
+		/// ãƒ¢ãƒ‡ãƒ«è‹±å
 		utfstring material_english_name;
-		/// Œ¸ŠF
+		/// æ¸›è¡°è‰²
 		float diffuse[4];
-		/// Œõ‘òF
+		/// å…‰æ²¢è‰²
 		float specular[3];
-		/// Œõ‘ò“x
+		/// å…‰æ²¢åº¦
 		float specularlity;
-		/// ŠÂ‹«F
+		/// ç’°å¢ƒè‰²
 		float ambient[3];
-		/// •`‰æƒtƒ‰ƒO
+		/// æç”»ãƒ•ãƒ©ã‚°
 		uint8_t flag;
-		/// ƒGƒbƒWF
+		/// ã‚¨ãƒƒã‚¸è‰²
 		float edge_color[4];
-		/// ƒGƒbƒWƒTƒCƒY
+		/// ã‚¨ãƒƒã‚¸ã‚µã‚¤ã‚º
 		float edge_size;
-		/// ƒAƒ‹ƒxƒhƒeƒNƒXƒ`ƒƒƒCƒ“ƒfƒbƒNƒX
+		/// ã‚¢ãƒ«ãƒ™ãƒ‰ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int diffuse_texture_index;
-		/// ƒXƒtƒBƒAƒeƒNƒXƒ`ƒƒƒCƒ“ƒfƒbƒNƒX
+		/// ã‚¹ãƒ•ã‚£ã‚¢ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int sphere_texture_index;
-		/// ƒXƒtƒBƒAƒeƒNƒXƒ`ƒƒ‰‰Zƒ‚[ƒh
+		/// ã‚¹ãƒ•ã‚£ã‚¢ãƒ†ã‚¯ã‚¹ãƒãƒ£æ¼”ç®—ãƒ¢ãƒ¼ãƒ‰
 		uint8_t sphere_op_mode;
-		/// ‹¤—LƒgƒD[ƒ“ƒtƒ‰ƒO
+		/// å…±æœ‰ãƒˆã‚¥ãƒ¼ãƒ³ãƒ•ãƒ©ã‚°
 		uint8_t common_toon_flag;
-		/// ƒgƒD[ƒ“ƒeƒNƒXƒ`ƒƒƒCƒ“ƒfƒbƒNƒX
+		/// ãƒˆã‚¥ãƒ¼ãƒ³ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int toon_texture_index;
-		/// ƒƒ‚
+		/// ãƒ¡ãƒ¢
 		utfstring memo;
-		/// ’¸“_ƒCƒ“ƒfƒbƒNƒX”
+		/// é ‚ç‚¹ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹æ•°
 		int index_count;
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
 
-	/// ƒŠƒ“ƒN
+	/// ãƒªãƒ³ã‚¯
 	class PmxIkLink
 	{
 	public:
@@ -274,18 +274,18 @@ namespace pmx
 			}
 		}
 
-		/// ƒŠƒ“ƒNƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX
+		/// ãƒªãƒ³ã‚¯ãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int link_target;
-		/// Šp“x§ŒÀ
+		/// è§’åº¦åˆ¶é™
 		uint8_t angle_lock;
-		/// Å‘å§ŒÀŠp“x
+		/// æœ€å¤§åˆ¶é™è§’åº¦
 		float max_radian[3];
-		/// Å¬§ŒÀŠp“x
+		/// æœ€å°åˆ¶é™è§’åº¦
 		float min_radian[3];
 		void Read(std::istream *stream, PmxSetting *settingn);
 	};
 
-	/// ƒ{[ƒ“
+	/// ãƒœãƒ¼ãƒ³
 	class PmxBone
 	{
 	public:
@@ -311,43 +311,43 @@ namespace pmx
 			}
 		}
 
-		/// ƒ{[ƒ“–¼
+		/// ãƒœãƒ¼ãƒ³å
 		utfstring bone_name;
-		/// ƒ{[ƒ“‰p–¼
+		/// ãƒœãƒ¼ãƒ³è‹±å
 		utfstring bone_english_name;
-		/// ˆÊ’u
+		/// ä½ç½®
 		float position[3];
-		/// eƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX
+		/// è¦ªãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int parent_index;
-		/// ŠK‘w
+		/// éšå±¤
 		int level;
-		/// ƒ{[ƒ“ƒtƒ‰ƒO
+		/// ãƒœãƒ¼ãƒ³ãƒ•ãƒ©ã‚°
 		uint16_t bone_flag;
-		/// À•WƒIƒtƒZƒbƒg(has Target)
+		/// åº§æ¨™ã‚ªãƒ•ã‚»ãƒƒãƒˆ(has Target)
 		float offset[3];
-		/// Ú‘±æƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX(not has Target)
+		/// æ¥ç¶šå…ˆãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹(not has Target)
 		int target_index;
-		/// •t—^eƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX
+		/// ä»˜ä¸è¦ªãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int grant_parent_index;
-		/// •t—^—¦
+		/// ä»˜ä¸ç‡
 		float grant_weight;
-		/// ŒÅ’è²‚Ì•ûŒü
+		/// å›ºå®šè»¸ã®æ–¹å‘
 		float lock_axis_orientation[3];
-		/// ƒ[ƒJƒ‹²‚ÌX²•ûŒü
+		/// ãƒ­ãƒ¼ã‚«ãƒ«è»¸ã®Xè»¸æ–¹å‘
 		float local_axis_x_orientation[3];
-		/// ƒ[ƒJƒ‹²‚ÌY²•ûŒü
+		/// ãƒ­ãƒ¼ã‚«ãƒ«è»¸ã®Yè»¸æ–¹å‘
 		float local_axis_y_orientation[3];
-		/// ŠO•”e•ÏŒ`‚Ìkey’l
+		/// å¤–éƒ¨è¦ªå¤‰å½¢ã®keyå€¤
 		int key;
-		/// IKƒ^[ƒQƒbƒgƒ{[ƒ“
+		/// IKã‚¿ãƒ¼ã‚²ãƒƒãƒˆãƒœãƒ¼ãƒ³
 		int ik_target_bone_index;
-		/// IKƒ‹[ƒv‰ñ”
+		/// IKãƒ«ãƒ¼ãƒ—å›æ•°
 		int ik_loop;
-		/// IKƒ‹[ƒvŒvZ‚ÌŠp“x§ŒÀ(ƒ‰ƒWƒAƒ“)
+		/// IKãƒ«ãƒ¼ãƒ—è¨ˆç®—æ™‚ã®è§’åº¦åˆ¶é™(ãƒ©ã‚¸ã‚¢ãƒ³)
 		float ik_loop_angle_limit;
-		/// IKƒŠƒ“ƒN”
+		/// IKãƒªãƒ³ã‚¯æ•°
 		int ik_link_count;
-		/// IKƒŠƒ“ƒN
+		/// IKãƒªãƒ³ã‚¯
 		std::unique_ptr<PmxIkLink []> ik_links;
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
@@ -507,15 +507,15 @@ namespace pmx
 		void Read(std::istream *stream, PmxSetting *setting) override;
 	};
 
-	/// ƒ‚[ƒt
+	/// ãƒ¢ãƒ¼ãƒ•
 	class PmxMorph
 	{
 	public:
 		utfstring morph_name;
 		utfstring morph_english_name;
-		/// ƒJƒeƒSƒŠ
+		/// ã‚«ãƒ†ã‚´ãƒª
 		MorphCategory category;
-		/// ƒ‚[ƒtƒ^ƒCƒv
+		/// ãƒ¢ãƒ¼ãƒ•ã‚¿ã‚¤ãƒ—
 		MorphType morph_type;
 
 		std::vector<PmxMorphVertexOffset> vertex_offsets;
@@ -529,7 +529,7 @@ namespace pmx
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
 
-	/// ˜g“à—v‘f
+	/// æ å†…è¦ç´ 
 	class PmxFrameElement
 	{
 	public:
@@ -538,14 +538,14 @@ namespace pmx
 			, index(0)
 		{
 		}
-		/// —v‘f‘ÎÛ
+		/// è¦ç´ å¯¾è±¡
 		uint8_t element_target;
-		/// —v‘f‘ÎÛƒCƒ“ƒfƒbƒNƒX
+		/// è¦ç´ å¯¾è±¡ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int index;
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
 
-	/// •\¦˜g
+	/// è¡¨ç¤ºæ 
 	class PmxFrame
 	{
 	public:
@@ -554,15 +554,15 @@ namespace pmx
 			, element_count(0)
 		{
 		}
-		/// ˜g–¼
+		/// æ å
 		utfstring frame_name;
-		/// ˜g‰p–¼
+		/// æ è‹±å
 		utfstring frame_english_name;
-		/// “Áê˜gƒtƒ‰ƒO
+		/// ç‰¹æ®Šæ ãƒ•ãƒ©ã‚°
 		uint8_t frame_flag;
-		/// ˜g“à—v‘f”
+		/// æ å†…è¦ç´ æ•°
 		int element_count;
-		/// ˜g“à—v‘f”z—ñ
+		/// æ å†…è¦ç´ é…åˆ—
 		std::unique_ptr<PmxFrameElement []> elements;
 		void Read(std::istream *stream, PmxSetting *setting);
 	};
@@ -588,17 +588,17 @@ namespace pmx
 				orientation[i] = 0.0f;
 			}
 		}
-		/// „‘Ì–¼
+		/// å‰›ä½“å
 		utfstring girid_body_name;
-		/// „‘Ì‰p–¼
+		/// å‰›ä½“è‹±å
 		utfstring girid_body_english_name;
-		/// ŠÖ˜Aƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX
+		/// é–¢é€£ãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 		int target_bone;
-		/// ƒOƒ‹[ƒv
+		/// ã‚°ãƒ«ãƒ¼ãƒ—
 		uint8_t group;
-		/// ƒ}ƒXƒN
+		/// ãƒã‚¹ã‚¯
 		uint16_t mask;
-		/// Œ`ó
+		/// å½¢çŠ¶
 		uint8_t shape;
 		float size[3];
 		float position[3];
@@ -789,13 +789,13 @@ namespace pmx
 		std::vector<PmxMaterial> materials;
 		std::vector<PmxBone> bones;
 		std::vector<PmxMorph> morphs;
-		/// •\¦˜g”z—ñ
+		/// è¡¨ç¤ºæ é…åˆ—
 		std::vector<PmxFrame> frames;
 		std::vector<PmxRigidBody> rigid_bodies;
 		std::vector<PmxJoint> joints;
 		std::vector<PmxSoftBody> soft_bodies;
 
-		/// ƒ‚ƒfƒ‹‰Šú‰»
+		/// ãƒ¢ãƒ‡ãƒ«åˆæœŸåŒ–
 		void Init();
 
 		void Read(std::istream *stream);

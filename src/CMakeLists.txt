@@ -41,7 +41,7 @@ TARGET_LINK_LIBRARIES(d3d9
     ${PYTHON_LIBRARIES}
     Shlwapi
     WinMM
-    d3dx9_43
+    d3dx9_32
     MMDExport
     MikuMikuFormats
     ${ALEMBIC_LIBRARIES}

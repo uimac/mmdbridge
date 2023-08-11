@@ -1,4 +1,4 @@
-﻿# MikuMikuFormats
+# MikuMikuFormats
 
 [日本語README](README_Ja.md)
 

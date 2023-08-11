@@ -8,7 +8,7 @@
 
 namespace pmx
 {
-	/// ƒCƒ“ƒfƒbƒNƒX’l‚ğ“Ç‚İ‚Ş
+	/// ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹å€¤ã‚’èª­ã¿è¾¼ã‚€
 	int ReadIndex(std::istream *stream, int size)
 	{
 		switch (size)
@@ -42,7 +42,7 @@ namespace pmx
 		}
 	}
 
-	/// •¶š—ñ‚ğ“Ç‚İ‚Ş
+	/// æ–‡å­—åˆ—ã‚’èª­ã¿è¾¼ã‚€
 	utfstring ReadString(std::istream *stream, uint8_t encoding)
 	{
 #ifndef __unix__
@@ -462,7 +462,7 @@ namespace pmx
 
 	void PmxSoftBody::Read(std::istream *stream, PmxSetting *setting)
 	{
-		// –¢À‘•
+		// æœªå®Ÿè£…
 		std::cerr << "Not Implemented Exception" << std::endl;
 		throw;
 	}
@@ -489,7 +489,7 @@ namespace pmx
 
 	void PmxModel::Read(std::istream *stream)
 	{
-		// ƒ}ƒWƒbƒN
+		// ãƒã‚¸ãƒƒã‚¯
 		char magic[4];
 		stream->read((char*)magic, sizeof(char) * 4);
 		if (magic[0] != 0x50 || magic[1] != 0x4d || magic[2] != 0x58 || magic[3] != 0x20)
@@ -497,23 +497,23 @@ namespace pmx
 			std::cerr << "invalid magic number." << std::endl;
 			throw;
 		}
-		// ƒo[ƒWƒ‡ƒ“
+		// ãƒãƒ¼ã‚¸ãƒ§ãƒ³
 		stream->read((char*)&version, sizeof(float));
 		if (version != 2.0f && version != 2.1f)
 		{
 			std::cerr << "this is not ver2.0 or ver2.1 but " << version << "." << std::endl;
 			throw;
 		}
-		// ƒtƒ@ƒCƒ‹İ’è
+		// ãƒ•ã‚¡ã‚¤ãƒ«è¨­å®š
 		this->setting.Read(stream);
 
-		// ƒ‚ƒfƒ‹î•ñ
+		// ãƒ¢ãƒ‡ãƒ«æƒ…å ±
 		this->model_name = std::move(ReadString(stream, setting.encoding));
 		this->model_english_name = std::move(ReadString(stream, setting.encoding));
 		this->model_comment = std::move(ReadString(stream, setting.encoding));
 		this->model_english_comment = std::move(ReadString(stream, setting.encoding));
 
-		// ’¸“_
+		// é ‚ç‚¹
 		{
 			int vertex_count;
 			stream->read((char*)&vertex_count, sizeof(int));
@@ -524,7 +524,7 @@ namespace pmx
 			}
 		}
 
-		// –Ê
+		// é¢
 		{
 			int index_count;
 			stream->read((char*)&index_count, sizeof(int));
@@ -535,7 +535,7 @@ namespace pmx
 			}
 		}
 
-		// ƒeƒNƒXƒ`ƒƒ
+		// ãƒ†ã‚¯ã‚¹ãƒãƒ£
 		{
 			int texture_count;
 			stream->read((char*)&texture_count, sizeof(int));
@@ -546,7 +546,7 @@ namespace pmx
 			}
 		}
 
-		// ƒ}ƒeƒŠƒAƒ‹
+		// ãƒãƒ†ãƒªã‚¢ãƒ«
 		{
 			int material_count;
 			stream->read((char*)&material_count, sizeof(int));
@@ -557,7 +557,7 @@ namespace pmx
 			}
 		}
 
-		// ƒ{[ƒ“
+		// ãƒœãƒ¼ãƒ³
 		{
 			int bone_count;
 			stream->read((char*)&bone_count, sizeof(int));
@@ -568,7 +568,7 @@ namespace pmx
 			}
 		}
 
-		// ƒ‚[ƒt
+		// ãƒ¢ãƒ¼ãƒ•
 		{
 			int morph_count;
 			stream->read((char*)&morph_count, sizeof(int));
@@ -579,7 +579,7 @@ namespace pmx
 			}
 		}
 
-		// •\¦˜g
+		// è¡¨ç¤ºæ 
 		{
 			int frame_count;
 			stream->read((char*)&frame_count, sizeof(int));
@@ -590,7 +590,7 @@ namespace pmx
 			}
 		}
 
-		// „‘Ì
+		// å‰›ä½“
 		{
 			int rigid_body_count;
 			stream->read((char*)&rigid_body_count, sizeof(int));
@@ -601,7 +601,7 @@ namespace pmx
 			}
 		}
 
-		// ƒWƒ‡ƒCƒ“ƒg
+		// ã‚¸ãƒ§ã‚¤ãƒ³ãƒˆ
 		{
 			int joint_count;
 			stream->read((char*)&joint_count, sizeof(int));

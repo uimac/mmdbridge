@@ -1,4 +1,4 @@
-LIBRARY d3dx9_43
+LIBRARY d3dx9_32
 EXPORTS
 	D3DXAssembleShader	@1
 	D3DXAssembleShaderFromFileA	@2

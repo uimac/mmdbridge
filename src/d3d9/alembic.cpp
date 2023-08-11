@@ -1,4 +1,4 @@
-﻿#ifdef WITH_ALEMBIC
+#ifdef WITH_ALEMBIC
 
 #include "d3d9.h"
 #include "d3dx9.h"
