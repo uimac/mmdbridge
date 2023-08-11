@@ -52,7 +52,7 @@ VCPKG_DIR
 例。
 
 ```
-VCPKG_DIR="C:\vcpkg"
+SET VCPKG_DIR="C:\vcpkg"
 ```
 
 # DirectX SDKの準備
@@ -65,7 +65,7 @@ VCPKG_DIR="C:\vcpkg"
 例。
 
 ```
-DXSDK_DIR=C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)
+SET DXSDK_DIR=C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)
 ```
 
 あとで、mmdbridgeをビルドするときにエラーが出るのですが下記を参考に修正してください。
