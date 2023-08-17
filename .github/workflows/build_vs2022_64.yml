@@ -1,0 +1,143 @@
+name: build_vs2022_64
+
+on: [push]
+
+env:
+  # Path to the solution file relative to the root of the project.
+  SOLUTION_FILE_PATH: ./build_vs2022_64/mmdbridge.sln
+  INSTALL_PROJECT_PATH: ./build_vs2022_64/INSTALL.vcxproj
+
+  # Configuration type to build.
+  # You can convert this to a build matrix if you need coverage of multiple configuration types.
+  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  BUILD_CONFIGURATION: Release
+  BULID_PLATFORM: x64
+ 
+  VCPKG_INSTALL_PATH: "$env:VCPKG_INSTALLATION_ROOT/installed"
+  
+jobs:
+  build:
+    runs-on: windows-2022
+    
+    steps:
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1
+      
+    - name: Check MSBuild.exe
+      run: MSBuild.exe -version | Out-File -FilePath $env:GITHUB_WORKSPACE\MSBuild_version
+      
+    - name: Add VCPKG_DIR to ENV
+      run : echo "VCPKG_DIR=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+      shell: bash
+      
+    # https://stackoverflow.com/questions/61037714/how-to-install-an-old-version-of-the-direct-x-api-in-github-actions
+    - name:  Add DXSDK_DIR to ENV
+      run: |
+        winhome=`cygpath -w $HOME`
+        echo DXSDK_DIR=$winhome/cache/ >> $GITHUB_ENV
+      shell: bash
+      
+    - name: DXSDK from cache
+      id:   cache
+      uses: actions/cache@v3
+      with:
+        path: ~/cache
+        key: v1-cache
+
+    - name: DXSDK cache create
+      if:    ${{steps.cache.outputs.cache-hit != 'true'}}
+      run:   |
+         curl -L https://download.microsoft.com/download/a/e/7/ae743f1f-632b-4809-87a9-aa1bb3458e31/DXSDK_Jun10.exe -o _DX2010_.exe
+         mkdir -p $HOME/cache
+         mv _DX2010_.exe $HOME/cache/
+         7z x $HOME/cache/_DX2010_.exe DXSDK/Include -o_DX2010_
+         7z x $HOME/cache/_DX2010_.exe DXSDK/Lib/x64 -o_DX2010_
+         mv _DX2010_/DXSDK/* $HOME/cache/
+         rm -fR _DX*_
+      shell: bash
+      
+    - name: DXSDK comment out some codes
+      run: |
+        sed -i -e "347 s/#/\/\/#/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "348 s/#/\/\/#/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "349 s/HRESULT/\/\/HRESULT/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "350 s/HRESULT/\/\/HRESULT/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "351 s/#/\/\/#/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "352 s/HRESULT/\/\/HRESULT/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "353 s/HRESULT/\/\/HRESULT/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "354 s/#/\/\/#/g" $HOME/cache/include/d3dx9core.h
+        sed -i -e "355 s/#/\/\/#/g" $HOME/cache/include/d3dx9core.h
+      shell: bash
+
+    - name:  Add MMD_DIR to ENV
+      run: |
+        winhome=`cygpath -w $HOME`
+        echo MMD_DIR=$winhome/cache_mmd/ >> $GITHUB_ENV
+      shell: bash
+      
+    - name: MMD from cache_mmd
+      id:   cache_mmd
+      uses: actions/cache@v3
+      with:
+        path: ~/cache_mmd
+        key: v2-cache_mmd
+
+    - name: Copy MMD
+      if:   ${{steps.cache_mmd.outputs.cache-hit != 'true'}}
+      run:  |
+         curl -L "https://drive.google.com/uc?id=1Iucxu0tDsD05Siyv8VBGgm9vjD-f-RhM&export=download" -o _MikuMikuDance_.zip
+         mkdir -p $HOME/cache_mmd
+         mv _MikuMikuDance_.zip $HOME/cache_mmd/
+         7z x $HOME/cache_mmd/_MikuMikuDance_.zip MikuMikuDance_v932x64/Data -o_MikuMikuDance_
+         mv _MikuMikuDance_/MikuMikuDance_v932x64/* $HOME/cache_mmd/
+         iconv -f CP932 -t UTF-8 $HOME/cache_mmd/Data/MMDExport.h > $HOME/cache_mmd/Data/_MMDExport.h
+         mv $HOME/cache_mmd/Data/_MMDExport.h $HOME/cache_mmd/Data/MMDExport.h
+         rm -fR _MikuMikuDance*_
+      shell: bash
+      
+    - uses: actions/github-script@v6
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      
+    - name: Install python3 via vcpkg
+      run: vcpkg install python3:x64-windows-release --binarysource="clear;x-gha,readwrite"
+
+    - name: Install alembic, pybind11 via vcpkg
+      run: |
+        vcpkg install alembic[hdf5]:x64-windows-release pybind11:x64-windows-release --binarysource="clear;x-gha,readwrite"
+      
+    - name: vcpkg integration
+      run: vcpkg integrate install
+
+    - name: Checkout MMDBridge
+      uses: actions/checkout@v3
+
+    - name: cmake
+      shell: cmd
+      run: .\cmake_vs2022_64.bat
+
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      # Add additional options to the MSBuild command line here (like platform or verbosity level).
+      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
+      run: |
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.BULID_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+
+    - name: Install
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: |
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.BULID_PLATFORM}} ${{env.INSTALL_PROJECT_PATH}}
+
+    - name: Zip
+      run: |
+        rm -f ~/MMDBridge_artifact_*
+        7z a ~/MMDBridge_artifact_${GITHUB_RUN_NUMBER}.zip -r0 ~/cache_mmd/* -x!*_MikuMikuDance_.zip -xr!*Data*
+      shell: bash
+      
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+          path: ~/MMDBridge_artifact_${{github.run_number}}.zip
+          
