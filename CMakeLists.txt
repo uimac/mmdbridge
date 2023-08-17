@@ -16,19 +16,27 @@ SET(CMAKE_CXX_FLAGS_DEBUG
 # path settings
 #FIND_PACKAGE(PythonLibs REQUIRED)
 SET(PYTHON_INCLUDE_DIRS
-    ${CMAKE_INSTALL_PREFIX}/include/python3.11)
+    ${CMAKE_INSTALL_PREFIX}/include/python3.10)
 SET(PYTHON_LIBRARIES
-    ${CMAKE_INSTALL_PREFIX}/lib/python311.lib)
+    ${CMAKE_INSTALL_PREFIX}/lib/python310.lib)
 
 #FIND_PACKAGE(pybind11 REQUIRED)
 SET(pybind11_INCLUDE_DIRS
     ${CMAKE_INSTALL_PREFIX}/include
     ${PYTHON_INCLUDE_DIRS}
     )
-GET_FILENAME_COMPONENT(MMD_DIR
-    ${CMAKE_CURRENT_LIST_DIR}/MikuMikuDance_x64
-    ABSOLUTE
-    )
+
+if(DEFINED ENV{MMD_DIR})
+    SET(MMD_DIR
+        $ENV{MMD_DIR}
+        )
+else()
+    GET_FILENAME_COMPONENT(MMD_DIR
+        ${CMAKE_CURRENT_LIST_DIR}/MikuMikuDance_x64
+        ABSOLUTE
+        )
+endif()
+
 #FIND_PACKAGE(ilmbase REQUIRED)
 SET(ilmbase_INCLUDE_DIRS 
     ${CMAKE_INSTALL_PREFIX}/include/Imath)
@@ -48,7 +56,7 @@ ADD_SUBDIRECTORY(src)
 
 # additional install files
 INSTALL(FILES 
-    ${CMAKE_INSTALL_PREFIX}/bin/python311.dll
+    ${CMAKE_INSTALL_PREFIX}/bin/python310.dll
     ${CMAKE_INSTALL_PREFIX}/bin/Alembic.dll
     ${CMAKE_INSTALL_PREFIX}/bin/hdf5.dll
     ${CMAKE_INSTALL_PREFIX}/bin/hdf5_hl.dll
